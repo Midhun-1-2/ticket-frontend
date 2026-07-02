@@ -23,7 +23,7 @@ function Header() {
         <div className="nav-group-label">Overview</div>
         <ul className="nav">
           <li className="nav-item">
-            <Link to="/" className={isActive("/")}>
+            <Link to="/dashboard/" className={isActive("/dashboard/")}>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>
               <span className="label">Dashboard</span>
             </Link>
