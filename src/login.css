@@ -1,0 +1,273 @@
+/* =========================================================================
+   Login / Auth screen — reuses design tokens defined in style.css
+   (--ink, --accent, --paper, --font-display, --font-mono, etc.)
+   ========================================================================= */
+
+.auth-screen{
+  min-height: 100vh;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--paper);
+  padding: 24px;
+}
+
+.auth-card{
+  width: 100%;
+  max-width: 400px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-card);
+  padding: 32px 28px 28px;
+}
+
+.auth-brand{
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 28px;
+}
+.auth-brand .brand-mark{
+  width: 40px; height: 40px; flex-shrink: 0;
+  border-radius: 9px;
+  background: linear-gradient(155deg, var(--accent) 0%, #133C36 100%);
+  display: flex; align-items: center; justify-content: center;
+  color: #EAF6F3;
+  font-family: var(--font-display); font-weight: 700; font-size: 16px;
+}
+.auth-brand .brand-name{
+  font-family: var(--font-display); font-weight: 700; font-size: 17px; color: var(--text);
+}
+.auth-brand .brand-sub{
+  font-size: 12.5px; color: var(--text-muted); margin-top: 1px;
+}
+
+.auth-form{
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.auth-field{
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.auth-label{
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text);
+}
+.auth-field input{
+  height: 42px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0 12px;
+  font-size: 14px;
+  font-family: var(--font-body);
+  color: var(--text);
+  background: #fff;
+  outline: 0;
+  transition: border-color .15s ease;
+}
+.auth-field input::placeholder{ color: var(--text-faint); }
+.auth-field input:focus{ border-color: var(--accent); }
+
+.auth-role-detected{
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-muted);
+  background: var(--accent-soft);
+  border-radius: 6px;
+  padding: 6px 10px;
+  margin-top: -6px;
+}
+.auth-role-detected span{
+  color: var(--accent-ink);
+  font-weight: 600;
+}
+
+/* Fixed: was justify-content: flex-end with no gap, which crammed the
+   toggle button and "Forgot Password?" together with zero space between
+   them. Now spaced apart, with a graceful fallback to right-alignment
+   when only one item (Forgot Password) is present. */
+.auth-row{
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin-top: -6px;
+}
+
+.auth-link{
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--accent-ink);
+  white-space: nowrap;
+}
+.auth-link:hover{ text-decoration: underline; }
+
+/* New: styles the "Use M-PIN instead" / "Use password instead" toggle
+   so it looks like a link, not a default browser button. */
+.auth-link-btn{
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  font-family: var(--font-body);
+}
+
+.auth-error{
+  font-size: 12.5px;
+  color: var(--red);
+  background: var(--red-soft);
+  border-radius: 6px;
+  padding: 8px 10px;
+}
+
+.auth-submit{
+  width: 100%;
+  justify-content: center;
+  height: 42px;
+  margin-top: 4px;
+}
+.auth-submit:disabled{ opacity: .6; cursor: not-allowed; }
+
+.auth-signup{
+  text-align: center;
+  font-size: 12.5px;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+
+/* --- Pending approval notice state --- */
+.auth-notice{
+  text-align: center;
+  padding: 8px 0 4px;
+}
+.auth-notice-title{
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 15.5px;
+  color: var(--amber);
+  margin-bottom: 10px;
+}
+.auth-notice-body{
+  font-size: 13.5px;
+  color: var(--text-muted);
+  line-height: 1.5;
+  margin-bottom: 20px;
+}
+.auth-back-btn{
+  width: 100%;
+  justify-content: center;
+}
+
+/* --- Create M-PIN modal (first-time login) --- */
+.modal-overlay{
+  position: fixed;
+  inset: 0;
+  background: rgba(20, 23, 31, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  z-index: 100;
+}
+
+.modal-card{
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-card);
+  width: 100%;
+  max-width: 380px;
+  padding: 24px 24px 20px;
+}
+
+.modal-head{ margin-bottom: 18px; }
+
+.modal-title{
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text);
+  margin: 0 0 6px;
+}
+
+.modal-sub{
+  font-size: 13px;
+  color: var(--text-muted);
+  line-height: 1.5;
+  margin: 0;
+}
+
+.modal-form{
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.modal-actions{ margin-top: 6px; }
+.modal-actions .btn{ width: 100%; justify-content: center; }
+
+@media (max-width: 420px){
+  .auth-card{ padding: 26px 20px 22px; }
+}
+
+.toast{
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px 12px 16px;
+  border-radius: var(--radius-sm, 6px);
+  box-shadow: var(--shadow-card, 0 8px 24px -12px rgba(20,23,31,0.25));
+  font-size: 13px;
+  font-weight: 500;
+  max-width: 340px;
+  animation: toast-slide-in .2s ease;
+}
+
+@keyframes toast-slide-in{
+  from{ opacity: 0; transform: translateX(16px); }
+  to{ opacity: 1; transform: translateX(0); }
+}
+
+.toast-success{
+  background: var(--accent-soft, #E3F1EE);
+  color: var(--accent-ink, #0B4F47);
+  border: 1px solid var(--accent, #0F6E63);
+}
+
+.toast-message{
+  flex: 1;
+  line-height: 1.4;
+}
+
+.toast-close{
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+  color: inherit;
+  opacity: 0.6;
+  padding: 0;
+  flex-shrink: 0;
+}
+.toast-close:hover{ opacity: 1; }
+
+@media (max-width: 420px){
+  .toast{
+    top: 12px;
+    right: 12px;
+    left: 12px;
+    max-width: none;
+  }
+}

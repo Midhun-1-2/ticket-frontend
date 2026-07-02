@@ -1,0 +1,112 @@
+/* =========================================================================
+   Auth Modal — Create M-PIN (first-time login)
+   Uses the same design tokens as the dashboard shell.
+   ========================================================================= */
+
+.modal-overlay{
+  position: fixed;
+  inset: 0;
+  background: rgba(20, 23, 31, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  z-index: 100;
+  animation: modal-fade-in .15s ease;
+}
+
+@keyframes modal-fade-in{
+  from{ opacity: 0; }
+  to{ opacity: 1; }
+}
+
+.modal-card{
+  background: var(--surface, #fff);
+  border-radius: var(--radius, 10px);
+  box-shadow: var(--shadow-card, 0 8px 24px -12px rgba(20,23,31,0.25));
+  width: 100%;
+  max-width: 380px;
+  padding: 24px 24px 20px;
+  animation: modal-pop-in .18s ease;
+}
+
+@keyframes modal-pop-in{
+  from{ opacity: 0; transform: translateY(8px) scale(0.98); }
+  to{ opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.modal-head{
+  margin-bottom: 18px;
+}
+
+.modal-title{
+  font-family: var(--font-display, sans-serif);
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text, #1C1E22);
+  margin: 0 0 6px;
+}
+
+.modal-sub{
+  font-size: 13px;
+  color: var(--text-muted, #6E6B62);
+  line-height: 1.5;
+  margin: 0;
+}
+
+.modal-form{
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.modal-actions{
+  margin-top: 6px;
+}
+
+.modal-actions .btn{
+  width: 100%;
+  justify-content: center;
+}
+
+/* Shared auth-field styling, in case login.css doesn't already define it
+   identically — safe to remove if these rules duplicate login.css. */
+.auth-field{
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.auth-field .auth-label{
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text, #1C1E22);
+}
+.auth-field input{
+  height: 40px;
+  padding: 0 12px;
+  border: 1px solid var(--line, #E5E2DA);
+  border-radius: var(--radius-sm, 6px);
+  font-size: 14px;
+  font-family: var(--font-body, sans-serif);
+  outline: none;
+  transition: border-color .15s ease;
+}
+.auth-field input:focus{
+  border-color: var(--accent, #0F6E63);
+}
+
+.auth-error{
+  background: var(--red-soft, #FAE6E1);
+  color: var(--red, #C4432E);
+  font-size: 12.5px;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm, 6px);
+}
+
+.auth-link-btn{
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  font-size: inherit;
+}
