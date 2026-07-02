@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import '/src/Onboarding.css'
+import apiClient from '../client'
 
 // ---------- Static dropdown options ----------
 
@@ -61,12 +62,69 @@ const initialFormData = {
   contractRefNumber: '',
 }
 
+// ---------- camelCase (frontend) <-> snake_case (backend) mapping ----------
+
+function toBackendPayload(formData, products, draftToken) {
+  return {
+    ...(draftToken ? { draft_token: draftToken } : {}),
+    company_name: formData.companyName,
+    company_type: formData.companyType,
+    gst_number: formData.gstNumber,
+    pan_number: formData.panNumber,
+    website: formData.website,
+    industry_type: formData.industryType,
+    annual_turnover: formData.annualTurnover,
+    employee_count: formData.employeeCount,
+    address_line1: formData.addressLine1,
+    address_line2: formData.addressLine2,
+    city: formData.city,
+    state: formData.state,
+    country: formData.country,
+    pincode: formData.pincode,
+    contact_name: formData.contactName,
+    designation: formData.designation,
+    email: formData.email,
+    mobile_number: formData.mobileNumber,
+    phone_number: formData.phoneNumber,
+    alternate_email: formData.alternateEmail,
+    amc_status: formData.amcStatus,
+    amc_start_date: formData.amcStartDate || null,
+    amc_end_date: formData.amcEndDate || null,
+    preferred_channel: formData.preferredChannel,
+    preferred_time: formData.preferredTime,
+    remarks: formData.remarks,
+    products_in_use: formData.productsInUse,
+    contract_ref_number: formData.contractRefNumber,
+    products: products.map((p) => ({
+      product_name: p.productName,
+      product_version: p.productVersion,
+      activation_date: p.activationDate || null,
+      support_type: p.supportType,
+      remarks: p.remarks,
+    })),
+  }
+}
+
+// Flattens DRF's { field: ["error msg"] } into one readable string.
+function flattenApiErrors(data) {
+  if (!data || typeof data !== 'object') return 'Something went wrong. Please try again.'
+  if (data.detail) return data.detail
+  return Object.entries(data)
+    .map(([field, messages]) => `${field}: ${Array.isArray(messages) ? messages.join(', ') : messages}`)
+    .join('\n')
+}
+
 function Onboarding() {
   const [step, setStep] = useState(1) // 1, 2, 3, or 4 = submitted
   const [formData, setFormData] = useState(initialFormData)
   const [products, setProducts] = useState([emptyProduct()])
   const [confirmed, setConfirmed] = useState(false)
   const [errors, setErrors] = useState({})
+  const [draftToken, setDraftToken] = useState(null)
+  const [submittedCode, setSubmittedCode] = useState(null)
+  const [isSaving, setIsSaving] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [apiError, setApiError] = useState('')
 
   const updateField = (field, value) => {
     setFormData((prev) => ({ ...prev, [field]: value }))
@@ -114,6 +172,9 @@ function Onboarding() {
     if (formData.email && !/^\S+@\S+\.\S+$/.test(formData.email)) {
       nextErrors.email = 'Enter a valid email address'
     }
+    if (formData.mobileNumber && !/^\d{10}$/.test(formData.mobileNumber)) {
+      nextErrors.mobileNumber = 'Mobile number must be exactly 10 digits'
+    }
     if (!formData.amcStatus) nextErrors.amcStatus = 'AMC status is required'
     if (formData.productsInUse.length === 0) nextErrors.productsInUse = 'Select at least one product or service'
     setErrors(nextErrors)
@@ -128,16 +189,36 @@ function Onboarding() {
     setStep(3)
   }
 
-  const handleSubmit = () => {
-    if (!confirmed) return
-    // TODO: replace with real API call, e.g.
-    // await fetch('/api/onboarding', { method: 'POST', body: JSON.stringify({ ...formData, products }) })
-    setStep(4)
+  // ---------- Backend calls ----------
+
+  const handleSaveDraft = async () => {
+    setIsSaving(true)
+    setApiError('')
+    try {
+      const payload = toBackendPayload(formData, products, draftToken)
+      const res = await apiClient.post('/onboarding/draft/', payload)
+      setDraftToken(res.data.draft_token)
+    } catch (err) {
+      setApiError(flattenApiErrors(err.response?.data))
+    } finally {
+      setIsSaving(false)
+    }
   }
 
-  const handleSaveDraft = () => {
-    // TODO: wire up to a real "save draft" endpoint
-    alert('Draft saved.')
+  const handleSubmit = async () => {
+    if (!confirmed) return
+    setIsSubmitting(true)
+    setApiError('')
+    try {
+      const payload = toBackendPayload(formData, products, draftToken)
+      const res = await apiClient.post('/onboarding/submit/', payload)
+      setSubmittedCode(res.data.company_code)
+      setStep(4)
+    } catch (err) {
+      setApiError(flattenApiErrors(err.response?.data))
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   // ---------- Stepper ----------
@@ -163,10 +244,21 @@ function Onboarding() {
     </div>
   )
 
+  const renderApiError = () =>
+    apiError ? (
+      <div style={{
+        background: '#fdecea', border: '1px solid #f3b4ae', color: '#a3231b',
+        borderRadius: 8, padding: '10px 14px', fontSize: 13, marginBottom: 18, whiteSpace: 'pre-line',
+      }}>
+        {apiError}
+      </div>
+    ) : null
+
   // ---------- Step 1 ----------
 
   const renderStep1 = () => (
     <div className="onboarding-card">
+      {renderApiError()}
       {/* Section A */}
       <div className="form-section">
         <div className="section-heading">
@@ -401,7 +493,9 @@ function Onboarding() {
       </div>
 
       <div className="onboarding-actions">
-        <button className="btn btn-secondary" onClick={handleSaveDraft}>Save as Draft</button>
+        <button className="btn btn-secondary" disabled={isSaving} onClick={handleSaveDraft}>
+          {isSaving ? 'Saving...' : 'Save as Draft'}
+        </button>
         <button className="btn btn-primary" onClick={handleNextFromStep1}>Next: Product Details →</button>
       </div>
     </div>
@@ -411,6 +505,7 @@ function Onboarding() {
 
   const renderStep2 = () => (
     <div className="onboarding-card">
+      {renderApiError()}
       <div className="form-section">
         <div className="section-heading">Product Details</div>
         <p style={{ fontSize: 13, color: '#6b7280', marginTop: -10, marginBottom: 18 }}>
@@ -478,7 +573,9 @@ function Onboarding() {
       <div className="onboarding-actions">
         <button className="btn btn-secondary" onClick={() => setStep(1)}>← Back</button>
         <div style={{ display: 'flex', gap: 10 }}>
-          <button className="btn btn-secondary" onClick={handleSaveDraft}>Save as Draft</button>
+          <button className="btn btn-secondary" disabled={isSaving} onClick={handleSaveDraft}>
+            {isSaving ? 'Saving...' : 'Save as Draft'}
+          </button>
           <button className="btn btn-primary" onClick={handleNextFromStep2}>Next: Review & Submit →</button>
         </div>
       </div>
@@ -489,6 +586,7 @@ function Onboarding() {
 
   const renderStep3 = () => (
     <div className="onboarding-card">
+      {renderApiError()}
       <div className="review-block">
         <div className="review-block-title">Company & Contact Overview</div>
         <div className="review-grid">
@@ -553,7 +651,9 @@ function Onboarding() {
 
       <div className="onboarding-actions">
         <button className="btn btn-secondary" onClick={() => setStep(2)}>← Back to Product Details</button>
-        <button className="btn btn-primary" disabled={!confirmed} onClick={handleSubmit}>Submit Project</button>
+        <button className="btn btn-primary" disabled={!confirmed || isSubmitting} onClick={handleSubmit}>
+          {isSubmitting ? 'Submitting...' : 'Submit Project'}
+        </button>
       </div>
     </div>
   )
@@ -573,7 +673,7 @@ function Onboarding() {
         You won't be able to log in until an admin approves the account and assigns a support staff member — once
         approved, your login credentials will be sent to your email.
       </p>
-      <div className="pending-note">Reference: {formData.contractRefNumber || 'Will be assigned after approval'}</div>
+      <div className="pending-note">Reference: {submittedCode || formData.contractRefNumber || 'Will be assigned after approval'}</div>
     </div>
   )
 
