@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router-dom'
 import axios from 'axios'
 import api from '/src/api.js'
 import '/src/login.css'
@@ -222,7 +222,7 @@ function Login() {
             </button>
 
             <p className="auth-signup">
-              Don't have an account? <a href="/signup/" className="auth-link">Sign up</a>
+              Don't have an account? <Link to="/onboarding" className="auth-link">Sign up</Link>
             </p>
           </form>
         )}
