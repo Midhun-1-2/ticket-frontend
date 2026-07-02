@@ -1,0 +1,521 @@
+/* ---------- Onboarding page ---------- */
+
+.onboarding-page {
+  min-height: 100vh;
+  background: #f4f2ec;
+  padding: 40px 16px 80px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  color: #1f2937;
+}
+
+.onboarding-brand {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin-bottom: 28px;
+}
+
+.onboarding-brand .brand-mark {
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  background: #0e6e58;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 13px;
+}
+
+.onboarding-brand .brand-title {
+  font-weight: 600;
+  font-size: 15px;
+  line-height: 1.2;
+}
+
+.onboarding-brand .brand-subtitle {
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.onboarding-shell {
+  max-width: 760px;
+  margin: 0 auto;
+}
+
+/* ---------- Stepper ---------- */
+
+.stepper {
+  display: flex;
+  align-items: center;
+  background: #fff;
+  border: 1px solid #e7e4dc;
+  border-radius: 12px;
+  padding: 18px 24px;
+  margin-bottom: 20px;
+}
+
+.stepper-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 0 0 auto;
+}
+
+.stepper-circle {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
+  border: 2px solid #d8d4c8;
+  color: #9ca3af;
+  background: #fff;
+  flex-shrink: 0;
+}
+
+.stepper-item.active .stepper-circle,
+.stepper-item.done .stepper-circle {
+  border-color: #0e6e58;
+  color: #fff;
+  background: #0e6e58;
+}
+
+.stepper-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #9ca3af;
+  white-space: nowrap;
+}
+
+.stepper-item.active .stepper-label,
+.stepper-item.done .stepper-label {
+  color: #0e6e58;
+}
+
+.stepper-line {
+  flex: 1 1 auto;
+  height: 2px;
+  background: #e2dfd5;
+  margin: 0 12px;
+}
+
+.stepper-line.done {
+  background: #0e6e58;
+}
+
+/* ---------- Card / sections ---------- */
+
+.onboarding-card {
+  background: #fff;
+  border: 1px solid #e7e4dc;
+  border-radius: 12px;
+  padding: 28px;
+}
+
+.form-section {
+  margin-bottom: 30px;
+}
+
+.form-section:last-child {
+  margin-bottom: 0;
+}
+
+.section-heading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  font-weight: 700;
+  color: #111827;
+  margin-bottom: 16px;
+}
+
+.section-badge {
+  width: 20px;
+  height: 20px;
+  border-radius: 5px;
+  background: #eaf3f0;
+  color: #0e6e58;
+  font-size: 11px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px 20px;
+}
+
+.form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.form-field.full {
+  grid-column: 1 / -1;
+}
+
+.form-field label {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #374151;
+}
+
+.form-field label .required {
+  color: #dc2626;
+  margin-left: 2px;
+}
+
+.form-field label .optional {
+  font-weight: 400;
+  color: #9ca3af;
+  margin-left: 4px;
+}
+
+.form-field input,
+.form-field select,
+.form-field textarea {
+  border: 1px solid #dcd9cf;
+  border-radius: 8px;
+  padding: 9px 12px;
+  font-size: 13.5px;
+  color: #111827;
+  background: #fff;
+  outline: none;
+  font-family: inherit;
+}
+
+.form-field input::placeholder,
+.form-field textarea::placeholder {
+  color: #b3b0a6;
+}
+
+.form-field input:focus,
+.form-field select:focus,
+.form-field textarea:focus {
+  border-color: #0e6e58;
+  box-shadow: 0 0 0 3px rgba(14, 110, 88, 0.12);
+}
+
+.form-field input:disabled {
+  background: #f6f5f1;
+  color: #9ca3af;
+}
+
+.form-field.error input,
+.form-field.error select,
+.form-field.error textarea {
+  border-color: #dc2626;
+}
+
+.field-error {
+  font-size: 11.5px;
+  color: #dc2626;
+}
+
+.phone-input {
+  display: flex;
+}
+
+.phone-input .phone-prefix {
+  border: 1px solid #dcd9cf;
+  border-right: none;
+  border-radius: 8px 0 0 8px;
+  padding: 9px 10px;
+  font-size: 13.5px;
+  color: #6b7280;
+  background: #f6f5f1;
+  flex-shrink: 0;
+}
+
+.phone-input input {
+  border-radius: 0 8px 8px 0;
+  flex: 1;
+}
+
+textarea {
+  resize: vertical;
+  min-height: 70px;
+}
+
+.char-count {
+  align-self: flex-end;
+  font-size: 11px;
+  color: #9ca3af;
+}
+
+/* Multi-select chips */
+.chip-select {
+  border: 1px solid #dcd9cf;
+  border-radius: 8px;
+  padding: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  border: 1px solid #d8d4c8;
+  background: #f6f5f1;
+  font-size: 12.5px;
+  color: #374151;
+  cursor: pointer;
+  user-select: none;
+}
+
+.chip.selected {
+  background: #eaf3f0;
+  border-color: #0e6e58;
+  color: #0e6e58;
+  font-weight: 600;
+}
+
+/* ---------- Product rows (Step 2) ---------- */
+
+.product-block {
+  border: 1px solid #e7e4dc;
+  border-radius: 10px;
+  padding: 20px;
+  margin-bottom: 16px;
+  position: relative;
+}
+
+.product-block-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.product-block-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #111827;
+}
+
+.remove-product-btn {
+  background: none;
+  border: none;
+  color: #dc2626;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.radio-group {
+  display: flex;
+  gap: 18px;
+}
+
+.radio-option {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: #374151;
+  cursor: pointer;
+}
+
+.radio-option input {
+  accent-color: #0e6e58;
+}
+
+.add-product-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #fff;
+  border: 1px dashed #b9d6cc;
+  color: #0e6e58;
+  font-weight: 600;
+  font-size: 13px;
+  padding: 9px 16px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+/* ---------- Review (Step 3) ---------- */
+
+.review-block {
+  border: 1px solid #e7e4dc;
+  border-radius: 10px;
+  padding: 20px;
+  margin-bottom: 16px;
+}
+
+.review-block-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #111827;
+  margin-bottom: 14px;
+}
+
+.review-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 16px;
+}
+
+.review-item .review-label {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  color: #9ca3af;
+  text-transform: uppercase;
+  margin-bottom: 3px;
+}
+
+.review-item .review-value {
+  font-size: 13.5px;
+  color: #111827;
+}
+
+.review-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.review-chip {
+  background: #eaf3f0;
+  color: #0e6e58;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 5px 10px;
+  border-radius: 999px;
+}
+
+.confirm-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-bottom: 22px;
+  font-size: 13px;
+  color: #374151;
+}
+
+.confirm-row input {
+  margin-top: 3px;
+  accent-color: #0e6e58;
+}
+
+/* ---------- Buttons / footer ---------- */
+
+.onboarding-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 28px;
+  padding-top: 20px;
+  border-top: 1px solid #efede5;
+}
+
+.btn {
+  padding: 10px 20px;
+  border-radius: 8px;
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid transparent;
+}
+
+.btn-secondary {
+  background: #fff;
+  border-color: #dcd9cf;
+  color: #374151;
+}
+
+.btn-secondary:hover {
+  background: #f6f5f1;
+}
+
+.btn-primary {
+  background: #0e6e58;
+  color: #fff;
+}
+
+.btn-primary:hover {
+  background: #0b5c49;
+}
+
+.btn-primary:disabled {
+  background: #a9c9c0;
+  cursor: not-allowed;
+}
+
+/* ---------- Success / pending screen ---------- */
+
+.pending-card {
+  background: #fff;
+  border: 1px solid #e7e4dc;
+  border-radius: 12px;
+  padding: 48px 32px;
+  text-align: center;
+}
+
+.pending-icon {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: #eaf3f0;
+  color: #0e6e58;
+  font-size: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 18px;
+}
+
+.pending-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: #111827;
+  margin-bottom: 8px;
+}
+
+.pending-text {
+  font-size: 13.5px;
+  color: #6b7280;
+  max-width: 440px;
+  margin: 0 auto 6px;
+  line-height: 1.55;
+}
+
+.pending-note {
+  display: inline-block;
+  margin-top: 18px;
+  background: #f6f5f1;
+  border: 1px solid #e7e4dc;
+  border-radius: 8px;
+  padding: 10px 16px;
+  font-size: 12.5px;
+  color: #6b7280;
+}
+
+@media (max-width: 640px) {
+  .form-grid,
+  .review-grid {
+    grid-template-columns: 1fr;
+  }
+  .stepper-label {
+    display: none;
+  }
+  .onboarding-card {
+    padding: 20px;
+  }
+}
