@@ -1,0 +1,131 @@
+/* =========================================================================
+   Staff Management — page-specific styles, reusing tokens from style.css
+   ========================================================================= */
+
+.staff-page-head{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:16px;
+  flex-wrap:wrap;
+  margin-bottom:18px;
+}
+.staff-actions{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  flex-wrap:wrap;
+}
+
+/* --- Status chips (Active / Inactive) --- */
+.chip.active{ background: var(--accent-soft); color: var(--accent-ink); }
+.chip.inactive{ background: var(--gray-soft); color: var(--text-muted); }
+
+/* --- Staff avatar in table --- */
+.staff-table-avatar{
+  width:32px; height:32px; border-radius:50%;
+  background: var(--blue-soft); color: var(--blue);
+  display:flex; align-items:center; justify-content:center;
+  font-family: var(--font-display); font-weight:700; font-size:12px;
+  flex-shrink:0;
+}
+.staff-name-cell{ display:flex; align-items:center; gap:10px; }
+.staff-name-cell .name{ font-weight:600; font-size:13.5px; color:var(--text); }
+.staff-name-cell .email{ font-size:11.5px; color:var(--text-muted); }
+
+/* --- Modal (Add/Edit Staff, Add Role) --- */
+.sm-modal-overlay{
+  position: fixed;
+  inset: 0;
+  background: rgba(20, 23, 31, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  z-index: 1050;
+}
+.sm-modal-card{
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-card);
+  width: 100%;
+  max-width: 480px;
+  max-height: 90vh;
+  overflow-y: auto;
+  padding: 24px 24px 20px;
+}
+.sm-modal-head{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:12px;
+  margin-bottom: 18px;
+}
+.sm-modal-title{
+  font-family: var(--font-display);
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--text);
+  margin: 0 0 4px;
+}
+.sm-modal-sub{
+  font-size: 12.5px;
+  color: var(--text-muted);
+  margin: 0;
+}
+.sm-modal-close{
+  background:none; border:none; cursor:pointer;
+  color: var(--text-faint);
+  font-size: 20px; line-height:1;
+  padding: 2px;
+}
+.sm-modal-close:hover{ color: var(--text); }
+
+.sm-field-label{
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 6px;
+  display:block;
+}
+.sm-modal-card .form-control,
+.sm-modal-card .form-select{
+  border-color: var(--line);
+  font-size: 13.5px;
+}
+.sm-modal-card .form-control:focus,
+.sm-modal-card .form-select:focus{
+  border-color: var(--accent);
+  box-shadow: 0 0 0 .15rem rgba(15,110,99,.15);
+}
+
+.sm-modal-actions{
+  display:flex;
+  gap:10px;
+  margin-top: 20px;
+}
+.sm-modal-actions .btn{ flex:1; justify-content:center; }
+
+/* --- Role/Designation manager list (inside Add Role modal) --- */
+.role-manage-list{
+  list-style:none; margin: 14px 0 0; padding:0;
+  display:flex; flex-direction:column; gap:6px;
+  max-height: 180px; overflow-y:auto;
+}
+.role-manage-row{
+  display:flex; align-items:center; justify-content:space-between;
+  padding: 7px 10px;
+  background: var(--paper);
+  border-radius: 6px;
+  font-size: 13px;
+  color: var(--text);
+}
+.role-manage-row button{
+  background:none; border:none; cursor:pointer;
+  color: var(--red); font-size: 12px; font-weight:600;
+}
+
+@media (max-width: 576px){
+  .sm-modal-card{ padding: 20px 18px 18px; }
+}

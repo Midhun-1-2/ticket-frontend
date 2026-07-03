@@ -63,7 +63,7 @@ function Header() {
             </Link>
           </li>
           <li className="nav-item">
-            <Link to="/staff-management/" className={isActive("/staff-management/")}>
+            <Link to="/staffmanagement/" className={isActive("/staffmanagement/")}>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21a8 8 0 1 0-16 0"/><circle cx="12" cy="7" r="4"/><path d="M12 11v2"/></svg>
               <span className="label">Staff Management</span>
             </Link>

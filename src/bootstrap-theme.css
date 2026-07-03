@@ -1,0 +1,109 @@
+/* =========================================================================
+   Bootstrap theme override — retunes Bootstrap's own CSS variables to
+   match the app's existing design tokens (defined in style.css).
+   Import AFTER bootstrap.min.css and BEFORE style.css:
+     1. bootstrap.min.css   (base framework)
+     2. bootstrap-theme.css (this file — recolors bootstrap-only pieces)
+     3. style.css           (your custom classes — wins any name clashes)
+   ========================================================================= */
+
+:root{
+  /* Core palette */
+  --bs-primary: var(--accent, #0F6E63);
+  --bs-primary-rgb: 15,110,99;
+  --bs-secondary: var(--text-muted, #6E6B62);
+  --bs-success: var(--accent, #0F6E63);
+  --bs-success-rgb: 15,110,99;
+  --bs-danger: var(--red, #C4432E);
+  --bs-danger-rgb: 196,67,46;
+  --bs-warning: var(--amber, #C8791A);
+  --bs-warning-rgb: 200,121,26;
+  --bs-info: var(--blue, #3B5BA9);
+  --bs-info-rgb: 59,91,169;
+  --bs-light: var(--paper, #F7F6F3);
+  --bs-dark: var(--ink, #14171F);
+
+  /* Body */
+  --bs-body-color: var(--text, #1C1E22);
+  --bs-body-bg: var(--paper, #F7F6F3);
+  --bs-body-font-family: var(--font-body, 'Inter', sans-serif);
+
+  /* Borders / radius / shadow */
+  --bs-border-color: var(--line, #E5E2DA);
+  --bs-border-radius: var(--radius, 10px);
+  --bs-border-radius-sm: var(--radius-sm, 6px);
+  --bs-border-radius-lg: var(--radius, 10px);
+  --bs-box-shadow: var(--shadow-card, 0 1px 2px rgba(20,23,31,.04), 0 8px 24px -12px rgba(20,23,31,.10));
+
+  /* Links */
+  --bs-link-color: var(--accent-ink, #0B4F47);
+  --bs-link-hover-color: var(--accent, #0F6E63);
+  --bs-focus-ring-color: rgba(15,110,99,.25);
+}
+
+/* --- Buttons (only matters where you use Bootstrap variants your
+   custom .btn/.btn-primary classes don't already cover, e.g.
+   btn-outline-secondary, btn-success, btn-danger) --- */
+.btn{
+  --bs-btn-border-radius: 8px;
+  font-family: var(--font-body);
+  font-weight: 600;
+}
+.btn-primary{
+  --bs-btn-bg: var(--accent, #0F6E63);
+  --bs-btn-border-color: var(--accent, #0F6E63);
+  --bs-btn-hover-bg: var(--accent-ink, #0B4F47);
+  --bs-btn-hover-border-color: var(--accent-ink, #0B4F47);
+  --bs-btn-active-bg: var(--accent-ink, #0B4F47);
+  --bs-btn-active-border-color: var(--accent-ink, #0B4F47);
+}
+
+/* --- Cards --- */
+.card{
+  --bs-card-border-color: var(--line, #E5E2DA);
+  --bs-card-border-radius: var(--radius, 10px);
+  box-shadow: var(--shadow-card);
+}
+
+/* --- Alerts --- */
+.alert-success{
+  --bs-alert-bg: var(--accent-soft, #E3F1EE);
+  --bs-alert-color: var(--accent-ink, #0B4F47);
+  --bs-alert-border-color: var(--accent, #0F6E63);
+}
+.alert-danger{
+  --bs-alert-bg: var(--red-soft, #FAE6E1);
+  --bs-alert-color: var(--red, #C4432E);
+  --bs-alert-border-color: var(--red, #C4432E);
+}
+.alert-warning{
+  --bs-alert-bg: var(--amber-soft, #FBEEDD);
+  --bs-alert-color: #8A550F;
+  --bs-alert-border-color: var(--amber, #C8791A);
+}
+
+/* --- Form controls --- */
+.form-control,
+.form-select{
+  font-family: var(--font-body);
+}
+.form-control:focus,
+.form-select:focus{
+  border-color: var(--accent, #0F6E63);
+  box-shadow: 0 0 0 .2rem rgba(15,110,99,.15);
+}
+
+/* --- Modals / toasts (only if you use Bootstrap's own, not your
+   custom .modal-card/.toast classes) --- */
+.modal-content{
+  border-radius: var(--radius, 10px);
+  border-color: var(--line, #E5E2DA);
+}
+.toast{
+  border-radius: var(--radius-sm, 6px);
+}
+
+/* --- Headings --- */
+h1, h2, h3, h4, h5, h6{
+  font-family: var(--font-display, inherit);
+}
