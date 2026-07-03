@@ -71,6 +71,7 @@
   background: #fff;
   outline: 0;
   transition: border-color .15s ease;
+  width: 100%;
 }
 .auth-field input::placeholder{ color: var(--text-faint); }
 .auth-field input:focus{ border-color: var(--accent); }
@@ -213,10 +214,6 @@
 .modal-actions{ margin-top: 6px; }
 .modal-actions .btn{ width: 100%; justify-content: center; }
 
-@media (max-width: 420px){
-  .auth-card{ padding: 26px 20px 22px; }
-}
-
 .toast{
   position: fixed;
   top: 20px;
@@ -263,11 +260,49 @@
 }
 .toast-close:hover{ opacity: 1; }
 
-@media (max-width: 420px){
+/* =========================================================================
+   Responsive — Bootstrap's own breakpoint scale (576 / 768), so behavior
+   here lines up with the rest of a Bootstrap-based app if you add one.
+   All values above are untouched; these only adjust spacing/sizing.
+   ========================================================================= */
+
+/* Tablets and small laptops — tighten the outer padding slightly */
+@media (max-width: 768px){
+  .auth-screen{
+    padding: 20px;
+  }
+}
+
+/* Large phones (landscape) / small tablets */
+@media (max-width: 576px){
+  .auth-screen{
+    padding: 16px;
+    align-items: flex-start;
+    padding-top: 48px;
+  }
+  .auth-card{
+    padding: 26px 20px 22px;
+  }
+  .modal-card{
+    padding: 20px 18px 18px;
+  }
   .toast{
     top: 12px;
     right: 12px;
     left: 12px;
     max-width: none;
+  }
+}
+
+/* Small phones — slightly reduce heading/field sizes so nothing wraps oddly */
+@media (max-width: 380px){
+  .auth-brand .brand-name{
+    font-size: 16px;
+  }
+  .auth-field input{
+    font-size: 13.5px;
+  }
+  .modal-title{
+    font-size: 16.5px;
   }
 }
