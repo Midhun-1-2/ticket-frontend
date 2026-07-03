@@ -203,6 +203,49 @@
 .priority-high { background: #ffedd5; color: #c2410c; }
 .priority-urgent { background: #fee2e2; color: #b91c1c; }
 
+/* ---------- Status pill (active / inactive) ---------- */
+
+.status-pill {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  font-family: var(--td-mono);
+  letter-spacing: 0.02em;
+}
+
+.status-active {
+  background: var(--td-green-tint);
+  color: var(--td-green);
+}
+
+.status-inactive {
+  background: #f3f4f6;
+  color: #6b7280;
+}
+
+/* Dims the row's name/description/avatar when a category is inactive,
+   so it visually recedes without being hard to read or act on. */
+.category-table tbody tr.inactive-row .cat-name,
+.category-table tbody tr.inactive-row .cat-desc,
+.category-table tbody tr.inactive-row .cat-avatar {
+  opacity: 0.55;
+}
+
+/* Power/toggle button — greyed out when the category is currently
+   inactive, so "Activate" reads as a distinct affordance from the
+   other (always-neutral) row actions. */
+.icon-btn.toggle-off {
+  color: #9ca3af;
+  border-color: #e5e7eb;
+}
+.icon-btn.toggle-off:hover {
+  background: var(--td-green-tint);
+  color: var(--td-green);
+  border-color: var(--td-green);
+}
+
 .row-actions {
   display: flex;
   gap: 6px;
@@ -226,6 +269,11 @@
 .icon-btn:hover {
   background: #f6f5f1;
   color: var(--td-ink);
+}
+
+.icon-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .icon-btn.danger:hover {
@@ -274,20 +322,13 @@
   margin: 20px auto 0;
 }
 
-/* ---------- Buttons ---------- */
-
-.btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  padding: 9px 18px;
-  border-radius: 8px;
-  font-size: 13.5px;
-  font-weight: 600;
-  cursor: pointer;
-  border: 1px solid transparent;
-  transition: background 0.12s ease, border-color 0.12s ease, opacity 0.12s ease;
-}
+/* ---------- Buttons ----------
+   .btn and .btn-primary are intentionally NOT redefined here — they
+   already exist globally in style.css (shared across every page,
+   including Dashboard). Redefining them here with page-scoped CSS
+   variables broke .btn-primary everywhere else in the app, since those
+   variables don't exist outside .category-page. Only the variants
+   style.css doesn't provide are added below, using plain colors. */
 
 .btn:disabled {
   opacity: 0.6;
@@ -302,15 +343,6 @@
 
 .btn-secondary:hover:not(:disabled) {
   background: #f6f5f1;
-}
-
-.btn-primary {
-  background: var(--td-green);
-  color: #fff;
-}
-
-.btn-primary:hover:not(:disabled) {
-  background: var(--td-green-dark);
 }
 
 .btn-danger {

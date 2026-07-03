@@ -1,0 +1,322 @@
+.raise-page {
+  --rt-bg: #f4f2ec;
+  --rt-ink: #111827;
+  --rt-muted: #6b7280;
+  --rt-label: #9ca3af;
+  --rt-border: #e7e4dc;
+  --rt-card: #ffffff;
+  --rt-green: #0e6e58;
+  --rt-green-dark: #0b5c49;
+  --rt-green-tint: rgba(14, 110, 88, 0.12);
+  --rt-mono: ui-monospace, 'SFMono-Regular', 'JetBrains Mono', Menlo, Consolas, monospace;
+
+  min-height: 100%;
+  background: var(--rt-bg);
+  padding: 40px 24px 80px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  color: var(--rt-ink);
+}
+
+.raise-shell {
+  max-width: 760px;
+  margin: 0 auto;
+}
+
+.raise-eyebrow {
+  font-family: var(--rt-mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: var(--rt-label);
+  margin-bottom: 10px;
+}
+
+.raise-title {
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  margin-bottom: 4px;
+}
+
+.raise-subtitle {
+  font-size: 13.5px;
+  color: var(--rt-muted);
+  margin-bottom: 22px;
+}
+
+.raise-card {
+  background: var(--rt-card);
+  border: 1px solid var(--rt-border);
+  border-radius: 12px;
+  padding: 28px;
+}
+
+.raise-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 20px;
+}
+
+.raise-field label {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #374151;
+}
+
+.raise-field label .required {
+  color: #dc2626;
+  margin-left: 2px;
+}
+
+.raise-field label .optional {
+  font-weight: 400;
+  color: var(--rt-label);
+  margin-left: 4px;
+}
+
+.raise-field input,
+.raise-field select,
+.raise-field textarea {
+  border: 1px solid #dcd9cf;
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 13.5px;
+  color: #111827;
+  font-family: inherit;
+  outline: none;
+  background: #fff;
+  transition: border-color 0.12s ease, box-shadow 0.12s ease;
+}
+
+.raise-field input:focus,
+.raise-field select:focus,
+.raise-field textarea:focus {
+  border-color: var(--rt-green);
+  box-shadow: 0 0 0 3px var(--rt-green-tint);
+}
+
+.raise-field.error input,
+.raise-field.error select,
+.raise-field.error textarea {
+  border-color: #dc2626;
+}
+
+.raise-field-error {
+  font-size: 11.5px;
+  color: #dc2626;
+}
+
+.raise-field select:disabled {
+  background: #f6f5f1;
+  color: var(--rt-label);
+}
+
+.raise-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+textarea {
+  resize: vertical;
+  min-height: 110px;
+}
+
+/* ---------- Priority selector (segmented, not a dropdown, for faster scanning) ---------- */
+
+.priority-select {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+
+.priority-option {
+  border: 1px solid #dcd9cf;
+  border-radius: 8px;
+  padding: 9px 6px;
+  text-align: center;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  color: #374151;
+  background: #fff;
+  transition: border-color 0.12s ease, background 0.12s ease;
+}
+
+.priority-option.selected.p-low { border-color: #4338ca; background: #eef2ff; color: #4338ca; }
+.priority-option.selected.p-medium { border-color: #854d0e; background: #fef9c3; color: #854d0e; }
+.priority-option.selected.p-high { border-color: #c2410c; background: #ffedd5; color: #c2410c; }
+.priority-option.selected.p-urgent { border-color: #b91c1c; background: #fee2e2; color: #b91c1c; }
+
+/* ---------- Attachment upload ---------- */
+
+.dropzone {
+  border: 1.5px dashed #d8d4c8;
+  border-radius: 10px;
+  padding: 26px 20px;
+  text-align: center;
+  cursor: pointer;
+  background: #faf9f5;
+  transition: border-color 0.12s ease, background 0.12s ease;
+}
+
+.dropzone:hover,
+.dropzone.dragging {
+  border-color: var(--rt-green);
+  background: var(--rt-green-tint);
+}
+
+.dropzone-icon {
+  width: 36px;
+  height: 36px;
+  margin: 0 auto 10px;
+  border-radius: 10px;
+  background: var(--rt-green-tint);
+  color: var(--rt-green);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.dropzone-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--rt-ink);
+  margin-bottom: 2px;
+}
+
+.dropzone-hint {
+  font-size: 11.5px;
+  color: var(--rt-label);
+}
+
+.file-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.file-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid var(--rt-border);
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 12.5px;
+}
+
+.file-icon {
+  width: 26px;
+  height: 26px;
+  flex-shrink: 0;
+  border-radius: 6px;
+  background: var(--rt-green-tint);
+  color: var(--rt-green);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.file-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.file-name {
+  font-weight: 600;
+  color: var(--rt-ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.file-size {
+  color: var(--rt-label);
+  font-size: 11px;
+}
+
+.file-remove {
+  background: none;
+  border: none;
+  color: var(--rt-label);
+  cursor: pointer;
+  font-size: 15px;
+  line-height: 1;
+  padding: 2px 4px;
+  flex-shrink: 0;
+}
+
+.file-remove:hover {
+  color: #dc2626;
+}
+
+.file-error {
+  font-size: 11.5px;
+  color: #dc2626;
+  margin-top: 6px;
+}
+
+/* ---------- Actions ---------- */
+
+.raise-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 26px;
+  padding-top: 20px;
+  border-top: 1px solid #efede5;
+}
+
+/* .btn and .btn-primary are intentionally NOT redefined here — they
+   already exist globally in style.css (shared across every page,
+   including Dashboard). Redefining them here with page-scoped CSS
+   variables broke .btn-primary everywhere else in the app, since those
+   variables don't exist outside .raise-page. Only the variant style.css
+   doesn't provide is added below, using plain colors. */
+
+.btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btn-secondary {
+  background: #fff;
+  border-color: #dcd9cf;
+  color: #374151;
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background: #f6f5f1;
+}
+
+.raise-banner {
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 13px;
+  margin-bottom: 18px;
+}
+
+.raise-banner.error {
+  background: #fdecea;
+  border: 1px solid #f3b4ae;
+  color: #a3231b;
+}
+
+.raise-banner.success {
+  background: var(--rt-green-tint);
+  border: 1px solid var(--rt-green);
+  color: var(--rt-green-dark);
+}
+
+@media (max-width: 640px) {
+  .raise-row,
+  .priority-select {
+    grid-template-columns: 1fr 1fr;
+  }
+  .raise-card {
+    padding: 20px;
+  }
+}

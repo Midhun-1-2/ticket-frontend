@@ -34,6 +34,12 @@ function Header() {
               <span className="label">All Tickets</span>
             </Link>
           </li>
+          <li className="nav-item">
+            <Link to="/raise-ticket/" className={isActive("/raise-ticket/")}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+              <span className="label">Raise Ticket</span>
+            </Link>
+          </li>
         </ul>
 
         <div className="nav-group-label">Triage</div>

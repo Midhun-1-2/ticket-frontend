@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
-import axios from 'axios'
 import api from '/src/api.js'
 import '/src/login.css'
 import '/src/style.css'
@@ -45,8 +44,8 @@ function Login() {
 
   async function detectRole(phoneNumber) {
     try {
-      const { data } = await axios.post(
-        'http://127.0.0.1:8000/detect-role/',
+      const { data } = await api.post(
+        'detect-role/',
         { phone_number: phoneNumber }
       )
       setRole(data.exists ? data.role : null)

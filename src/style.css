@@ -535,7 +535,7 @@ table.tickets tbody tr:hover{ background: var(--paper); }
 }
 
 @media (min-width: 881px){
-  .menu-btn{ display:none; }
+  .menu-btn{ display:none !important; }
 }
 
 @media (max-width: 640px){

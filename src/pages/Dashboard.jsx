@@ -1,4 +1,5 @@
 import React, { useEffect } from 'react'
+import { Link } from 'react-router-dom'
 import { initCounters, initTrendChart } from '../script.js'
 
 function Dashboard() {
@@ -23,10 +24,16 @@ function Dashboard() {
               Here's how the support queue is looking today, {new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}.
             </p>
           </div>
-          <a href="#" className="btn btn-primary">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 5v14M5 12h14"/></svg>
-            Assign Tickets
-          </a>
+          <div style={{ display: 'flex', gap: 10 }}>
+            <Link to="/raise-ticket/" className="btn btn-ghost">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+              Raise Ticket
+            </Link>
+            <a href="#" className="btn btn-primary">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+              Assign Tickets
+            </a>
+          </div>
         </div>
 
         {/* Signature element: live queue ticker */}

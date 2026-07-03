@@ -4,9 +4,10 @@ import Footer from './components/Footer'
 import { BrowserRouter, Route, Routes, Outlet } from 'react-router-dom'
 import Dashboard from './pages/Dashboard.jsx'
 import Onboarding from './pages/Onboarding.jsx'
-import Staffmanagement from './pages/Staffmanagement.jsx'
 import Login from './pages/Login.jsx'
 import CategoryMaster from './pages/CategoryMaster.jsx'
+import RaiseTicket from './pages/RaiseTicket.jsx'
+import StaffManagement from './pages/StaffManagement.jsx'
 import './style.css'
 import { initApp } from './script.js'
 
@@ -30,8 +31,9 @@ function App() {
       <Routes>
         <Route element={<MainLayout />}>
           <Route path='/dashboard/' element={<Dashboard />} />
-          <Route path='/categories' element={<CategoryMaster />} />
-          <Route path='/staffmanagement/' element={<Staffmanagement />} />
+          <Route path='/categories/' element={<CategoryMaster />} />
+          <Route path='/raise-ticket/' element={<RaiseTicket />} />
+          <Route path='/staffmanagement/' element={<StaffManagement />} />
         </Route>
 
         <Route path='/onboarding' element={<Onboarding />} />

@@ -57,6 +57,13 @@ const TagIcon = () => (
     <circle cx="8" cy="8" r="1.4" fill="currentColor" />
   </svg>
 )
+// Toggle/power icon — used for the activate/deactivate button.
+const PowerIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+    <path d="M8 2v5.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+    <path d="M4.5 4.2a5 5 0 1 0 7 0" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+  </svg>
+)
 
 function CategoryMaster() {
   const [categories, setCategories] = useState([])
@@ -64,6 +71,7 @@ function CategoryMaster() {
   const [loadError, setLoadError] = useState('')
   const [saving, setSaving] = useState(false)
   const [lastSynced, setLastSynced] = useState(null)
+  const [togglingId, setTogglingId] = useState(null)
 
   const [modalMode, setModalMode] = useState(null) // null | 'add' | 'edit'
   const [activeId, setActiveId] = useState(null)
@@ -79,7 +87,7 @@ function CategoryMaster() {
     setLoading(true)
     setLoadError('')
     try {
-      const { data } = await api.get('categories/')
+      const { data } = await api.get('categories/?include_inactive=true')
       setCategories(data)
       setLastSynced(new Date())
     } catch (err) {
@@ -155,15 +163,37 @@ function CategoryMaster() {
     setDeleteTarget(null)
     try {
       await api.delete(`categories/${target.id}/`)
-      setCategories((prev) => prev.filter((c) => c.id !== target.id))
+      // DELETE is a soft-delete on the backend (sets is_active=false, keeps
+      // the row) — reflect that here instead of removing it from the list,
+      // so it stays visible/dimmed and can still be reactivated via the
+      // toggle button, consistent with that action.
+      setCategories((prev) => prev.map((c) => (c.id === target.id ? { ...c, is_active: false } : c)))
       setLastSynced(new Date())
     } catch (err) {
       setLoadError('Could not delete this category. Please try again.')
     }
   }
 
+  // Flips is_active on the backend, then updates just that row locally
+  // so the rest of the table doesn't need a full refetch.
+  const toggleActive = async (category) => {
+    setTogglingId(category.id)
+    try {
+      const { data } = await api.patch(`categories/${category.id}/`, {
+        is_active: !category.is_active,
+      })
+      setCategories((prev) => prev.map((c) => (c.id === category.id ? data : c)))
+      setLastSynced(new Date())
+    } catch (err) {
+      setLoadError('Could not update status. Please try again.')
+    } finally {
+      setTogglingId(null)
+    }
+  }
+
   const stats = useMemo(() => {
     const total = categories.length
+    const activeCount = categories.filter((c) => c.is_active).length
     const counts = {}
     categories.forEach((c) => { counts[c.priority] = (counts[c.priority] || 0) + 1 })
     let topPriority = '—'
@@ -171,7 +201,7 @@ function CategoryMaster() {
     Object.entries(counts).forEach(([p, n]) => {
       if (n > topCount) { topPriority = p; topCount = n }
     })
-    return { total, topPriority }
+    return { total, activeCount, topPriority }
   }, [categories])
 
   const syncedLabel = lastSynced
@@ -200,6 +230,8 @@ function CategoryMaster() {
             <span className="stat-dot" />
             {stats.total} {stats.total === 1 ? 'CATEGORY' : 'CATEGORIES'}
           </span>
+          <span className="stat-strip-sep" />
+          <span>{stats.activeCount} active</span>
           <span className="stat-strip-sep" />
           <span>Most used priority <b>{stats.topPriority}</b></span>
           <span className="stat-strip-sep" />
@@ -231,15 +263,16 @@ function CategoryMaster() {
             <table className="category-table">
               <thead>
                 <tr>
-                  <th style={{ width: '26%' }}>Category Name</th>
-                  <th style={{ width: '42%' }}>Description</th>
-                  <th style={{ width: '16%' }}>Default Priority</th>
-                  <th style={{ width: '16%' }}></th>
+                  <th style={{ width: '22%' }}>Category Name</th>
+                  <th style={{ width: '34%' }}>Description</th>
+                  <th style={{ width: '13%' }}>Default Priority</th>
+                  <th style={{ width: '12%' }}>Status</th>
+                  <th style={{ width: '19%' }}></th>
                 </tr>
               </thead>
               <tbody>
                 {categories.map((cat) => (
-                  <tr key={cat.id}>
+                  <tr key={cat.id} className={cat.is_active ? '' : 'inactive-row'}>
                     <td>
                       <div className="cat-name-cell">
                         <span className={`cat-avatar ${avatarClassFor(cat.name)}`}>{initialsOf(cat.name)}</span>
@@ -251,7 +284,20 @@ function CategoryMaster() {
                       <span className={`priority-pill ${priorityClass[cat.priority] || ''}`}>{cat.priority}</span>
                     </td>
                     <td>
+                      <span className={`status-pill ${cat.is_active ? 'status-active' : 'status-inactive'}`}>
+                        {cat.is_active ? 'Active' : 'Inactive'}
+                      </span>
+                    </td>
+                    <td>
                       <div className="row-actions">
+                        <button
+                          className={`icon-btn ${cat.is_active ? '' : 'toggle-off'}`}
+                          title={cat.is_active ? 'Deactivate' : 'Activate'}
+                          disabled={togglingId === cat.id}
+                          onClick={() => toggleActive(cat)}
+                        >
+                          <PowerIcon />
+                        </button>
                         <button className="icon-btn" title="Edit" onClick={() => openEditModal(cat)}><PencilIcon /></button>
                         <button className="icon-btn danger" title="Delete" onClick={() => setDeleteTarget(cat)}><TrashIcon /></button>
                       </div>

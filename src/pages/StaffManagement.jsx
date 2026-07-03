@@ -1,6 +1,4 @@
 import React, { useState, useEffect } from 'react'
-import 'bootstrap/dist/css/bootstrap.min.css'
-import '/src/bootstrap-theme.css'
 import '/src/staff-management.css'
 import api from '/src/api.js'
 

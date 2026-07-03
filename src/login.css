@@ -128,13 +128,30 @@
   padding: 8px 10px;
 }
 
+/* Made self-contained (background/color/border defined directly here)
+   instead of relying on .btn / .btn-primary from style.css cascading in
+   correctly — that cross-file dependency was causing the button to
+   render with no visible fill. */
 .auth-submit{
   width: 100%;
+  display: flex !important;
+  align-items: center;
   justify-content: center;
   height: 42px;
   margin-top: 4px;
+  background-color: var(--accent, #0F6E63) !important;
+  color: #ffffff !important;
+  border: 1px solid transparent !important;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  font-family: var(--font-body);
+  cursor: pointer;
+  opacity: 1 !important;
+  visibility: visible !important;
 }
-.auth-submit:disabled{ opacity: .6; cursor: not-allowed; }
+.auth-submit:hover:not(:disabled){ background-color: var(--accent-ink, #0B4F47) !important; }
+.auth-submit:disabled{ opacity: .6 !important; cursor: not-allowed; }
 
 .auth-signup{
   text-align: center;
