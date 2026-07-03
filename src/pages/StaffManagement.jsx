@@ -1,37 +1,67 @@
-import React, { useState, useEffect } from 'react'
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
+import api from '../api' // adjust this path to match where api.js actually lives
 import '/src/staff-management.css'
 
-// ---- Mock data — replace with real API calls when the backend is ready ----
-const INITIAL_STAFF = [
-  { id: 1, name: 'Meera Nair', email: 'meera.nair@ticketdesk.com', department: 'Billing', role: 'Support Agent', ticketsAssigned: 14, status: 'active' },
-  { id: 2, name: 'Arjun Menon', email: 'arjun.menon@ticketdesk.com', department: 'Technical', role: 'Technical Specialist', ticketsAssigned: 21, status: 'active' },
-  { id: 3, name: 'Divya Pillai', email: 'divya.pillai@ticketdesk.com', department: 'General', role: 'Support Agent', ticketsAssigned: 9, status: 'active' },
-  { id: 4, name: 'Ken Osei', email: 'ken.osei@ticketdesk.com', department: 'Technical', role: 'Team Lead', ticketsAssigned: 17, status: 'inactive' },
-]
 const DEPARTMENTS = ['Technical', 'Billing', 'General', 'Account', 'Product']
 
-const DEFAULT_ROLES = ['Support Agent', 'Technical Specialist', 'Team Lead', 'Team Manager']
-
 const EMPTY_FORM = {
-  name: '', email: '', phone: '', department: DEPARTMENTS[0], role: DEFAULT_ROLES[0], password: '',
+  name: '', email: '', phone: '', department: DEPARTMENTS[0], role: '', password: '',
 }
 
 function StaffManagement() {
-  const [staff, setStaff] = useState(INITIAL_STAFF)
-  const [roles, setRoles] = useState(DEFAULT_ROLES)
+  const [staff, setStaff] = useState([])
+  const [staffLoading, setStaffLoading] = useState(true)
+  const [staffLoadError, setStaffLoadError] = useState('')
+  const [togglingId, setTogglingId] = useState(null)
+
+  const [roles, setRoles] = useState([]) // [{ id, name }]
+  const [rolesLoading, setRolesLoading] = useState(true)
 
   const [showStaffModal, setShowStaffModal] = useState(false)
   const [editingId, setEditingId] = useState(null) // null = adding new, otherwise editing this id
   const [form, setForm] = useState(EMPTY_FORM)
   const [formError, setFormError] = useState('')
+  const [saving, setSaving] = useState(false)
 
   const [showRoleModal, setShowRoleModal] = useState(false)
   const [newRoleName, setNewRoleName] = useState('')
+  const [roleError, setRoleError] = useState('')
+  const [addingRole, setAddingRole] = useState(false)
+
+  useEffect(() => {
+    fetchStaff()
+    fetchRoles()
+  }, [])
+
+  const fetchStaff = async () => {
+    setStaffLoading(true)
+    setStaffLoadError('')
+    try {
+      const { data } = await api.get('staff/')
+      setStaff(data)
+    } catch (err) {
+      setStaffLoadError('Could not load staff. Please try again.')
+    } finally {
+      setStaffLoading(false)
+    }
+  }
+
+  const fetchRoles = async () => {
+    setRolesLoading(true)
+    try {
+      const { data } = await api.get('staff-roles/')
+      setRoles(data)
+      setForm((prev) => (prev.role ? prev : { ...prev, role: data[0]?.name || '' }))
+    } catch (err) {
+      // Non-fatal — the role dropdown will just show as empty/loading.
+    } finally {
+      setRolesLoading(false)
+    }
+  }
 
   function openAddStaff() {
     setEditingId(null)
-    setForm(EMPTY_FORM)
+    setForm({ ...EMPTY_FORM, role: roles[0]?.name || '' })
     setFormError('')
     setShowStaffModal(true)
   }
@@ -54,7 +84,16 @@ function StaffManagement() {
     setForm((prev) => ({ ...prev, [field]: value }))
   }
 
-  function handleStaffSubmit(e) {
+  // Flattens DRF's { field: ["error msg"] } into one readable string.
+  function flattenApiErrors(data) {
+    if (!data || typeof data !== 'object') return 'Something went wrong. Please try again.'
+    if (data.detail) return data.detail
+    return Object.entries(data)
+      .map(([field, messages]) => `${field}: ${Array.isArray(messages) ? messages.join(', ') : messages}`)
+      .join('\n')
+  }
+
+  async function handleStaffSubmit(e) {
     e.preventDefault()
     setFormError('')
 
@@ -67,58 +106,66 @@ function StaffManagement() {
       return
     }
 
-    // TODO: replace with real API calls, e.g.:
-    // if (editingId) await api.put(`/staff/${editingId}/`, form)
-    // else await api.post('/staff/', form)
-
-    if (editingId !== null) {
-      setStaff((prev) =>
-        prev.map((s) =>
-          s.id === editingId
-            ? { ...s, name: form.name, email: form.email, phone: form.phone, department: form.department, role: form.role }
-            : s
-        )
-      )
-    } else {
-      setStaff((prev) => [
-        ...prev,
-        {
-          id: Date.now(),
+    setSaving(true)
+    try {
+      if (editingId !== null) {
+        const { data } = await api.patch(`staff/${editingId}/`, {
           name: form.name,
           email: form.email,
           phone: form.phone,
           department: form.department,
           role: form.role,
-          ticketsAssigned: 0,
-          status: 'active',
-        },
-      ])
+        })
+        setStaff((prev) => prev.map((s) => (s.id === editingId ? data : s)))
+      } else {
+        const { data } = await api.post('staff/', form)
+        setStaff((prev) => [...prev, data])
+      }
+      setShowStaffModal(false)
+    } catch (err) {
+      setFormError(flattenApiErrors(err.response?.data))
+    } finally {
+      setSaving(false)
     }
-
-    setShowStaffModal(false)
   }
 
-  function toggleStatus(id) {
-    // TODO: replace with real API call, e.g. api.patch(`/staff/${id}/`, { status: newStatus })
-    setStaff((prev) =>
-      prev.map((s) =>
-        s.id === id ? { ...s, status: s.status === 'active' ? 'inactive' : 'active' } : s
-      )
-    )
+  async function toggleStatus(id) {
+    setTogglingId(id)
+    try {
+      const { data } = await api.post(`staff/${id}/toggle-status/`)
+      setStaff((prev) => prev.map((s) => (s.id === id ? data : s)))
+    } catch (err) {
+      setStaffLoadError('Could not update status. Please try again.')
+    } finally {
+      setTogglingId(null)
+    }
   }
 
-  function handleAddRole(e) {
+  async function handleAddRole(e) {
     e.preventDefault()
+    setRoleError('')
     const trimmed = newRoleName.trim()
-    if (!trimmed || roles.includes(trimmed)) return
-    // TODO: replace with real API call, e.g. api.post('/staff-roles/', { name: trimmed })
-    setRoles((prev) => [...prev, trimmed])
-    setNewRoleName('')
+    if (!trimmed) return
+
+    setAddingRole(true)
+    try {
+      const { data } = await api.post('staff-roles/', { name: trimmed })
+      setRoles((prev) => [...prev, data])
+      setNewRoleName('')
+    } catch (err) {
+      setRoleError(flattenApiErrors(err.response?.data))
+    } finally {
+      setAddingRole(false)
+    }
   }
 
-  function removeRole(roleToRemove) {
-    // TODO: replace with real API call to delete the role server-side
-    setRoles((prev) => prev.filter((r) => r !== roleToRemove))
+  async function removeRole(role) {
+    try {
+      await api.delete(`staff-roles/${role.id}/`)
+      setRoles((prev) => prev.filter((r) => r.id !== role.id))
+    } catch (err) {
+      setRoleError('Could not remove this role. It may still be assigned to staff.')
+    }
   }
 
   return (
@@ -144,6 +191,8 @@ function StaffManagement() {
         </div>
       </div>
 
+      {staffLoadError && <div className="auth-error" style={{ marginBottom: 16 }}>{staffLoadError}</div>}
+
       <section className="panel">
         <div className="panel-body table-wrap">
           <table className="tickets">
@@ -158,43 +207,58 @@ function StaffManagement() {
               </tr>
             </thead>
             <tbody>
-              {staff.map((member) => (
-                <tr key={member.id}>
-                  <td>
-                    <div className="staff-name-cell">
-                      <div className="staff-table-avatar">
-                        {member.name.split(' ').map((p) => p[0]).slice(0, 2).join('')}
-                      </div>
-                      <div>
-                        <div className="name">{member.name}</div>
-                        <div className="email">{member.email}</div>
-                      </div>
-                    </div>
-                  </td>
-                  <td>{member.department}</td>
-                  <td>{member.role}</td>
-                  <td className="mono">{member.ticketsAssigned}</td>
-                  <td>
-                    <span className={`chip ${member.status === 'active' ? 'active' : 'inactive'}`}>
-                      {member.status === 'active' ? 'Active' : 'Inactive'}
-                    </span>
-                  </td>
-                  <td>
-                    <div className="row-actions">
-                      <button type="button" className="btn btn-ghost" onClick={() => openEditStaff(member)}>
-                        Edit
-                      </button>
-                      <button type="button" className="btn btn-ghost" onClick={() => toggleStatus(member.id)}>
-                        {member.status === 'active' ? 'Deactivate' : 'Activate'}
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-              {staff.length === 0 && (
+              {staffLoading ? (
                 <tr>
-                  <td colSpan={6} className="sm-empty-row">No staff added yet.</td>
+                  <td colSpan={6} className="sm-empty-row">Loading staff…</td>
                 </tr>
+              ) : (
+                <>
+                  {staff.map((member) => (
+                    <tr key={member.id}>
+                      <td>
+                        <div className="staff-name-cell">
+                          <div className="staff-table-avatar">
+                            {member.name.split(' ').map((p) => p[0]).slice(0, 2).join('')}
+                          </div>
+                          <div>
+                            <div className="name">{member.name}</div>
+                            <div className="email">{member.email}</div>
+                          </div>
+                        </div>
+                      </td>
+                      <td>{member.department}</td>
+                      <td>{member.role}</td>
+                      <td className="mono">{member.ticketsAssigned}</td>
+                      <td>
+                        <span className={`chip ${member.status === 'active' ? 'active' : 'inactive'}`}>
+                          {member.status === 'active' ? 'Active' : 'Inactive'}
+                        </span>
+                      </td>
+                      <td>
+                        <div className="row-actions">
+                          <button type="button" className="btn btn-ghost" onClick={() => openEditStaff(member)}>
+                            Edit
+                          </button>
+                          <button
+                            type="button"
+                            className="btn btn-ghost"
+                            disabled={togglingId === member.id}
+                            onClick={() => toggleStatus(member.id)}
+                          >
+                            {togglingId === member.id
+                              ? 'Updating…'
+                              : member.status === 'active' ? 'Deactivate' : 'Activate'}
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                  {staff.length === 0 && (
+                    <tr>
+                      <td colSpan={6} className="sm-empty-row">No staff added yet.</td>
+                    </tr>
+                  )}
+                </>
               )}
             </tbody>
           </table>
@@ -203,7 +267,7 @@ function StaffManagement() {
 
       {/* ================= Add / Edit Staff Modal ================= */}
       {showStaffModal && (
-        <div className="sm-modal-overlay" onClick={() => setShowStaffModal(false)}>
+        <div className="sm-modal-overlay" onClick={() => !saving && setShowStaffModal(false)}>
           <div className="sm-modal-card" onClick={(e) => e.stopPropagation()}>
             <div className="sm-modal-head">
               <div>
@@ -273,8 +337,10 @@ function StaffManagement() {
                     className="sm-select"
                     value={form.role}
                     onChange={(e) => handleFormChange('role', e.target.value)}
+                    disabled={rolesLoading}
                   >
-                    {roles.map((r) => <option key={r} value={r}>{r}</option>)}
+                    {rolesLoading && <option value="">Loading…</option>}
+                    {roles.map((r) => <option key={r.id} value={r.name}>{r.name}</option>)}
                   </select>
                 </div>
 
@@ -293,14 +359,14 @@ function StaffManagement() {
                 )}
               </div>
 
-              {formError && <div className="auth-error" style={{ marginTop: 14 }}>{formError}</div>}
+              {formError && <div className="auth-error" style={{ marginTop: 14, whiteSpace: 'pre-line' }}>{formError}</div>}
 
               <div className="sm-modal-actions">
-                <button type="button" className="btn btn-ghost" onClick={() => setShowStaffModal(false)}>
+                <button type="button" className="btn btn-ghost" onClick={() => setShowStaffModal(false)} disabled={saving}>
                   Cancel
                 </button>
-                <button type="submit" className="btn btn-primary">
-                  {editingId !== null ? 'Save Changes' : 'Add Staff'}
+                <button type="submit" className="btn btn-primary" disabled={saving}>
+                  {saving ? 'Saving…' : editingId !== null ? 'Save Changes' : 'Add Staff'}
                 </button>
               </div>
             </form>
@@ -330,13 +396,17 @@ function StaffManagement() {
                 onChange={(e) => setNewRoleName(e.target.value)}
                 placeholder="e.g. Senior Support Agent"
               />
-              <button type="submit" className="btn btn-primary" style={{ flexShrink: 0 }}>Add</button>
+              <button type="submit" className="btn btn-primary" style={{ flexShrink: 0 }} disabled={addingRole}>
+                {addingRole ? 'Adding…' : 'Add'}
+              </button>
             </form>
+
+            {roleError && <div className="auth-error" style={{ marginTop: 10 }}>{roleError}</div>}
 
             <ul className="role-manage-list">
               {roles.map((r) => (
-                <li className="role-manage-row" key={r}>
-                  {r}
+                <li className="role-manage-row" key={r.id}>
+                  {r.name}
                   <button type="button" onClick={() => removeRole(r)}>Remove</button>
                 </li>
               ))}
