@@ -3,16 +3,27 @@ import axios from 'axios'
 // Adjust if your Django API runs elsewhere (e.g. via a Vite proxy)
 const API_BASE = 'http://localhost:8000/'
 
+// Endpoints that don't need — and shouldn't send — an auth token.
+const PUBLIC_ENDPOINTS = ['login', 'detect-role', 'signup', 'register', 'onboarding']
+
+function isPublicEndpoint(url) {
+  return PUBLIC_ENDPOINTS.some((path) => url?.includes(path))
+}
+
 const api = axios.create({
   baseURL: API_BASE,
   headers: { 'Content-Type': 'application/json' },
 })
 
-// Attach the JWT access token to every outgoing request, if we have one.
+// Attach the JWT access token to every outgoing request, if we have one —
+// but skip public endpoints, since an expired/stale token would otherwise
+// get validated (and rejected) before the view's own logic even runs.
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('access')
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`
+  if (!isPublicEndpoint(config.url)) {
+    const token = localStorage.getItem('access')
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`
+    }
   }
   return config
 })
@@ -33,9 +44,8 @@ api.interceptors.response.use(
     const originalRequest = error.config
     const status = error.response?.status
 
-    // Don't try to refresh on the login/refresh endpoints themselves
-    const isAuthEndpoint =
-     originalRequest.url?.includes('login')
+    // Don't try to refresh on the login/refresh/detect-role endpoints themselves
+    const isAuthEndpoint = isPublicEndpoint(originalRequest.url)
 
     if (status === 401 && !originalRequest._retry && !isAuthEndpoint) {
       const refreshToken = localStorage.getItem('refresh')
