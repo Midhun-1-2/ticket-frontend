@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import '/src/Onboarding.css'
-import apiClient from '../client'
+import api from '/src/api.js'
 
 // ---------- Static dropdown options ----------
 
@@ -51,6 +51,8 @@ const initialFormData = {
   mobileNumber: '',
   phoneNumber: '',
   alternateEmail: '',
+  password: '',
+  confirmPassword: '',
   // Section D - Additional Information
   amcStatus: AMC_STATUSES[0],
   amcStartDate: '',
@@ -62,11 +64,13 @@ const initialFormData = {
   contractRefNumber: '',
 }
 
+// Strips non-digit characters and caps length — used for phone-style inputs.
+const digitsOnly = (value, maxLen) => value.replace(/\D/g, '').slice(0, maxLen)
+
 // ---------- camelCase (frontend) <-> snake_case (backend) mapping ----------
 
-function toBackendPayload(formData, products, draftToken) {
+function toBackendPayload(formData, products) {
   return {
-    ...(draftToken ? { draft_token: draftToken } : {}),
     company_name: formData.companyName,
     company_type: formData.companyType,
     gst_number: formData.gstNumber,
@@ -87,6 +91,8 @@ function toBackendPayload(formData, products, draftToken) {
     mobile_number: formData.mobileNumber,
     phone_number: formData.phoneNumber,
     alternate_email: formData.alternateEmail,
+    password: formData.password,
+    confirm_password: formData.confirmPassword,
     amc_status: formData.amcStatus,
     amc_start_date: formData.amcStartDate || null,
     amc_end_date: formData.amcEndDate || null,
@@ -120,9 +126,7 @@ function Onboarding() {
   const [products, setProducts] = useState([emptyProduct()])
   const [confirmed, setConfirmed] = useState(false)
   const [errors, setErrors] = useState({})
-  const [draftToken, setDraftToken] = useState(null)
   const [submittedCode, setSubmittedCode] = useState(null)
-  const [isSaving, setIsSaving] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [apiError, setApiError] = useState('')
 
@@ -164,6 +168,8 @@ function Onboarding() {
       contactName: 'Contact person name is required',
       email: 'Email is required',
       mobileNumber: 'Mobile number is required',
+      password: 'Password is required',
+      confirmPassword: 'Please confirm your password',
     }
     const nextErrors = {}
     Object.entries(required).forEach(([field, message]) => {
@@ -172,8 +178,17 @@ function Onboarding() {
     if (formData.email && !/^\S+@\S+\.\S+$/.test(formData.email)) {
       nextErrors.email = 'Enter a valid email address'
     }
-    if (formData.mobileNumber && !/^\d{10}$/.test(formData.mobileNumber)) {
+    if (formData.mobileNumber && formData.mobileNumber.length !== 10) {
       nextErrors.mobileNumber = 'Mobile number must be exactly 10 digits'
+    }
+    if (formData.phoneNumber && formData.phoneNumber.length !== 10) {
+      nextErrors.phoneNumber = 'Phone number must be exactly 10 digits'
+    }
+    if (formData.password && formData.password.length < 8) {
+      nextErrors.password = 'Password must be at least 8 characters'
+    }
+    if (formData.password && formData.confirmPassword && formData.password !== formData.confirmPassword) {
+      nextErrors.confirmPassword = 'Passwords do not match'
     }
     if (!formData.amcStatus) nextErrors.amcStatus = 'AMC status is required'
     if (formData.productsInUse.length === 0) nextErrors.productsInUse = 'Select at least one product or service'
@@ -191,27 +206,13 @@ function Onboarding() {
 
   // ---------- Backend calls ----------
 
-  const handleSaveDraft = async () => {
-    setIsSaving(true)
-    setApiError('')
-    try {
-      const payload = toBackendPayload(formData, products, draftToken)
-      const res = await apiClient.post('/onboarding/draft/', payload)
-      setDraftToken(res.data.draft_token)
-    } catch (err) {
-      setApiError(flattenApiErrors(err.response?.data))
-    } finally {
-      setIsSaving(false)
-    }
-  }
-
   const handleSubmit = async () => {
     if (!confirmed) return
     setIsSubmitting(true)
     setApiError('')
     try {
-      const payload = toBackendPayload(formData, products, draftToken)
-      const res = await apiClient.post('/onboarding/submit/', payload)
+      const payload = toBackendPayload(formData, products)
+      const res = await api.post('/onboarding/submit/', payload)
       setSubmittedCode(res.data.company_code)
       setStep(4)
     } catch (err) {
@@ -401,22 +402,55 @@ function Onboarding() {
             <label>Mobile Number<span className="required">*</span></label>
             <div className="phone-input">
               <span className="phone-prefix">+91</span>
-              <input placeholder="98450 21190" value={formData.mobileNumber} onChange={(e) => updateField('mobileNumber', e.target.value)} />
+              <input
+                placeholder="9845021190"
+                inputMode="numeric"
+                value={formData.mobileNumber}
+                onChange={(e) => updateField('mobileNumber', digitsOnly(e.target.value, 10))}
+              />
             </div>
             {errors.mobileNumber && <span className="field-error">{errors.mobileNumber}</span>}
           </div>
 
-          <div className="form-field">
+          <div className={`form-field ${errors.phoneNumber ? 'error' : ''}`}>
             <label>Phone Number<span className="optional">optional</span></label>
             <div className="phone-input">
               <span className="phone-prefix">+91</span>
-              <input placeholder="Landline" value={formData.phoneNumber} onChange={(e) => updateField('phoneNumber', e.target.value)} />
+              <input
+                placeholder="Landline"
+                inputMode="numeric"
+                value={formData.phoneNumber}
+                onChange={(e) => updateField('phoneNumber', digitsOnly(e.target.value, 10))}
+              />
             </div>
+            {errors.phoneNumber && <span className="field-error">{errors.phoneNumber}</span>}
           </div>
 
           <div className="form-field">
             <label>Alternate Email<span className="optional">optional</span></label>
             <input placeholder="backup contact" value={formData.alternateEmail} onChange={(e) => updateField('alternateEmail', e.target.value)} />
+          </div>
+
+          <div className={`form-field ${errors.password ? 'error' : ''}`}>
+            <label>Password<span className="required">*</span></label>
+            <input
+              type="password"
+              placeholder="At least 8 characters"
+              value={formData.password}
+              onChange={(e) => updateField('password', e.target.value)}
+            />
+            {errors.password && <span className="field-error">{errors.password}</span>}
+          </div>
+
+          <div className={`form-field ${errors.confirmPassword ? 'error' : ''}`}>
+            <label>Confirm Password<span className="required">*</span></label>
+            <input
+              type="password"
+              placeholder="Re-enter password"
+              value={formData.confirmPassword}
+              onChange={(e) => updateField('confirmPassword', e.target.value)}
+            />
+            {errors.confirmPassword && <span className="field-error">{errors.confirmPassword}</span>}
           </div>
         </div>
       </div>
@@ -493,9 +527,7 @@ function Onboarding() {
       </div>
 
       <div className="onboarding-actions">
-        <button className="btn btn-secondary" disabled={isSaving} onClick={handleSaveDraft}>
-          {isSaving ? 'Saving...' : 'Save as Draft'}
-        </button>
+        <div />
         <button className="btn btn-primary" onClick={handleNextFromStep1}>Next: Product Details →</button>
       </div>
     </div>
@@ -572,12 +604,7 @@ function Onboarding() {
 
       <div className="onboarding-actions">
         <button className="btn btn-secondary" onClick={() => setStep(1)}>← Back</button>
-        <div style={{ display: 'flex', gap: 10 }}>
-          <button className="btn btn-secondary" disabled={isSaving} onClick={handleSaveDraft}>
-            {isSaving ? 'Saving...' : 'Save as Draft'}
-          </button>
-          <button className="btn btn-primary" onClick={handleNextFromStep2}>Next: Review & Submit →</button>
-        </div>
+        <button className="btn btn-primary" onClick={handleNextFromStep2}>Next: Review & Submit →</button>
       </div>
     </div>
   )
@@ -670,8 +697,8 @@ function Onboarding() {
       </p>
       <p className="pending-text">
         You'll receive a confirmation email at <strong>{formData.email || 'your registered email'}</strong> shortly.
-        You won't be able to log in until an admin approves the account and assigns a support staff member — once
-        approved, your login credentials will be sent to your email.
+        You won't be able to log in until an admin approves the account — once approved, you can log in with your
+        mobile number and the password you just set.
       </p>
       <div className="pending-note">Reference: {submittedCode || formData.contractRefNumber || 'Will be assigned after approval'}</div>
     </div>
