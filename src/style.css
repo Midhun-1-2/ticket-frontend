@@ -95,6 +95,13 @@ body.sidebar-collapsed .app-shell{
   overflow-y: auto;
 }
 
+/* --- Scrim (mobile nav overlay) ---
+   Must default to display:none OUTSIDE any media query, otherwise at
+   desktop widths this becomes an unstyled block-level element with no
+   explicit grid placement, and CSS Grid auto-places it into the open
+   .main cell — stretching it to fill/cover the page content. --- */
+.scrim{ display:none; }
+
 /* =========================================================================
    Sidebar
    ========================================================================= */
@@ -519,7 +526,7 @@ table.tickets tbody tr:hover{ background: var(--paper); }
   .sidebar .nav-link, .sidebar .role-card{ justify-content:flex-start; }
   body.sidebar-open .sidebar{ transform: translateX(0); }
   .scrim{
-    display:none; position:fixed; inset:0; background:rgba(15,17,22,.45);
+    position:fixed; inset:0; background:rgba(15,17,22,.45);
     z-index:35;
   }
   body.sidebar-open .scrim{ display:block; }
