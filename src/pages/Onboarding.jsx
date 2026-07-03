@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import '/src/Onboarding.css'
-import apiClient from '../client'
+import api from '/src/api.js'
 
 // ---------- Static dropdown options ----------
 
@@ -196,7 +196,7 @@ function Onboarding() {
     setApiError('')
     try {
       const payload = toBackendPayload(formData, products, draftToken)
-      const res = await apiClient.post('/onboarding/draft/', payload)
+      const res = await api.post('/onboarding/draft/', payload)
       setDraftToken(res.data.draft_token)
     } catch (err) {
       setApiError(flattenApiErrors(err.response?.data))
@@ -211,7 +211,7 @@ function Onboarding() {
     setApiError('')
     try {
       const payload = toBackendPayload(formData, products, draftToken)
-      const res = await apiClient.post('/onboarding/submit/', payload)
+      const res = await api.post('/onboarding/submit/', payload)
       setSubmittedCode(res.data.company_code)
       setStep(4)
     } catch (err) {

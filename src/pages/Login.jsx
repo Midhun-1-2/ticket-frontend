@@ -61,7 +61,7 @@ function Login() {
   function redirectByRole(userRole) {
     if (userRole === 'admin') navigate('/dashboard/')
     else if (userRole === 'staff') navigate('/staff/dashboard/')
-    else navigate('/customer/dashboard/')
+    else navigate('/dashboard/')
   }
 
   async function handleSubmit(e) {
