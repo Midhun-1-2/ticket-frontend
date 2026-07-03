@@ -35,7 +35,7 @@ api.interceptors.response.use(
 
     // Don't try to refresh on the login/refresh endpoints themselves
     const isAuthEndpoint =
-      originalRequest.url?.includes('/login')
+     originalRequest.url?.includes('login')
 
     if (status === 401 && !originalRequest._retry && !isAuthEndpoint) {
       const refreshToken = localStorage.getItem('refresh')
