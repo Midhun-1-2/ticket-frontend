@@ -75,10 +75,24 @@ p{ margin:0; }
 .app-shell{
   display:grid;
   grid-template-columns: var(--sidebar-w) 1fr;
+  grid-template-rows: var(--topbar-h) 1fr;
   min-height:100vh;
 }
 body.sidebar-collapsed .app-shell{
   grid-template-columns: var(--sidebar-w-collapsed) 1fr;
+}
+.app-shell .sidebar{
+  grid-column: 1;
+  grid-row: 1 / -1;
+}
+.app-shell .topbar{
+  grid-column: 2;
+  grid-row: 1;
+}
+.app-shell .main{
+  grid-column: 2;
+  grid-row: 2;
+  overflow-y: auto;
 }
 
 /* =========================================================================
@@ -276,10 +290,24 @@ body.sidebar-collapsed .role-card{ justify-content:center; }
   padding: 9px 16px; border-radius:8px;
   font-size:13.5px; font-weight:600;
   border:1px solid transparent;
+  appearance: none;
+  -webkit-appearance: none;
+  outline: none;
+  box-shadow: none;
+}
+.btn:disabled{
+  border-color: transparent;
+  outline: none;
+  box-shadow: none;
+}
+.btn:focus,
+.btn:focus-visible{
+  box-shadow: none;
 }
 .btn svg{ width:16px; height:16px; }
 .btn-primary{ background: var(--accent); color:#fff; }
 .btn-primary:hover{ background: var(--accent-ink); }
+.btn-primary:disabled{ background: var(--accent); opacity: .55; }
 .btn-ghost{ background:#fff; border-color:var(--line); color:var(--text); }
 .btn-ghost:hover{ background: var(--paper); }
 
@@ -517,21 +545,4 @@ table.tickets tbody tr:hover{ background: var(--paper); }
 
 @media (max-width: 420px){
   .stat-grid{ grid-template-columns: 1fr; }
-}
-
-.app-shell{
-  grid-template-rows: var(--topbar-h) 1fr;
-}
-.app-shell .sidebar{
-  grid-column: 1;
-  grid-row: 1 / -1;
-}
-.app-shell .topbar{
-  grid-column: 2;
-  grid-row: 1;
-}
-.app-shell .main{
-  grid-column: 2;
-  grid-row: 2;
-  overflow-y: auto;
 }

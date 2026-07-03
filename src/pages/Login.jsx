@@ -3,6 +3,7 @@ import { useNavigate, Link } from 'react-router-dom'
 import axios from 'axios'
 import api from '/src/api.js'
 import '/src/login.css'
+import '/src/style.css'
 import CreateMpinModal from '/src/CreateMpinModal.jsx'
 
 function Login() {
@@ -176,7 +177,10 @@ function Login() {
               />
             </label>
 
-            {role && (
+            {/* Role Detected is only surfaced for admin/staff — customers
+                don't need to see this, and it avoids exposing role info
+                unnecessarily for the common case. */}
+            {(role === 'admin' || role === 'staff') && (
               <div className="auth-role-detected">
                 Role detected: <span>{role}</span>
               </div>
