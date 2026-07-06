@@ -51,6 +51,15 @@ const TrashIcon = () => (
       stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
   </svg>
 )
+// Locked/padlock icon — shown in place of the trash icon when a category
+// is in use, so the disabled state reads as "protected" rather than just
+// looking broken.
+const LockIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+    <rect x="3.5" y="7" width="9" height="6.5" rx="1.3" stroke="currentColor" strokeWidth="1.3" />
+    <path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+  </svg>
+)
 const TagIcon = () => (
   <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
     <path d="M12.6 2.6 21 11l-9 9-8.4-8.4V3.6a1 1 0 0 1 1-1H12.6Z" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" />
@@ -78,6 +87,7 @@ function CategoryMaster() {
   const [form, setForm] = useState(emptyForm)
   const [errors, setErrors] = useState({})
   const [deleteTarget, setDeleteTarget] = useState(null) // category object pending deletion
+  const [deleteError, setDeleteError] = useState('')
 
   useEffect(() => {
     fetchCategories()
@@ -158,19 +168,36 @@ function CategoryMaster() {
     }
   }
 
+  const openDeleteModal = (category) => {
+    setDeleteError('')
+    setDeleteTarget(category)
+  }
+
+  const closeDeleteModal = () => {
+    setDeleteTarget(null)
+    setDeleteError('')
+  }
+
   const confirmDelete = async () => {
     const target = deleteTarget
-    setDeleteTarget(null)
     try {
       await api.delete(`categories/${target.id}/`)
-      // DELETE is a soft-delete on the backend (sets is_active=false, keeps
-      // the row) — reflect that here instead of removing it from the list,
-      // so it stays visible/dimmed and can still be reactivated via the
-      // toggle button, consistent with that action.
-      setCategories((prev) => prev.map((c) => (c.id === target.id ? { ...c, is_active: false } : c)))
+      // Hard delete on the backend (categories not in use are removed
+      // outright, not just deactivated) — drop it from the list entirely.
+      setCategories((prev) => prev.filter((c) => c.id !== target.id))
       setLastSynced(new Date())
+      setDeleteTarget(null)
+      setDeleteError('')
     } catch (err) {
-      setLoadError('Could not delete this category. Please try again.')
+      if (err.response?.status === 409) {
+        // Category became in-use between render and click (e.g. a ticket
+        // was just filed against it) — surface that instead of a generic
+        // failure, and refresh so its row locks correctly.
+        setDeleteError(err.response?.data?.detail || 'This category is in use and cannot be deleted.')
+        fetchCategories()
+      } else {
+        setDeleteError('Could not delete this category. Please try again.')
+      }
     }
   }
 
@@ -254,10 +281,6 @@ function CategoryMaster() {
               <div className="empty-icon"><TagIcon /></div>
               <div className="empty-state-title">No categories yet</div>
               <div className="empty-state-text">Add your first category to start routing tickets.</div>
-              <button className="btn btn-primary empty-state-btn" onClick={openAddModal}>
-                <PlusIcon />
-                Add Category
-              </button>
             </div>
           ) : (
             <table className="category-table">
@@ -299,7 +322,14 @@ function CategoryMaster() {
                           <PowerIcon />
                         </button>
                         <button className="icon-btn" title="Edit" onClick={() => openEditModal(cat)}><PencilIcon /></button>
-                        <button className="icon-btn danger" title="Delete" onClick={() => setDeleteTarget(cat)}><TrashIcon /></button>
+                        <button
+                          className={`icon-btn danger ${cat.in_use ? 'locked' : ''}`}
+                          title={cat.in_use ? 'Cannot delete: category is in use by existing tickets' : 'Delete'}
+                          disabled={cat.in_use}
+                          onClick={() => openDeleteModal(cat)}
+                        >
+                          {cat.in_use ? <LockIcon /> : <TrashIcon />}
+                        </button>
                       </div>
                     </td>
                   </tr>
@@ -358,15 +388,15 @@ function CategoryMaster() {
 
       {/* Delete confirmation modal */}
       {deleteTarget && (
-        <div className="modal-overlay" onClick={() => setDeleteTarget(null)}>
+        <div className="modal-overlay" onClick={closeDeleteModal}>
           <div className="modal-card" onClick={(e) => e.stopPropagation()}>
             <div className="modal-title">Delete "{deleteTarget.name}"?</div>
             <p className="delete-modal-text">
-              This removes the category from the active list. Tickets already using it will keep the label, but it
-              won't be selectable for new tickets.
+              This will permanently delete the category. This action cannot be undone.
             </p>
+            {deleteError && <p className="delete-modal-error">{deleteError}</p>}
             <div className="modal-actions">
-              <button className="btn btn-secondary" onClick={() => setDeleteTarget(null)}>Cancel</button>
+              <button className="btn btn-secondary" onClick={closeDeleteModal}>Cancel</button>
               <button className="btn btn-danger" onClick={confirmDelete}>Delete</button>
             </div>
           </div>
