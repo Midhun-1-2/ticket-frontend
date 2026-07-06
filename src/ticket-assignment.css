@@ -1,0 +1,98 @@
+/* =========================================================================
+   Ticket Assignment — page-specific styles
+   Follows style.css tokens. Do NOT redefine .btn / .btn-primary / .chip /
+   .panel / table.tickets here — only variants not already in style.css.
+   ========================================================================= */
+
+.assign-error{
+  background: var(--red-soft);
+  color: var(--red);
+  border: 1px solid #f3b4ae;
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 13px;
+  margin-bottom: 16px;
+}
+
+.assign-empty{
+  padding: 32px 8px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 13.5px;
+}
+
+/* --- Staff offer rows --- */
+.offer-list{
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 4px 0 8px;
+}
+
+.offer-row{
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 12px 14px;
+}
+
+.offer-priority{
+  flex-shrink: 0;
+}
+.offer-priority .dot{
+  width: 9px;
+  height: 9px;
+}
+
+.offer-main{ min-width: 0; flex: 1; }
+.offer-subject{
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 3px;
+}
+.offer-meta{
+  font-size: 11.5px;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.offer-sep{ color: var(--text-faint); }
+
+.offer-actions{
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.btn-decline{
+  color: var(--red);
+  border-color: var(--red-soft);
+}
+.btn-decline:hover{
+  background: var(--red-soft);
+}
+
+/* --- Admin: staff offered-to chip list within a table cell --- */
+.offer-staff-list{
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  max-width: 240px;
+}
+
+@media (max-width: 640px){
+  .offer-row{
+    flex-wrap: wrap;
+  }
+  .offer-actions{
+    width: 100%;
+    justify-content: flex-end;
+  }
+}

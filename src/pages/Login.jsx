@@ -60,7 +60,7 @@ function Login() {
 
   function redirectByRole(userRole) {
     if (userRole === 'admin') navigate('/dashboard/')
-    else if (userRole === 'staff') navigate('/staff/dashboard/')
+    else if (userRole === 'staff') navigate('/dashboard/')
     else navigate('/dashboard/')
   }
 
@@ -91,9 +91,15 @@ function Login() {
         return
       }
 
+      // issue_tokens() on the backend returns { access, refresh, role,
+      // phone_number, full_name } — persist all of it so Header.jsx /
+      // GlobalSearch.jsx can show the logged-in user's actual name and role
+      // instead of falling back to generic placeholders.
       localStorage.setItem('access', data.access)
       localStorage.setItem('refresh', data.refresh)
       localStorage.setItem('role', data.role)
+      localStorage.setItem('full_name', data.full_name || '')
+      localStorage.setItem('phone_number', data.phone_number || '')
 
       redirectByRole(data.role)
     } catch (err) {

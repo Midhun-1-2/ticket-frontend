@@ -114,11 +114,33 @@ api.interceptors.response.use(
   }
 )
 
-function clearSession() {
+// Clears all locally-stored session data and redirects to the landing page.
+// Exported so components (e.g. the sidebar's Log Out button) can trigger
+// this directly, and so it can be reused as the "clean up locally, no
+// matter what" step inside logout() below.
+export function clearSession() {
   localStorage.removeItem('access')
   localStorage.removeItem('refresh')
   localStorage.removeItem('role')
-  window.location.href = '/login/'
+  window.location.href = '/'
+}
+
+// Full logout: blacklists the refresh token server-side (so it can't be
+// reused even if someone has a copy of it), then clears local session and
+// redirects. Falls back to just clearing locally if the API call fails for
+// any reason (token already expired, network hiccup, etc.) — logout should
+// never leave the user stuck on the current screen.
+export async function logout() {
+  const refresh = localStorage.getItem('refresh')
+  try {
+    if (refresh) {
+      await api.post('logout/', { refresh })
+    }
+  } catch (err) {
+    // Intentionally swallowed — see comment above.
+  } finally {
+    clearSession()
+  }
 }
 
 export default api

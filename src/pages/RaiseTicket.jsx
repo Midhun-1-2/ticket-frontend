@@ -6,20 +6,15 @@ import '/src/RaiseTicket.css'
 const PRIORITIES = ['Low', 'Medium', 'High', 'Urgent']
 const priorityKey = { Low: 'p-low', Medium: 'p-medium', High: 'p-high', Urgent: 'p-urgent' }
 
-// Hardcoded for now — swap for a fetched list once a real products/modules
-// endpoint exists on the backend (mirrors the same pattern used for
-// categories, which now pulls live from /categories/).
-const PRODUCTS = ['Not Applicable', 'Ticket Desk Pro', 'API Gateway', 'SSO Add-on', 'Analytics Suite', 'Mobile App']
-
 const MAX_FILE_SIZE_MB = 10
 const MAX_TOTAL_FILES = 5
 
 const initialForm = {
   subject: '',
   category: '',
-  priority: 'Medium',
+  priority: '', // no default — stays unselected until a category is picked or the customer clicks one
   description: '',
-  product: PRODUCTS[0],
+  product: '', // no default — customer must pick one of their approved products
 }
 
 function formatSize(bytes) {
@@ -55,11 +50,21 @@ function RaiseTicket() {
   const [categoriesLoading, setCategoriesLoading] = useState(true)
   const [categoriesError, setCategoriesError] = useState('')
 
+  const [products, setProducts] = useState([])
+  const [productsLoading, setProductsLoading] = useState(true)
+  const [productsError, setProductsError] = useState('')
+
+  // Tracks whether the customer has manually clicked a priority option
+  // themselves. Once true, picking a different category will NOT override
+  // their manual choice — only auto-fills happen before the first manual click.
+  const [priorityTouched, setPriorityTouched] = useState(false)
+
   const [submitting, setSubmitting] = useState(false)
   const [banner, setBanner] = useState(null) // { type: 'success' | 'error', text }
 
   useEffect(() => {
     fetchCategories()
+    fetchProducts()
   }, [])
 
   const fetchCategories = async () => {
@@ -77,9 +82,44 @@ function RaiseTicket() {
     }
   }
 
+  const fetchProducts = async () => {
+    setProductsLoading(true)
+    setProductsError('')
+    try {
+      // Only products this customer's company had verified/approved by an
+      // admin during Account Approvals show up here.
+      const { data } = await api.get('my-products/')
+      setProducts(data.products || [])
+    } catch (err) {
+      setProductsError('Could not load products.')
+    } finally {
+      setProductsLoading(false)
+    }
+  }
+
   const updateField = (field, value) => {
     setForm((prev) => ({ ...prev, [field]: value }))
     if (errors[field]) setErrors((prev) => ({ ...prev, [field]: undefined }))
+  }
+
+  // Category picked -> auto-select that category's default priority,
+  // unless the customer has already manually chosen a priority themselves.
+  const handleCategoryChange = (categoryName) => {
+    updateField('category', categoryName)
+
+    if (priorityTouched) return // respect the customer's manual override
+
+    const selected = categories.find((c) => c.name === categoryName)
+    if (selected?.priority) {
+      updateField('priority', selected.priority)
+    }
+  }
+
+  // Customer clicked a priority option directly — from now on, changing
+  // category should not overwrite their choice.
+  const handlePriorityClick = (priority) => {
+    setPriorityTouched(true)
+    updateField('priority', priority)
   }
 
   // ---------- Attachments ----------
@@ -119,6 +159,8 @@ function RaiseTicket() {
     const nextErrors = {}
     if (!form.subject.trim()) nextErrors.subject = 'Subject is required'
     if (!form.category) nextErrors.category = 'Category / department is required'
+    if (!form.product) nextErrors.product = 'Product / module is required'
+    if (!form.priority) nextErrors.priority = 'Priority is required'
     if (!form.description.trim()) nextErrors.description = 'Description is required'
     setErrors(nextErrors)
     return Object.keys(nextErrors).length === 0
@@ -190,7 +232,7 @@ function RaiseTicket() {
                 <label>Category / Department<span className="required">*</span></label>
                 <select
                   value={form.category}
-                  onChange={(e) => updateField('category', e.target.value)}
+                  onChange={(e) => handleCategoryChange(e.target.value)}
                   disabled={categoriesLoading}
                 >
                   <option value="">{categoriesLoading ? 'Loading…' : 'Select a category'}</option>
@@ -202,27 +244,42 @@ function RaiseTicket() {
                 {categoriesError && <span className="raise-field-error">{categoriesError}</span>}
               </div>
 
-              <div className="raise-field">
-                <label>Product / Module<span className="optional">if applicable</span></label>
-                <select value={form.product} onChange={(e) => updateField('product', e.target.value)}>
-                  {PRODUCTS.map((p) => <option key={p} value={p}>{p}</option>)}
+              <div className={`raise-field ${errors.product ? 'error' : ''}`}>
+                <label>Product / Module<span className="required">*</span></label>
+                <select
+                  value={form.product}
+                  onChange={(e) => updateField('product', e.target.value)}
+                  disabled={productsLoading}
+                >
+                  <option value="">{productsLoading ? 'Loading…' : 'Select a product'}</option>
+                  {products.map((p) => (
+                    <option key={p} value={p}>{p}</option>
+                  ))}
                 </select>
+                {errors.product && <span className="raise-field-error">{errors.product}</span>}
+                {productsError && <span className="raise-field-error">{productsError}</span>}
+                {!productsLoading && !productsError && products.length === 0 && (
+                  <span className="raise-field-error">
+                    No approved products found for your account. Contact support.
+                  </span>
+                )}
               </div>
             </div>
 
-            <div className="raise-field">
+            <div className={`raise-field ${errors.priority ? 'error' : ''}`}>
               <label>Priority<span className="required">*</span></label>
               <div className="priority-select">
                 {PRIORITIES.map((p) => (
                   <div
                     key={p}
                     className={`priority-option ${priorityKey[p]} ${form.priority === p ? 'selected ' + priorityKey[p] : ''}`}
-                    onClick={() => updateField('priority', p)}
+                    onClick={() => handlePriorityClick(p)}
                   >
                     {p}
                   </div>
                 ))}
               </div>
+              {errors.priority && <span className="raise-field-error">{errors.priority}</span>}
             </div>
 
             <div className={`raise-field ${errors.description ? 'error' : ''}`}>

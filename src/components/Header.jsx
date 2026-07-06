@@ -1,17 +1,84 @@
 import React, { useState, useEffect } from 'react'
 import { useLocation, Link } from "react-router-dom";
-import api from "../api"; // adjust this path if Header.jsx lives somewhere else relative to api.js
+import api, { logout } from "../api"; // adjust this path if Header.jsx lives somewhere else relative to api.js
+import GlobalSearch from "./GlobalSearch"; // adjust path to match where you place GlobalSearch.jsx
+
+// Same assumption as GlobalSearch.jsx / TicketAssignment.jsx: login stores
+// { role, full_name } in localStorage under these exact keys (matching the
+// backend's issue_tokens() response shape). Adjust here if your AuthContext
+// stores it differently.
+const getFullName = () => localStorage.getItem('full_name') || 'User';
+const getRole = () => localStorage.getItem('role') || '';
+
+const ROLE_LABELS = {
+  admin: 'Admin',
+  staff: 'Staff',
+  customer: 'Customer',
+};
+
+function formatRole(role) {
+  return ROLE_LABELS[role] || (role ? role.charAt(0).toUpperCase() + role.slice(1) : 'Member');
+}
+
+// "Rahul Jose" -> "RJ", single-word names -> first two letters, "" -> "?"
+function getInitials(name) {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return '?';
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[1][0]).toUpperCase();
+}
 
 function Header() {
   const location = useLocation();
   const isActive = (path) =>
     location.pathname === path ? "nav-link active" : "nav-link";
 
-  // Live count of pending Account Approvals — replaces the old hardcoded
-  // "4" badge. Refetches whenever the route changes (e.g. after an admin
-  // approves/rejects a request and navigates away/back), and also polls
-  // every 30s so the badge stays fresh if left open on another screen.
+  const fullName = getFullName();
+  const role = getRole();
+  const roleLabel = formatRole(role);
+  const initials = getInitials(fullName);
+
+  // Live count of pending Account Approvals.
   const [pendingApprovals, setPendingApprovals] = useState(null);
+
+  // Live count of pending Ticket Assignment offers.
+  const [pendingAssignments, setPendingAssignments] = useState(null);
+
+  // Prevents a double-click from firing two logout requests at once.
+  const [loggingOut, setLoggingOut] = useState(false);
+
+  // ---------------------------------------------------------------------
+  // Mobile off-canvas sidebar. On desktop (>880px) the sidebar is always
+  // visible and expands on hover via pure CSS (see style.css) — there's
+  // no button for that, hovering the sidebar itself is the trigger.
+  // The hamburger only exists for the mobile off-canvas case, and is only
+  // rendered at all (not just hidden) when isMobile is true, so it can
+  // never show up on a desktop-width screen even if CSS is out of sync.
+  // ---------------------------------------------------------------------
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [isMobile, setIsMobile] = useState(
+    typeof window !== 'undefined' ? window.matchMedia('(max-width: 880px)').matches : false
+  );
+
+  useEffect(() => {
+    const mql = window.matchMedia('(max-width: 880px)');
+    const handleChange = (e) => {
+      setIsMobile(e.matches);
+      if (!e.matches) setMobileNavOpen(false); // left mobile width — make sure off-canvas isn't left open
+    };
+    mql.addEventListener('change', handleChange);
+    return () => mql.removeEventListener('change', handleChange);
+  }, []);
+
+  useEffect(() => {
+    document.body.classList.toggle('sidebar-open', mobileNavOpen);
+  }, [mobileNavOpen]);
+
+  // Close the mobile off-canvas menu whenever the route changes, so
+  // tapping a nav link doesn't leave the overlay open on the next page.
+  useEffect(() => {
+    setMobileNavOpen(false);
+  }, [location.pathname]);
 
   useEffect(() => {
     let cancelled = false;
@@ -35,9 +102,47 @@ function Header() {
     };
   }, [location.pathname]);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadPendingAssignmentCount() {
+      try {
+        const { data } = await api.get("ticket-assignments/pending-count/");
+        if (!cancelled) setPendingAssignments(typeof data.count === "number" ? data.count : 0);
+      } catch (err) {
+        // Fail quietly — the badge just won't show rather than breaking the header.
+        if (!cancelled) setPendingAssignments(null);
+      }
+    }
+
+    loadPendingAssignmentCount();
+    const interval = setInterval(loadPendingAssignmentCount, 30000);
+
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [location.pathname]);
+
+  const handleLogout = async (e) => {
+    e.preventDefault();
+    if (loggingOut) return;
+    setLoggingOut(true);
+    try {
+      await logout(); // blacklists the refresh token server-side, then redirects to /login/
+    } catch (err) {
+      // logout() already clears local session and redirects even on
+      // failure, so there's nothing further to handle here.
+    }
+  };
+
   return (
     <>
-      <div className="scrim" data-scrim></div>
+      <div
+        className="scrim"
+        onClick={() => setMobileNavOpen(false)}
+        aria-hidden={!mobileNavOpen}
+      ></div>
 
       {/* ================= SIDEBAR ================= */}
       <aside className="sidebar">
@@ -77,7 +182,9 @@ function Header() {
             <Link to="/ticket-assignment/" className={isActive("/ticket-assignment/")}>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M7 16V4M7 4l-3 3M7 4l3 3"/><path d="M17 8v12M17 20l3-3M17 20l-3-3"/></svg>
               <span className="label">Ticket Assignment</span>
-              <span className="nav-count warn">12</span>
+              {pendingAssignments !== null && pendingAssignments > 0 && (
+                <span className="nav-count warn">{pendingAssignments}</span>
+              )}
             </Link>
           </li>
           <li className="nav-item">
@@ -122,19 +229,19 @@ function Header() {
             </a>
           </li>
           <li className="nav-item">
-            <a href="#" className="nav-link">
+            <a href="#" className="nav-link" onClick={handleLogout} aria-disabled={loggingOut}>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
-              <span className="label">Log Out</span>
+              <span className="label">{loggingOut ? "Logging out…" : "Log Out"}</span>
             </a>
           </li>
         </ul>
 
         <div className="sidebar-footer">
           <a href="#" className="role-card">
-            <div className="avatar">RJ</div>
+            <div className="avatar">{initials}</div>
             <div className="role-info">
-              <div className="role-name">Rahul Jose</div>
-              <div className="role-title">System Admin</div>
+              <div className="role-name">{fullName}</div>
+              <div className="role-title">{roleLabel}</div>
             </div>
           </a>
         </div>
@@ -142,18 +249,21 @@ function Header() {
 
       {/* ================= TOPBAR ================= */}
       <header className="topbar">
-        <button className="icon-btn menu-btn" data-menu-toggle aria-label="Toggle navigation">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
-        </button>
-        <button className="icon-btn" data-collapse-toggle aria-label="Collapse sidebar" style={{ display: "none" }} data-desktop-only>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
-        </button>
+        {isMobile && (
+          <button
+            className="icon-btn menu-btn"
+            aria-label={mobileNavOpen ? "Close navigation" : "Open navigation"}
+            onClick={() => setMobileNavOpen((open) => !open)}
+          >
+            {mobileNavOpen ? (
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+            ) : (
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+            )}
+          </button>
+        )}
 
-        <div className="search-field">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
-          <input type="text" placeholder="Search tickets, customers, staff…" />
-          <span className="search-hint">⌘K</span>
-        </div>
+        <GlobalSearch />
 
         <div className="topbar-right">
           <button className="icon-btn notif-btn" aria-label="Notifications">
@@ -162,10 +272,10 @@ function Header() {
           </button>
           <div className="topbar-divider"></div>
           <div className="topbar-profile">
-            <div className="avatar">RJ</div>
+            <div className="avatar">{initials}</div>
             <div className="role-info">
-              <div className="role-name">Rahul Jose</div>
-              <div className="role-title">Admin</div>
+              <div className="role-name">{fullName}</div>
+              <div className="role-title">{roleLabel}</div>
             </div>
           </div>
         </div>

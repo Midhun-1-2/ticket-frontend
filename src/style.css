@@ -78,9 +78,6 @@ p{ margin:0; }
   grid-template-rows: var(--topbar-h) 1fr;
   min-height:100vh;
 }
-body.sidebar-collapsed .app-shell{
-  grid-template-columns: var(--sidebar-w-collapsed) 1fr;
-}
 .app-shell .sidebar{
   grid-column: 1;
   grid-row: 1 / -1;
@@ -115,8 +112,8 @@ body.sidebar-collapsed .app-shell{
   top:0;
   height:100vh;
   overflow-y:auto;
+  overflow-x:hidden;
   z-index: 40;
-  transition: width .2s ease;
 }
 .sidebar::-webkit-scrollbar{ width:6px; }
 .sidebar::-webkit-scrollbar-thumb{ background: var(--ink-line); border-radius:3px; }
@@ -183,6 +180,7 @@ body.sidebar-collapsed .app-shell{
   color:#DADCE4;
   padding: 1px 7px;
   border-radius: 20px;
+  flex-shrink: 0;
 }
 .nav-count.warn{ background: var(--amber); color:#1C1400; }
 .nav-count.critical{ background: var(--red); color:#fff; }
@@ -209,13 +207,60 @@ body.sidebar-collapsed .app-shell{
 .role-name{ color:#fff; font-size:13px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .role-title{ font-size:11px; color:#7C8092; white-space:nowrap; }
 
-body.sidebar-collapsed .brand-text,
-body.sidebar-collapsed .nav-group-label,
-body.sidebar-collapsed .nav-link .label,
-body.sidebar-collapsed .nav-count,
-body.sidebar-collapsed .role-info{ display:none; }
-body.sidebar-collapsed .nav-link{ justify-content:center; }
-body.sidebar-collapsed .role-card{ justify-content:center; }
+/* =========================================================================
+   Sidebar — mid-range widths only: icon-only, expands on hover.
+   On a genuinely full-screen desktop (>=1200px) the sidebar stays fully
+   expanded at all times (base .sidebar styles above already do this — no
+   override needed here). Between 881px and 1199px — enough room to be
+   off-canvas-free, not enough to comfortably show a full labeled sidebar
+   — it collapses to icon-only and widens on hover instead. No manual
+   toggle button; the sidebar itself is the trigger, and it doesn't
+   reflow the page since it overflows on top of the content via width +
+   z-index rather than pushing the grid track.
+   ========================================================================= */
+@media (min-width: 881px) and (max-width: 1199px){
+  .app-shell{ grid-template-columns: var(--sidebar-w-collapsed) 1fr; }
+
+  .sidebar{
+    width: var(--sidebar-w-collapsed);
+    transition: width .16s ease, box-shadow .16s ease;
+  }
+  .sidebar .brand-text,
+  .sidebar .nav-group-label,
+  .sidebar .nav-link .label,
+  .sidebar .nav-count,
+  .sidebar .role-info{ display:none; }
+  .sidebar .nav-link,
+  .sidebar .role-card{ justify-content:center; }
+
+  .sidebar:hover,
+  .sidebar:focus-within{
+    width: var(--sidebar-w);
+    box-shadow: 16px 0 40px rgba(15,17,22,.22);
+  }
+  .sidebar:hover .brand-text,
+  .sidebar:hover .nav-group-label,
+  .sidebar:hover .nav-link .label,
+  .sidebar:hover .nav-count,
+  .sidebar:hover .role-info,
+  .sidebar:focus-within .brand-text,
+  .sidebar:focus-within .nav-group-label,
+  .sidebar:focus-within .nav-link .label,
+  .sidebar:focus-within .nav-count,
+  .sidebar:focus-within .role-info{ display:block; }
+  .sidebar:hover .nav-link,
+  .sidebar:hover .role-card,
+  .sidebar:focus-within .nav-link,
+  .sidebar:focus-within .role-card{ justify-content:flex-start; }
+}
+
+/* Hamburger has no job at or above 881px either way (full sidebar at
+   >=1200px, hover-expand collapsed sidebar at 881-1199px) — it only
+   exists for the off-canvas mobile case below 880px. Header.jsx also
+   only renders it when isMobile is true; this is the CSS-level backup. */
+@media (min-width: 881px){
+  .menu-btn{ display:none !important; }
+}
 
 /* =========================================================================
    Topbar
@@ -237,6 +282,11 @@ body.sidebar-collapsed .role-card{ justify-content:center; }
 }
 .icon-btn:hover{ background: var(--paper); color:var(--text); }
 .icon-btn svg{ width:18px; height:18px; }
+
+/* Hamburger (mobile off-canvas toggle only) — hidden by default; shown
+   below 880px via the media query further down, and Header.jsx also
+   only renders it when isMobile is true. */
+.menu-btn{ display:none; }
 
 .search-field{
   flex:1; max-width: 420px;
@@ -418,10 +468,12 @@ body.sidebar-collapsed .role-card{ justify-content:center; }
 .tabs{
   display:flex; background: var(--paper); border:1px solid var(--line);
   border-radius:8px; padding:2px;
+  flex-wrap: wrap;
 }
 .tab{
   padding: 5px 12px; font-size:12px; font-weight:600; color:var(--text-muted);
   border-radius:6px;
+  white-space: nowrap;
 }
 .tab.active{ background:#fff; color:var(--text); box-shadow: var(--shadow-card); }
 
@@ -505,22 +557,23 @@ table.tickets tbody tr:hover{ background: var(--paper); }
   .grid-2{ grid-template-columns: 1fr; }
 }
 
-@media (max-width: 1024px){
-  .app-shell{ grid-template-columns: var(--sidebar-w-collapsed) 1fr; }
-  .sidebar .brand-text, .sidebar .nav-group-label, .sidebar .nav-link .label,
-  .sidebar .nav-count, .sidebar .role-info{ display:none; }
-  .sidebar .nav-link, .sidebar .role-card{ justify-content:center; }
-  .search-hint{ display:none; }
-}
-
 @media (max-width: 880px){
   .app-shell{ grid-template-columns: 1fr; }
+  /* Sidebar becomes off-canvas below this breakpoint, so it's removed
+     from the grid's normal flow — topbar/main must collapse to the same
+     single column, or they stay pinned to a column that no longer
+     exists and get squeezed into a narrow implicit track. */
+  .app-shell .topbar,
+  .app-shell .main{ grid-column: 1; }
+
   .sidebar{
     position: fixed; left:0; top:0; width: 260px; height:100vh;
     transform: translateX(-100%);
     transition: transform .22s ease;
     box-shadow: 20px 0 40px rgba(0,0,0,.25);
   }
+  /* On mobile the off-canvas sidebar always shows full labels — there's
+     no hover on touch devices, so icon-only would strand the nav. */
   .sidebar .brand-text, .sidebar .nav-group-label, .sidebar .nav-link .label,
   .sidebar .nav-count, .sidebar .role-info{ display:block; }
   .sidebar .nav-link, .sidebar .role-card{ justify-content:flex-start; }
@@ -530,18 +583,16 @@ table.tickets tbody tr:hover{ background: var(--paper); }
     z-index:35;
   }
   body.sidebar-open .scrim{ display:block; }
-  .menu-btn{ display:flex !important; }
+  .menu-btn{ display:flex; }
   .stat-grid{ grid-template-columns: repeat(2, 1fr); }
-}
-
-@media (min-width: 881px){
-  .menu-btn{ display:none !important; }
 }
 
 @media (max-width: 640px){
   .content{ padding: 16px 14px 40px; }
   .topbar{ padding: 0 14px; gap:10px; }
-  .search-field{ display:none; }
+  /* Search no longer just disappears here — GlobalSearch swaps the inline
+     field for an icon button + full overlay below 640px (see
+     global-search.css), so no display:none is needed on .search-field. */
   .stat-grid{ grid-template-columns: 1fr 1fr; gap:10px; }
   .stat-value{ font-size:22px; }
   .page-title{ font-size:20px; }
