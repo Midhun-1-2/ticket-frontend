@@ -133,25 +133,30 @@ function RaiseTicket() {
 
     setSubmitting(true)
     try {
-      // TODO: replace with a real API call once a tickets endpoint exists, e.g.
-      //
-      // const payload = new FormData()
-      // payload.append('subject', form.subject)
-      // payload.append('category', form.category)
-      // payload.append('priority', form.priority)
-      // payload.append('description', form.description)
-      // payload.append('product', form.product)
-      // files.forEach((f) => payload.append('attachments', f))
-      // await api.post('tickets/', payload, {
-      //   headers: { 'Content-Type': 'multipart/form-data' },
-      // })
+      const payload = new FormData()
+      payload.append('subject', form.subject)
+      payload.append('category', form.category) // backend matches on category NAME
+      payload.append('priority', form.priority)
+      payload.append('description', form.description)
+      payload.append('product', form.product)
+      files.forEach((f) => payload.append('attachments', f))
 
-      await new Promise((resolve) => setTimeout(resolve, 600)) // placeholder delay
+      await api.post('tickets/', payload, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      })
 
       setBanner({ type: 'success', text: 'Ticket raised. Redirecting to your dashboard…' })
       setTimeout(() => navigate('/dashboard/'), 1200)
     } catch (err) {
-      setBanner({ type: 'error', text: 'Could not raise the ticket. Please try again.' })
+      // Surface DRF field errors if present (e.g. { subject: ["..."] }),
+      // otherwise fall back to a generic message.
+      const data = err.response?.data
+      const serverMsg =
+        data && typeof data === 'object' ? Object.values(data).flat().join(' ') : null
+      setBanner({
+        type: 'error',
+        text: serverMsg || 'Could not raise the ticket. Please try again.',
+      })
     } finally {
       setSubmitting(false)
     }

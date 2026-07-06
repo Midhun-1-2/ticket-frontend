@@ -9,6 +9,7 @@ import CategoryMaster from './pages/CategoryMaster.jsx'
 import RaiseTicket from './pages/RaiseTicket.jsx'
 import StaffManagement from './pages/StaffManagement.jsx'
 import AccountApproval from './pages/AccountApprovals.jsx'
+import Customers from './pages/Customers.jsx'
 import './style.css'
 import { initApp } from './script.js'
 
@@ -36,6 +37,7 @@ function App() {
           <Route path='/raise-ticket/' element={<RaiseTicket />} />
           <Route path='/staffmanagement/' element={<StaffManagement />} />
           <Route path='/accountapproval/' element={<AccountApproval />} />
+          <Route path='/customers/' element={<Customers />} />
         </Route>
 
         <Route path='/onboarding' element={<Onboarding />} />
