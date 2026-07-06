@@ -7,6 +7,17 @@ const STATUS_CHIP = {
   Blocked: 'chip overdue',
 }
 
+// Ticket status uses a different set of labels than customer account
+// status, so it needs its own color map (falls back to 'chip open' if a
+// status is missing here).
+const TICKET_STATUS_CHIP = {
+  Open: 'chip open',
+  'In Progress': 'chip hold',
+  'On Hold': 'chip hold',
+  Resolved: 'chip resolved',
+  Closed: 'chip closed',
+}
+
 const STATUS_TABS = [
   { key: 'all', label: 'All' },
   { key: 'active', label: 'Active' },
@@ -23,6 +34,13 @@ function initials(name) {
 function formatDate(iso) {
   if (!iso) return '—'
   return new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+}
+
+function formatDateTime(iso) {
+  if (!iso) return '—'
+  return new Date(iso).toLocaleString('en-GB', {
+    day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
+  })
 }
 
 function Customers() {
@@ -262,6 +280,7 @@ function Customers() {
 
 // ---------------------------------------------------------------------------
 // View modal — wide, two-column, shows every field entered by the customer
+// plus their ticket activity / contact history
 // ---------------------------------------------------------------------------
 function ViewModal({ user, onClose }) {
   const [detail, setDetail] = useState(null)
@@ -279,6 +298,8 @@ function ViewModal({ user, onClose }) {
   }, [user.id])
 
   const company = detail?.company
+  const ticketStats = detail?.ticket_stats
+  const tickets = detail?.tickets || []
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -395,6 +416,81 @@ function ViewModal({ user, onClose }) {
               ) : (
                 <div className="panel-sub">No company on file.</div>
               )}
+
+              {/* ---------------- Ticket Activity / Contact Tracking (highlighted) ---------------- */}
+              <div
+                style={{
+                  marginTop: 24,
+                  padding: '18px 20px 20px',
+                  borderRadius: 12,
+                  border: '1.5px solid #1f8a83',
+                  background: 'rgba(31, 138, 131, 0.06)',
+                  boxShadow: '0 0 0 1px rgba(31, 138, 131, 0.08)',
+                }}
+              >
+                <div
+                  className="detail-section-title"
+                  style={{ marginTop: 0, color: '#1f8a83', display: 'flex', alignItems: 'center', gap: 8 }}
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="16" height="16">
+                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                  </svg>
+                  Ticket Activity
+                </div>
+                <div className="stat-grid" style={{ gridTemplateColumns: 'repeat(4, 1fr)', marginBottom: 20 }}>
+                  <div className="stat-card" data-tone="accent">
+                    <div className="stat-label">Total Tickets</div>
+                    <div className="stat-value mono">{ticketStats?.total ?? 0}</div>
+                    <div className="stat-foot">Times contacted us</div>
+                  </div>
+                  <div className="stat-card">
+                    <div className="stat-label">Open</div>
+                    <div className="stat-value mono">{ticketStats?.by_status?.Open ?? 0}</div>
+                    <div className="stat-foot">Awaiting action</div>
+                  </div>
+                  <div className="stat-card" data-tone="violet">
+                    <div className="stat-label">In Progress</div>
+                    <div className="stat-value mono">{ticketStats?.by_status?.['In Progress'] ?? 0}</div>
+                    <div className="stat-foot">Being worked on</div>
+                  </div>
+                  <div className="stat-card" data-tone="red">
+                    <div className="stat-label">Resolved / Closed</div>
+                    <div className="stat-value mono">
+                      {(ticketStats?.by_status?.Resolved ?? 0) + (ticketStats?.by_status?.Closed ?? 0)}
+                    </div>
+                    <div className="stat-foot">Completed</div>
+                  </div>
+                </div>
+
+                {tickets.length > 0 ? (
+                  <table className="product-table">
+                    <thead>
+                      <tr>
+                        <th>Subject</th>
+                        <th>Product</th>
+                        <th>Category</th>
+                        <th>Priority</th>
+                        <th>Status</th>
+                        <th>Raised On</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {tickets.map((t) => (
+                        <tr key={t.id}>
+                          <td>{t.subject}</td>
+                          <td>{t.product || '—'}</td>
+                          <td>{t.category}</td>
+                          <td>{t.priority}</td>
+                          <td><span className={TICKET_STATUS_CHIP[t.status] || 'chip open'}>{t.status}</span></td>
+                          <td className="sla ok">{formatDateTime(t.created_at)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                ) : (
+                  <div className="panel-sub">No tickets raised yet.</div>
+                )}
+              </div>
             </>
           )}
         </div>
