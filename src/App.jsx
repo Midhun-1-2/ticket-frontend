@@ -8,6 +8,7 @@ import Login from './pages/Login.jsx'
 import CategoryMaster from './pages/CategoryMaster.jsx'
 import RaiseTicket from './pages/RaiseTicket.jsx'
 import StaffManagement from './pages/StaffManagement.jsx'
+import AccountApproval from './pages/AccountApprovals.jsx'
 import './style.css'
 import { initApp } from './script.js'
 
@@ -34,6 +35,7 @@ function App() {
           <Route path='/categories/' element={<CategoryMaster />} />
           <Route path='/raise-ticket/' element={<RaiseTicket />} />
           <Route path='/staffmanagement/' element={<StaffManagement />} />
+          <Route path='/accountapproval/' element={<AccountApproval />} />
         </Route>
 
         <Route path='/onboarding' element={<Onboarding />} />

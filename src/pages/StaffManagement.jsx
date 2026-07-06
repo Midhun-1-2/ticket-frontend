@@ -28,6 +28,19 @@ function StaffManagement() {
   const [roleError, setRoleError] = useState('')
   const [addingRole, setAddingRole] = useState(false)
 
+  // --- Staff detail slide-over (assigned customers) ---
+  const [selectedStaff, setSelectedStaff] = useState(null)
+  const [showDetailPanel, setShowDetailPanel] = useState(false)
+  const [assignedCustomers, setAssignedCustomers] = useState([])
+  const [detailLoading, setDetailLoading] = useState(false)
+  const [detailError, setDetailError] = useState('')
+
+  // --- Delete staff (hard delete, with confirmation) ---
+  const [staffToDelete, setStaffToDelete] = useState(null)
+  const [showDeleteModal, setShowDeleteModal] = useState(false)
+  const [deleteError, setDeleteError] = useState('')
+  const [deletingId, setDeletingId] = useState(null)
+
   useEffect(() => {
     fetchStaff()
     fetchRoles()
@@ -73,7 +86,7 @@ function StaffManagement() {
       email: member.email,
       phone: member.phone || '',
       department: member.department,
-      role: member.role,
+      role: member.role || roles[0]?.name || '',
       password: '', // left blank on edit — only sent if changed
     })
     setFormError('')
@@ -168,6 +181,66 @@ function StaffManagement() {
     }
   }
 
+  // --- Delete staff (hard delete, with confirmation) ---
+  function openDeleteConfirm(member) {
+    setStaffToDelete(member)
+    setDeleteError('')
+    setShowDeleteModal(true)
+  }
+
+  function closeDeleteConfirm() {
+    if (deletingId !== null) return // don't allow closing mid-delete
+    setShowDeleteModal(false)
+    setStaffToDelete(null)
+    setDeleteError('')
+  }
+
+  async function confirmDeleteStaff() {
+    if (!staffToDelete) return
+    setDeletingId(staffToDelete.id)
+    setDeleteError('')
+    try {
+      await api.delete(`staff/${staffToDelete.id}/`)
+      setStaff((prev) => prev.filter((s) => s.id !== staffToDelete.id))
+      setShowDeleteModal(false)
+      setStaffToDelete(null)
+    } catch (err) {
+      if (err.response?.status === 405) {
+        setDeleteError('Delete is not enabled on the server yet (405 Method Not Allowed). Add a `delete` handler to StaffDetailView in views.py.')
+      } else if (err.response?.data) {
+        setDeleteError(flattenApiErrors(err.response.data))
+      } else {
+        setDeleteError('Could not delete this staff member. Please try again.')
+      }
+    } finally {
+      setDeletingId(null)
+    }
+  }
+
+  // --- Staff detail slide-over ---
+  async function openStaffDetail(member) {
+    setSelectedStaff(member)
+    setShowDetailPanel(true)
+    setDetailError('')
+    setAssignedCustomers([])
+    setDetailLoading(true)
+    try {
+      const { data } = await api.get(`staff/${member.id}/assigned-customers/`)
+      setAssignedCustomers(data)
+    } catch (err) {
+      setDetailError('Could not load assigned customers. Please try again.')
+    } finally {
+      setDetailLoading(false)
+    }
+  }
+
+  function closeStaffDetail() {
+    setShowDetailPanel(false)
+    setSelectedStaff(null)
+    setAssignedCustomers([])
+    setDetailError('')
+  }
+
   return (
     <main className="main">
     <div className="content">
@@ -184,18 +257,30 @@ function StaffManagement() {
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 5v14M5 12h14"/></svg>
             Add Role/Designation
           </button>
-          <button type="button" className="btn btn-primary" onClick={openAddStaff}>
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={openAddStaff}
+            disabled={rolesLoading || roles.length === 0}
+            title={!rolesLoading && roles.length === 0 ? 'Add a role/designation first to enable this.' : undefined}
+          >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 5v14M5 12h14"/></svg>
             Add New Staff
           </button>
         </div>
       </div>
 
+      {!rolesLoading && roles.length === 0 && (
+        <p className="sm-role-hint">
+          No roles/designations added yet — add one before you can create staff accounts.
+        </p>
+      )}
+
       {staffLoadError && <div className="auth-error" style={{ marginBottom: 16 }}>{staffLoadError}</div>}
 
       <section className="panel">
         <div className="panel-body table-wrap">
-          <table className="tickets">
+          <table className="tickets staff-table">
             <thead>
               <tr>
                 <th>Name</th>
@@ -216,7 +301,11 @@ function StaffManagement() {
                   {staff.map((member) => (
                     <tr key={member.id}>
                       <td>
-                        <div className="staff-name-cell">
+                        <button
+                          type="button"
+                          className="staff-name-btn"
+                          onClick={() => openStaffDetail(member)}
+                        >
                           <div className="staff-table-avatar">
                             {member.name.split(' ').map((p) => p[0]).slice(0, 2).join('')}
                           </div>
@@ -224,10 +313,10 @@ function StaffManagement() {
                             <div className="name">{member.name}</div>
                             <div className="email">{member.email}</div>
                           </div>
-                        </div>
+                        </button>
                       </td>
-                      <td>{member.department}</td>
-                      <td>{member.role}</td>
+                      <td>{member.department || '—'}</td>
+                      <td>{member.role || '—'}</td>
                       <td className="mono">{member.ticketsAssigned}</td>
                       <td>
                         <span className={`chip ${member.status === 'active' ? 'active' : 'inactive'}`}>
@@ -236,18 +325,51 @@ function StaffManagement() {
                       </td>
                       <td>
                         <div className="row-actions">
-                          <button type="button" className="btn btn-ghost" onClick={() => openEditStaff(member)}>
-                            Edit
-                          </button>
                           <button
                             type="button"
-                            className="btn btn-ghost"
+                            className="icon-action edit"
+                            onClick={() => openEditStaff(member)}
+                            title="Edit"
+                            aria-label={`Edit ${member.name}`}
+                          >
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M12 20h9" />
+                              <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z" />
+                            </svg>
+                          </button>
+
+                          <button
+                            type="button"
+                            className={`icon-action ${member.status === 'active' ? 'deactivate' : 'activate'}`}
                             disabled={togglingId === member.id}
                             onClick={() => toggleStatus(member.id)}
+                            title={member.status === 'active' ? 'Deactivate' : 'Activate'}
+                            aria-label={`${member.status === 'active' ? 'Deactivate' : 'Activate'} ${member.name}`}
                           >
-                            {togglingId === member.id
-                              ? 'Updating…'
-                              : member.status === 'active' ? 'Deactivate' : 'Activate'}
+                            {togglingId === member.id ? (
+                              <span className="icon-action-spinner" />
+                            ) : (
+                              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M18.36 6.64a9 9 0 1 1-12.73 0" />
+                                <line x1="12" y1="2" x2="12" y2="12" />
+                              </svg>
+                            )}
+                          </button>
+
+                          <button
+                            type="button"
+                            className="icon-action delete"
+                            onClick={() => openDeleteConfirm(member)}
+                            title="Delete"
+                            aria-label={`Delete ${member.name}`}
+                          >
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <polyline points="3 6 5 6 21 6" />
+                              <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+                              <path d="M10 11v6" />
+                              <path d="M14 11v6" />
+                              <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+                            </svg>
                           </button>
                         </div>
                       </td>
@@ -411,6 +533,102 @@ function StaffManagement() {
                 </li>
               ))}
             </ul>
+          </div>
+        </div>
+      )}
+
+      {/* ================= Staff Detail Slide-over (Assigned Customers) ================= */}
+      {showDetailPanel && selectedStaff && (
+        <div className="sm-slideover-overlay" onClick={closeStaffDetail}>
+          <div className="sm-slideover-panel" onClick={(e) => e.stopPropagation()}>
+            <div className="sm-slideover-head">
+              <div className="staff-name-cell">
+                <div className="staff-table-avatar big">
+                  {selectedStaff.name.split(' ').map((p) => p[0]).slice(0, 2).join('')}
+                </div>
+                <div>
+                  <div className="name">{selectedStaff.name}</div>
+                  <div className="email">{selectedStaff.email}</div>
+                </div>
+              </div>
+              <button type="button" className="sm-modal-close" onClick={closeStaffDetail} aria-label="Close">
+                &times;
+              </button>
+            </div>
+
+            <div className="sm-slideover-meta">
+              <div className="meta-item">
+                <span className="meta-label">Department</span>
+                <span className="meta-value">{selectedStaff.department || '—'}</span>
+              </div>
+              <div className="meta-item">
+                <span className="meta-label">Role</span>
+                <span className="meta-value">{selectedStaff.role || '—'}</span>
+              </div>
+              <div className="meta-item">
+                <span className="meta-label">Status</span>
+                <span className={`chip ${selectedStaff.status === 'active' ? 'active' : 'inactive'}`}>
+                  {selectedStaff.status === 'active' ? 'Active' : 'Inactive'}
+                </span>
+              </div>
+              <div className="meta-item">
+                <span className="meta-label">Tickets Assigned</span>
+                <span className="meta-value mono">{selectedStaff.ticketsAssigned}</span>
+              </div>
+            </div>
+
+            <div className="sm-slideover-section">
+              <h3>Assigned Customers</h3>
+
+              {detailLoading && <p className="sm-empty-row">Loading…</p>}
+              {detailError && <div className="auth-error">{detailError}</div>}
+
+              {!detailLoading && !detailError && (
+                assignedCustomers.length === 0 ? (
+                  <p className="sm-empty-row">No customers assigned yet.</p>
+                ) : (
+                  <ul className="sm-customer-list">
+                    {assignedCustomers.map((c) => (
+                      <li className="sm-customer-row" key={`${c.company_id}-${c.product_name}`}>
+                        <span className="cust-name">{c.company_name}</span>
+                        <span className="cust-scope">{c.product_name || 'All products'}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ================= Delete Staff Confirmation ================= */}
+      {showDeleteModal && staffToDelete && (
+        <div className="sm-modal-overlay" onClick={closeDeleteConfirm}>
+          <div className="sm-modal-card" onClick={(e) => e.stopPropagation()}>
+            <div className="sm-modal-head">
+              <div>
+                <h2 className="sm-modal-title">Delete Staff Account</h2>
+                <p className="sm-modal-sub">
+                  This will permanently delete <strong>{staffToDelete.name}</strong> and all of their
+                  related records (assignment history, M-PIN, etc). This action cannot be undone.
+                </p>
+              </div>
+              <button type="button" className="sm-modal-close" onClick={closeDeleteConfirm} aria-label="Close">
+                &times;
+              </button>
+            </div>
+
+            {deleteError && <div className="auth-error" style={{ marginBottom: 14 }}>{deleteError}</div>}
+
+            <div className="sm-modal-actions">
+              <button type="button" className="btn btn-ghost" onClick={closeDeleteConfirm} disabled={deletingId !== null}>
+                Cancel
+              </button>
+              <button type="button" className="btn btn-danger" onClick={confirmDeleteStaff} disabled={deletingId !== null}>
+                {deletingId !== null ? 'Deleting…' : 'Delete Permanently'}
+              </button>
+            </div>
           </div>
         </div>
       )}

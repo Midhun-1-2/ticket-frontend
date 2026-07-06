@@ -1,10 +1,39 @@
-import React from 'react'
+import React, { useState, useEffect } from 'react'
 import { useLocation, Link } from "react-router-dom";
+import api from "../api"; // adjust this path if Header.jsx lives somewhere else relative to api.js
 
 function Header() {
   const location = useLocation();
   const isActive = (path) =>
     location.pathname === path ? "nav-link active" : "nav-link";
+
+  // Live count of pending Account Approvals — replaces the old hardcoded
+  // "4" badge. Refetches whenever the route changes (e.g. after an admin
+  // approves/rejects a request and navigates away/back), and also polls
+  // every 30s so the badge stays fresh if left open on another screen.
+  const [pendingApprovals, setPendingApprovals] = useState(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadPendingCount() {
+      try {
+        const { data } = await api.get("onboarding/pending/");
+        if (!cancelled) setPendingApprovals(Array.isArray(data) ? data.length : 0);
+      } catch (err) {
+        // Fail quietly — the badge just won't show rather than breaking the header.
+        if (!cancelled) setPendingApprovals(null);
+      }
+    }
+
+    loadPendingCount();
+    const interval = setInterval(loadPendingCount, 30000);
+
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [location.pathname]);
 
   return (
     <>
@@ -52,10 +81,12 @@ function Header() {
             </Link>
           </li>
           <li className="nav-item">
-            <Link to="/account-approvals/" className={isActive("/account-approvals/")}>
+            <Link to="/accountapproval/" className={isActive("/accountapproval/")}>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="m17 11 2 2 4-4"/></svg>
               <span className="label">Account Approvals</span>
-              <span className="nav-count critical">4</span>
+              {pendingApprovals !== null && pendingApprovals > 0 && (
+                <span className="nav-count critical">{pendingApprovals}</span>
+              )}
             </Link>
           </li>
         </ul>

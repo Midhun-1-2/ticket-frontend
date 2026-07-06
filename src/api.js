@@ -4,10 +4,35 @@ import axios from 'axios'
 const API_BASE = 'http://localhost:8000/'
 
 // Endpoints that don't need — and shouldn't send — an auth token.
-const PUBLIC_ENDPOINTS = ['login', 'detect-role', 'signup', 'register', 'onboarding']
+// NOTE: 'onboarding' is intentionally NOT a plain substring here anymore.
+// Only the public self-registration submission route is public; everything
+// else under onboarding/ (pending list, detail, approve, reject) is admin-only
+// and must carry the JWT.
+const PUBLIC_ENDPOINTS = ['login', 'detect-role', 'signup', 'register']
+
+// Matches ONLY the public onboarding submission route, e.g.:
+//   POST onboarding/            -> public
+//   POST onboarding/register/   -> public (if that's the path you use)
+// Does NOT match:
+//   onboarding/pending/         -> admin
+//   onboarding/123/             -> admin
+//   onboarding/123/approve/     -> admin
+//   onboarding/123/reject/      -> admin
+const PUBLIC_ONBOARDING_PATTERN = /^\/?onboarding\/?(register\/?)?$/
 
 function isPublicEndpoint(url) {
-  return PUBLIC_ENDPOINTS.some((path) => url?.includes(path))
+  if (!url) return false
+
+  // Strip any leading slash and querystring for matching purposes
+  const path = url.split('?')[0]
+
+  if (PUBLIC_ONBOARDING_PATTERN.test(path)) {
+    return true
+  }
+
+  // Substring match is fine for the other, unambiguous public routes —
+  // none of them collide with admin-only paths.
+  return PUBLIC_ENDPOINTS.some((p) => path.includes(p))
 }
 
 const api = axios.create({

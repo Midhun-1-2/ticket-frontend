@@ -1,0 +1,222 @@
+/* =========================================================================
+   Account Approval Screen — supplemental styles
+   Extends style.css (Ops Desk design tokens). Import AFTER style.css.
+   Reuses existing vars: --ink, --paper, --surface, --line, --text*,
+   --accent*, --amber*, --red*, --blue*, --violet*, --gray-soft,
+   --font-display, --font-body, --font-mono, --radius, --radius-sm,
+   --shadow-card.
+   ========================================================================= */
+
+/* --- Filters bar (search + selects above the requests table) --- */
+.filters-bar{
+  display:flex; align-items:center; gap:10px;
+  margin-bottom: 18px; flex-wrap:wrap;
+}
+.filters-bar .search-field{ max-width:340px; flex:1; min-width:200px; }
+
+.select-wrap{ position:relative; display:inline-flex; align-items:center; }
+.filter-select{
+  height:38px; border:1px solid var(--line); background:#fff;
+  border-radius:8px; padding:0 30px 0 12px; font-size:13px; color:var(--text);
+  appearance:none; -webkit-appearance:none;
+}
+.select-wrap svg{
+  position:absolute; right:9px; width:14px; height:14px;
+  color:var(--text-faint); pointer-events:none;
+}
+
+.t-violet{ color:#B7A9DA; }
+
+/* --- Back link above the review panel --- */
+.back-link{
+  display:inline-flex; align-items:center; gap:6px;
+  font-size:12.5px; font-weight:600; color:var(--text-muted);
+  background:none; border:none; padding:0; margin-bottom:10px;
+}
+.back-link:hover{ color:var(--text); }
+.back-link svg{ width:15px; height:15px; }
+
+/* --- Review header (company name, meta row, status chip) --- */
+.review-head{
+  display:flex; align-items:flex-start; justify-content:space-between;
+  gap:16px; padding:18px 22px; border-bottom:1px solid var(--line); flex-wrap:wrap;
+}
+.review-company{ font-size:19px; font-weight:700; font-family:var(--font-display); color:var(--text); }
+.review-meta{
+  display:flex; align-items:center; gap:14px; margin-top:6px;
+  flex-wrap:wrap; font-size:12.5px; color:var(--text-muted);
+}
+.review-meta span{ display:flex; align-items:center; gap:5px; }
+.review-meta svg{ width:13px; height:13px; color:var(--text-faint); }
+
+/* --- Stepper (Step A / B / C / D navigation) --- */
+.stepper{
+  display:flex; align-items:center; gap:4px; padding:14px 18px;
+  border-bottom:1px solid var(--line); flex-wrap:wrap; background:var(--paper);
+}
+.step-pill{
+  display:flex; align-items:center; gap:8px; padding:7px 12px 7px 8px;
+  border-radius:20px; font-size:12.5px; font-weight:600; color:var(--text-muted);
+  background:transparent; border:1px solid transparent;
+}
+.step-pill .num{
+  width:20px; height:20px; border-radius:50%; background:var(--gray-soft);
+  color:var(--text-muted); display:flex; align-items:center; justify-content:center;
+  font-family:var(--font-mono); font-size:10.5px; flex-shrink:0;
+}
+.step-pill.active{ background:#fff; border-color:var(--line); color:var(--text); box-shadow:var(--shadow-card); }
+.step-pill.active .num{ background:var(--accent); color:#fff; }
+.step-pill.done .num{ background:var(--accent-soft); color:var(--accent-ink); }
+.step-pill.done{ color:var(--text); }
+.step-pill:disabled{ cursor:not-allowed; opacity:.55; }
+.step-chevron{ width:14px; height:14px; color:var(--text-faint); flex-shrink:0; }
+
+/* --- Step A: read-only info grid --- */
+.info-grid{ display:grid; grid-template-columns:repeat(2,1fr); gap:16px 28px; padding:18px 4px 6px; }
+.info-item{ min-width:0; }
+.info-item.full{ grid-column:1 / -1; }
+.info-label{
+  font-size:10.5px; text-transform:uppercase; letter-spacing:.05em;
+  color:var(--text-faint); font-weight:600; display:flex; align-items:center;
+  gap:6px; margin-bottom:4px;
+}
+.info-label svg{ width:12.5px; height:12.5px; }
+.info-value{ font-size:13.5px; color:var(--text); font-weight:500; line-height:1.5; }
+.info-value.mono{ font-size:13px; }
+
+.section-label{
+  font-size:11px; text-transform:uppercase; letter-spacing:.06em;
+  color:var(--accent-ink); font-weight:700; margin:22px 4px 10px;
+  display:flex; align-items:center; gap:7px;
+}
+.section-label svg{ width:14px; height:14px; }
+
+.product-chip-list{ display:flex; flex-wrap:wrap; gap:8px; padding:0 4px; }
+.product-chip{
+  display:flex; align-items:center; gap:7px; background:var(--blue-soft);
+  color:var(--blue); font-size:12.5px; font-weight:600; padding:6px 12px; border-radius:8px;
+}
+
+/* --- Step B: product verification rows --- */
+.verify-table{ display:flex; flex-direction:column; gap:10px; padding:2px 4px 4px; }
+.verify-row{
+  display:grid; grid-template-columns:1.2fr 1fr; gap:14px; align-items:center;
+  padding:12px 14px; border:1px solid var(--line); border-radius:var(--radius-sm); background:#fff;
+}
+.verify-name{ font-size:13px; font-weight:600; color:var(--text); display:flex; align-items:center; gap:8px; }
+.verify-name svg{ width:15px; height:15px; color:var(--text-faint); }
+
+/* --- Shared form fields (selects, inputs, textareas) --- */
+.field-label{
+  font-size:11px; font-weight:600; color:var(--text-muted);
+  text-transform:uppercase; letter-spacing:.04em; margin-bottom:6px; display:block;
+}
+.field-select, .field-input, .field-textarea{
+  width:100%; border:1px solid var(--line); border-radius:7px; padding:8px 12px;
+  font-size:13px; font-family:var(--font-body); color:var(--text); background:#fff;
+}
+.field-select{ appearance:none; -webkit-appearance:none; padding-right:28px; }
+.field-textarea{ resize:vertical; min-height:70px; font-family:var(--font-body); }
+.field-block{ margin:14px 4px; }
+.field-select-wrap{ position:relative; }
+.field-select-wrap svg{
+  position:absolute; right:10px; top:50%; transform:translateY(-50%);
+  width:14px; height:14px; color:var(--text-faint); pointer-events:none;
+}
+
+/* --- Step C: staff assignment --- */
+.assign-toggle{ display:flex; gap:8px; padding:2px 4px 14px; }
+.assign-toggle button{
+  flex:1; border:1px solid var(--line); background:#fff; border-radius:8px;
+  padding:10px 12px; text-align:left; font-size:12.5px;
+}
+.assign-toggle button.active{ border-color:var(--accent); background:var(--accent-soft); color:var(--accent-ink); }
+.assign-toggle .t-title{ font-weight:700; display:block; margin-bottom:2px; }
+.assign-toggle .t-desc{ color:var(--text-muted); font-size:11.5px; }
+.assign-toggle button.active .t-desc{ color:var(--accent-ink); opacity:.8; }
+
+.staff-pick-table{ width:100%; border-collapse:collapse; font-size:12.5px; }
+.staff-pick-table th{
+  text-align:left; font-size:10.5px; text-transform:uppercase; letter-spacing:.04em;
+  color:var(--text-faint); font-weight:600; padding:8px 10px; border-bottom:1px solid var(--line);
+}
+.staff-pick-table td{ padding:10px; border-bottom:1px solid var(--line); vertical-align:middle; }
+.staff-pick-table tr:last-child td{ border-bottom:0; }
+.staff-name-cell{ display:flex; align-items:center; gap:10px; }
+.staff-mini-avatar{
+  width:30px; height:30px; border-radius:8px; flex-shrink:0; display:flex;
+  align-items:center; justify-content:center; font-family:var(--font-display);
+  font-weight:700; font-size:11.5px; background:var(--blue-soft); color:var(--blue);
+}
+.staff-mini-name{ font-weight:600; color:var(--text); font-size:13px; }
+.staff-mini-dept{ font-size:11px; color:var(--text-muted); }
+.status-pill{
+  display:inline-flex; align-items:center; gap:5px; font-size:11px;
+  font-weight:600; padding:3px 9px; border-radius:20px;
+}
+.status-pill.avail{ background:var(--accent-soft); color:var(--accent-ink); }
+.status-pill.busy{ background:var(--amber-soft); color:#8A550F; }
+.pick-radio{ width:16px; height:16px; accent-color:var(--accent); cursor:pointer; }
+
+.assign-summary{
+  display:flex; align-items:center; gap:10px; background:var(--accent-soft);
+  color:var(--accent-ink); border-radius:var(--radius-sm); padding:11px 14px;
+  font-size:12.5px; font-weight:600; margin:4px 4px 0;
+}
+.assign-summary svg{ width:16px; height:16px; flex-shrink:0; }
+
+/* --- Step D: final action cards --- */
+.action-cards{ display:grid; grid-template-columns:repeat(3,1fr); gap:14px; padding:4px 4px 0; }
+.action-card{
+  border:1.5px solid var(--line); border-radius:var(--radius); padding:16px;
+  background:#fff; text-align:left; display:flex; flex-direction:column; gap:8px;
+}
+.action-card .a-icon{ width:34px; height:34px; border-radius:9px; display:flex; align-items:center; justify-content:center; }
+.action-card .a-icon svg{ width:17px; height:17px; }
+.action-card.approve .a-icon{ background:var(--accent-soft); color:var(--accent-ink); }
+.action-card.reject .a-icon{ background:var(--red-soft); color:var(--red); }
+.action-card.hold .a-icon{ background:var(--violet-soft); color:var(--violet); }
+.action-card .a-title{ font-size:14px; font-weight:700; color:var(--text); font-family:var(--font-display); }
+.action-card .a-desc{ font-size:12px; color:var(--text-muted); line-height:1.5; }
+.action-card.selected.approve{ border-color:var(--accent); }
+.action-card.selected.reject{ border-color:var(--red); }
+.action-card.selected.hold{ border-color:var(--violet); }
+.action-card:disabled{ opacity:.5; cursor:not-allowed; }
+
+.action-detail{ margin:16px 4px 0; padding:16px; border:1px solid var(--line); border-radius:var(--radius); background:var(--paper); }
+.confirm-row{ display:flex; justify-content:flex-end; gap:10px; margin-top:14px; }
+
+/* --- Buttons not already covered by style.css (ghost/danger/violet/sm) --- */
+.btn:disabled{ opacity:.5; cursor:not-allowed; }
+.btn-danger{ background:#fff; border-color:var(--red); color:var(--red); }
+.btn-danger:hover{ background:var(--red-soft); }
+.btn-violet{ background:#fff; border-color:var(--violet); color:var(--violet); }
+.btn-violet:hover{ background:var(--violet-soft); }
+.btn-sm{ padding:6px 11px; font-size:12.5px; border-radius:7px; }
+
+/* --- Status / outcome banners --- */
+.banner{ display:flex; align-items:flex-start; gap:12px; padding:14px 16px; border-radius:var(--radius); margin:0 4px 18px; font-size:13px; }
+.banner svg{ width:18px; height:18px; flex-shrink:0; margin-top:1px; }
+.banner.success{ background:var(--accent-soft); color:var(--accent-ink); }
+.banner.warn{ background:var(--amber-soft); color:#8A550F; }
+.banner.danger{ background:var(--red-soft); color:var(--red); }
+.banner b{ display:block; margin-bottom:2px; font-family:var(--font-display); }
+
+/* --- Chip dot (small status dot inside .chip, used on this page) --- */
+.chip .dot{ width:6px; height:6px; border-radius:50%; background:currentColor; }
+
+/* --- Empty state for the requests table --- */
+.empty-state{ text-align:center; padding:60px 20px; color:var(--text-muted); }
+.empty-state svg{ width:34px; height:34px; color:var(--text-faint); margin-bottom:10px; }
+
+/* --- Responsive tweaks specific to this page --- */
+@media (max-width:1180px){
+  .info-grid{ grid-template-columns:1fr; }
+  .action-cards{ grid-template-columns:1fr; }
+}
+@media (max-width:880px){
+  .verify-row{ grid-template-columns:1fr; }
+}
+@media (max-width:640px){
+  .action-cards{ grid-template-columns:1fr; }
+}
