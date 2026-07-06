@@ -11,6 +11,8 @@ import StaffManagement from './pages/StaffManagement.jsx'
 import AccountApproval from './pages/AccountApprovals.jsx'
 import Customers from './pages/Customers.jsx'
 import TicketAssignment from './pages/TicketAssignment.jsx'
+import ProductMaster from './pages/ProductMaster.jsx'
+import AllTickets from './pages/AllTickets.jsx'
 import './style.css'
 import { initApp } from './script.js'
 
@@ -34,12 +36,14 @@ function App() {
       <Routes>
         <Route element={<MainLayout />}>
           <Route path='/dashboard/' element={<Dashboard />} />
+          <Route path='/all-tickets/' element={<AllTickets />} />
           <Route path='/categories/' element={<CategoryMaster />} />
           <Route path='/raise-ticket/' element={<RaiseTicket />} />
           <Route path='/staffmanagement/' element={<StaffManagement />} />
           <Route path='/accountapproval/' element={<AccountApproval />} />
           <Route path='/customers/' element={<Customers />} />
           <Route path='/ticket-assignment/' element={<TicketAssignment />} />
+          <Route path='/products/' element={<ProductMaster />} />
         </Route>
 
         <Route path='/onboarding' element={<Onboarding />} />

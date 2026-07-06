@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import '/src/Onboarding.css'
 import api from '/src/api.js'
 
@@ -13,13 +13,12 @@ const COUNTRIES = ['India', 'United States', 'United Kingdom', 'United Arab Emir
 const AMC_STATUSES = ['Active', 'Inactive', 'Expired', 'Not Applicable']
 const SUPPORT_CHANNELS = ['Email', 'Phone', 'Portal', 'WhatsApp']
 const SUPPORT_TIMES = ['9 AM - 6 PM IST', '24x7', 'Custom SLA']
-const PRODUCT_OPTIONS = ['Ticket Desk Pro', 'API Gateway', 'SSO Add-on', 'Analytics Suite', 'Mobile App']
 const SUPPORT_TYPES = ['AMC', 'NON-AMC', 'SAS']
 
 const STEP_LABELS = ['Company & Contact Details', 'Product Details', 'Review & Submit']
 
 const emptyProduct = () => ({
-  productName: PRODUCT_OPTIONS[0],
+  productName: '',
   productVersion: '',
   activationDate: '',
   supportType: 'AMC',
@@ -121,7 +120,7 @@ function flattenApiErrors(data) {
 }
 
 function Onboarding() {
-  const [step, setStep] = useState(1) // 1, 2, 3, or 4 = submitted
+  const [step, setStep] = useState(1)
   const [formData, setFormData] = useState(initialFormData)
   const [products, setProducts] = useState([emptyProduct()])
   const [confirmed, setConfirmed] = useState(false)
@@ -129,6 +128,35 @@ function Onboarding() {
   const [submittedCode, setSubmittedCode] = useState(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [apiError, setApiError] = useState('')
+
+  // Product catalog — fetched from the backend instead of hardcoded
+  const [productOptions, setProductOptions] = useState([])
+  const [productsLoading, setProductsLoading] = useState(true)
+
+  useEffect(() => {
+    let cancelled = false
+    api.get('public-products/')
+      .then(({ data }) => {
+        if (cancelled) return
+        setProductOptions(data.map((p) => p.name))
+      })
+      .catch(() => {
+        if (!cancelled) setApiError('Could not load the product list. Please refresh the page.')
+      })
+      .finally(() => {
+        if (!cancelled) setProductsLoading(false)
+      })
+    return () => { cancelled = true }
+  }, [])
+
+  // Once the catalog loads, default the first product row's dropdown
+  // to the first available option (it starts as '' before the fetch resolves)
+  useEffect(() => {
+    if (productOptions.length === 0) return
+    setProducts((prev) =>
+      prev.map((p) => (p.productName === '' ? { ...p, productName: productOptions[0] } : p))
+    )
+  }, [productOptions])
 
   const updateField = (field, value) => {
     setFormData((prev) => ({ ...prev, [field]: value }))
@@ -497,21 +525,25 @@ function Onboarding() {
             </select>
           </div>
 
-          <div className={`form-field full ${errors.productsInUse ? 'error' : ''}`}>
-            <label>Product(s) / Service(s) in Use<span className="required">*</span></label>
-            <div className="chip-select">
-              {PRODUCT_OPTIONS.map((p) => (
-                <div
-                  key={p}
-                  className={`chip ${formData.productsInUse.includes(p) ? 'selected' : ''}`}
-                  onClick={() => toggleProduct(p)}
-                >
-                  {p}
-                </div>
-              ))}
-            </div>
-            {errors.productsInUse && <span className="field-error">{errors.productsInUse}</span>}
+         <div className={`form-field full ${errors.productsInUse ? 'error' : ''}`}>
+         <label>Product(s) / Service(s) in Use<span className="required">*</span></label>
+          <div className="chip-select">
+            {productsLoading && <span style={{ fontSize: 13, color: '#6b7280' }}>Loading products…</span>}
+            {!productsLoading && productOptions.length === 0 && (
+              <span style={{ fontSize: 13, color: '#6b7280' }}>No products available. Contact an admin.</span>
+            )}
+            {productOptions.map((p) => (
+              <div
+                key={p}
+                className={`chip ${formData.productsInUse.includes(p) ? 'selected' : ''}`}
+                onClick={() => toggleProduct(p)}
+              >
+                {p}
+              </div>
+            ))}
           </div>
+          {errors.productsInUse && <span className="field-error">{errors.productsInUse}</span>}
+        </div>
 
           <div className="form-field full">
             <label>Remarks<span className="optional">optional</span></label>
@@ -556,7 +588,8 @@ function Onboarding() {
               <div className="form-field">
                 <label>Product Name</label>
                 <select value={product.productName} onChange={(e) => updateProduct(index, 'productName', e.target.value)}>
-                  {PRODUCT_OPTIONS.map((p) => <option key={p} value={p}>{p}</option>)}
+                  <option value="" disabled>Select a product</option>
+                  {productOptions.map((p) => <option key={p} value={p}>{p}</option>)}
                 </select>
               </div>
 

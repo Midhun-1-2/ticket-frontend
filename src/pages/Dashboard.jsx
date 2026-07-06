@@ -209,7 +209,7 @@ function Dashboard() {
               <div className="panel-title">Recent Tickets</div>
               <div className="panel-sub">Newest activity across the queue</div>
             </div>
-            <a href="#" className="btn btn-ghost">View all</a>
+            <a href="/all-tickets/" className="btn btn-ghost">View all</a>
           </div>
           <div className="panel-body table-wrap">
             <table className="tickets">
