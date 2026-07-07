@@ -79,6 +79,63 @@
   background: var(--red-soft);
 }
 
+.offer-row-clickable{ cursor: pointer; }
+.offer-row-clickable:hover{ background: var(--gray-soft); }
+
+.table-row-clickable{ cursor: pointer; }
+
+/* --- Current holder chip --- */
+.holder-chip{
+  cursor: pointer;
+}
+.holder-chip:focus-visible{
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* --- Assignment history tooltip ---
+   Rendered through a React portal straight onto <body> (see HolderChip
+   in TicketAssignment.jsx), NOT nested inside .panel/.offer-row. .panel
+   has overflow:hidden for its own rounded corners, which was clipping
+   this when it lived inside the table cell — a portal sidesteps that
+   entirely. Position is computed in JS (getBoundingClientRect) and
+   passed in as inline top/left, so this just needs to look right. */
+.transfer-history-portal{
+  position: absolute;
+  z-index: 200;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  box-shadow: 0 20px 44px -16px rgba(20,23,31,.28);
+  padding: 10px;
+  min-width: 240px;
+  text-align: left;
+}
+
+.transfer-history-title{
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  color: var(--text-faint);
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+.transfer-history-row{
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 5px 0;
+  border-top: 1px solid var(--line);
+}
+.transfer-history-row:first-of-type{ border-top: 0; }
+.transfer-history-name{
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+}
+
 /* --- Admin: staff offered-to chip list within a table cell --- */
 .offer-staff-list{
   display: flex;
