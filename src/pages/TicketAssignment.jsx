@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react'
+import React, { useState, useEffect, useCallback, useRef, useLayoutEffect } from 'react'
 import { createPortal } from 'react-dom'
 import '/src/ticket-assignment.css'
 import api from '/src/api.js'
@@ -22,6 +22,10 @@ const PAST_FILTERS = ['all', 'accepted', 'unavailable', 'declined', 'transferred
 
 const PRIORITY_ORDER = { Urgent: 0, High: 1, Medium: 2, Low: 3 }
 
+// Gap kept between the popover and the viewport edge / the chip itself.
+const EDGE_MARGIN = 12
+const CHIP_GAP = 8
+
 // Admin accounts often don't have full_name filled in — show "Admin"
 // instead of falling back to their raw phone number.
 function displayName(person) {
@@ -30,32 +34,116 @@ function displayName(person) {
   return person.full_name || person.phone_number
 }
 
+// Verb/label per TicketAssignmentEvent.action — matches the ACTION_CHOICES
+// on the backend model exactly.
+const EVENT_META = {
+  offered:      { chip: 'open' },
+  accepted:     { chip: 'resolved' },
+  declined:     { chip: 'hold' },
+  unavailable:  { chip: 'closed' },
+  transferred:  { chip: 'hold' },
+  escalated:    { chip: 'hold' },
+}
+
+function eventLabel(e) {
+  switch (e.action) {
+    case 'offered':     return `Offered to ${displayName(e.staff)}`
+    case 'accepted':    return `${displayName(e.staff)} accepted`
+    case 'declined':    return `${displayName(e.staff)} declined`
+    case 'unavailable': return `${displayName(e.staff)} — too late, already taken`
+    case 'transferred': return `${displayName(e.staff)} → ${displayName(e.to_staff)}`
+    case 'escalated':   return `${displayName(e.staff)} → ${displayName(e.to_staff)} (escalated)`
+    default:             return e.action
+  }
+}
+
 // Shows who currently holds a ticket as a single chip. Hovering (or
-// focusing, so it works for keyboard/touch too) reveals the real custody
-// chain — who accepted it first, and any transfers since — filtered down
-// to just 'accepted'/'transferred' rows ("taken by another" noise from
-// the original multi-staff offer round is left out). The tooltip renders
-// through a portal straight onto <body>, so it isn't clipped by any
-// ancestor's overflow:hidden (the panel it lives in has that for its own
-// rounded corners) and never needs an internal scrollbar to be seen.
-function HolderChip({ ticket, offers }) {
+// focusing, so it works for keyboard/touch too) reveals the ticket's full,
+// permanent assignment history — every offer/accept/decline/transfer/
+// escalate event, fetched from GET tickets/<id>/assignment-history/. This
+// is deliberately NOT derived from the `offers` prop (the flat
+// TicketAssignment rows for this ticket): that table only tracks the
+// CURRENT status per (ticket, staff) pair and gets overwritten each time
+// the same staff member is offered the ticket again, so a ticket that
+// bounces back to someone it was with before would show fewer hops than
+// actually happened. The new endpoint is append-only, so nothing is ever
+// lost no matter how many times the ticket changes hands. The tooltip
+// renders through a portal straight onto <body>, so it isn't clipped by
+// any ancestor's overflow:hidden (the panel it lives in has that for its
+// own rounded corners) and never needs an internal scrollbar to be seen.
+//
+// Positioning: it first anchors directly below the chip, then — once it's
+// actually in the DOM and its real height is known — checks whether it
+// would run past the bottom (or right edge) of the viewport and flips
+// upward / shifts left as needed. This has to happen in a second pass
+// because the popover's height depends on how many history rows it has,
+// which isn't known until the fetch resolves and it's rendered.
+function HolderChip({ ticket }) {
   const [open, setOpen] = useState(false)
-  const [coords, setCoords] = useState({ top: 0, left: 0 })
+  const [coords, setCoords] = useState({ top: 0, left: 0, ready: false })
+  const [events, setEvents] = useState(null) // null = not yet fetched
+  const [loadingEvents, setLoadingEvents] = useState(false)
   const chipRef = useRef(null)
+  const portalRef = useRef(null)
 
-  const historyOffers = offers
-    .filter((o) => o.status === 'accepted' || o.status === 'transferred')
-    .sort((a, b) => new Date(a.responded_at || a.offered_at) - new Date(b.responded_at || b.offered_at))
-
-  const updatePosition = () => {
+  // First pass: anchor directly under the chip. Not final — just enough
+  // to get the portal into the DOM so its real size can be measured.
+  // Also lazily fetches the full history the first time it's opened —
+  // no point loading it for every chip on the page up front.
+  const show = () => {
     if (chipRef.current) {
       const rect = chipRef.current.getBoundingClientRect()
-      setCoords({ top: rect.bottom + window.scrollY + 8, left: rect.left + window.scrollX })
+      setCoords({
+        top: rect.bottom + window.scrollY + CHIP_GAP,
+        left: rect.left + window.scrollX,
+        ready: false,
+      })
+    }
+    setOpen(true)
+
+    if (events === null && !loadingEvents) {
+      setLoadingEvents(true)
+      api.get(`/tickets/${ticket.id}/assignment-history/`)
+        .then(({ data }) => setEvents(data))
+        .catch(() => setEvents([]))
+        .finally(() => setLoadingEvents(false))
     }
   }
-
-  const show = () => { updatePosition(); setOpen(true) }
   const hide = () => setOpen(false)
+
+  // Second pass: now that the popover has real dimensions, flip it above
+  // the chip if it would overflow the bottom of the viewport, and clamp
+  // it horizontally so it can't run off the right edge either.
+  useLayoutEffect(() => {
+    if (!open || !portalRef.current || !chipRef.current) return
+
+    const chipRect = chipRef.current.getBoundingClientRect()
+    const popoverRect = portalRef.current.getBoundingClientRect()
+
+    const viewportBottom = window.scrollY + window.innerHeight
+    const wouldOverflowBelow = chipRect.bottom + CHIP_GAP + popoverRect.height + EDGE_MARGIN > viewportBottom
+    const spaceAbove = chipRect.top - EDGE_MARGIN
+    const canFitAbove = spaceAbove >= popoverRect.height + CHIP_GAP
+
+    let top = chipRect.bottom + window.scrollY + CHIP_GAP
+    if (wouldOverflowBelow && canFitAbove) {
+      top = chipRect.top + window.scrollY - popoverRect.height - CHIP_GAP
+    }
+
+    let left = chipRect.left + window.scrollX
+    const viewportRight = window.scrollX + window.innerWidth
+    if (left + popoverRect.width + EDGE_MARGIN > viewportRight) {
+      left = viewportRight - popoverRect.width - EDGE_MARGIN
+    }
+    if (left < window.scrollX + EDGE_MARGIN) {
+      left = window.scrollX + EDGE_MARGIN
+    }
+
+    setCoords({ top, left, ready: true })
+    // Re-measure once events finish loading too (the popover's height
+    // jumps from "Loading…" to however many rows it actually has).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, events?.length, loadingEvents])
 
   const holderLabel = ticket.assigned_staff ? displayName(ticket.assigned_staff) : 'Unassigned'
 
@@ -71,24 +159,36 @@ function HolderChip({ ticket, offers }) {
       onClick={(e) => e.stopPropagation()}
     >
       {holderLabel}
-      {open && historyOffers.length > 0 && createPortal(
+      {open && createPortal(
         <div
+          ref={portalRef}
           className="transfer-history-portal"
-          style={{ top: coords.top, left: coords.left }}
+          // Hidden via opacity (not display:none) until the second pass has
+          // measured and repositioned it, so it never flashes at the wrong
+          // spot before flipping.
+          style={{ top: coords.top, left: coords.left, opacity: coords.ready ? 1 : 0 }}
           onMouseEnter={show}
           onMouseLeave={hide}
         >
           <div className="transfer-history-title">Assignment history</div>
-          {historyOffers.map((o) => (
-            <div key={o.id} className="transfer-history-row">
-              <span className="transfer-history-name">
-                {o.status === 'transferred' && o.transferred_to
-                  ? `${displayName(o.staff)} → ${displayName(o.transferred_to)}`
-                  : displayName(o.staff)}
-              </span>
-              <span className={`chip ${STATUS_META[o.status]?.chip}`}>{STATUS_META[o.status]?.label}</span>
-            </div>
-          ))}
+          {loadingEvents && <div className="transfer-history-row">Loading…</div>}
+          {!loadingEvents && (() => {
+            // 'unavailable' rows are just "lost the race to someone else"
+            // noise from the original multi-staff offer round — not
+            // useful in this trail, so they're filtered out here rather
+            // than removed from the API response (the data still exists
+            // for anywhere else that might want it).
+            const visibleEvents = (events || []).filter((e) => e.action !== 'unavailable')
+            if (visibleEvents.length === 0) {
+              return <div className="transfer-history-row">No history yet.</div>
+            }
+            return visibleEvents.map((e) => (
+              <div key={e.id} className="transfer-history-row">
+                <span className="transfer-history-name">{eventLabel(e)}</span>
+                <span className={`chip ${EVENT_META[e.action]?.chip}`}>{e.action}</span>
+              </div>
+            ))
+          })()}
         </div>,
         document.body
       )}
@@ -220,9 +320,15 @@ function TicketAssignment() {
   const renderOfferRow = (offer, actionable) => {
     const meta = STATUS_META[offer.status] || {}
     const isActing = actingId === offer.id
+    // The ticket's own assigned_staff (already present on offer.ticket via
+    // TicketAssignmentTicketSerializer) is whoever currently holds it — for
+    // an 'unavailable' offer that's the staff member who won the race, so
+    // no extra API call is needed to name them.
     const label = offer.status === 'transferred' && offer.transferred_to
       ? `Transferred to ${displayName(offer.transferred_to)}`
-      : meta.label
+      : offer.status === 'unavailable' && offer.ticket.assigned_staff
+        ? `Taken by ${displayName(offer.ticket.assigned_staff)}`
+        : meta.label
 
     return (
       <div
@@ -354,7 +460,7 @@ function TicketAssignment() {
                             )}
                           </div>
                         </div>
-                        <HolderChip ticket={ticket} offers={ticketOffers} />
+                        <HolderChip ticket={ticket} />
                       </div>
                     ))}
                   </div>
@@ -422,7 +528,7 @@ function TicketAssignment() {
                                 )}
                               </td>
                               <td>
-                                <HolderChip ticket={ticket} offers={ticketOffers} />
+                                <HolderChip ticket={ticket} />
                               </td>
                               <td>
                                 {accepted ? (

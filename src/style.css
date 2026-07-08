@@ -466,16 +466,26 @@ p{ margin:0; }
 .panel-body{ padding: 4px 18px 18px; }
 
 .tabs{
-  display:flex; background: var(--paper); border:1px solid var(--line);
-  border-radius:8px; padding:2px;
+  display:inline-flex; background: var(--paper); border:1px solid var(--line);
+  border-radius:9px; padding:3px; gap:2px;
   flex-wrap: wrap;
 }
 .tab{
-  padding: 5px 12px; font-size:12px; font-weight:600; color:var(--text-muted);
-  border-radius:6px;
+  appearance:none; -webkit-appearance:none;
+  border:0; background:transparent; outline:none; box-shadow:none;
+  padding: 6px 14px; font-size:12px; font-weight:600; color:var(--text-muted);
+  font-family: inherit;
+  border-radius:7px;
   white-space: nowrap;
+  cursor: pointer;
+  transition: background-color .15s ease, color .15s ease, box-shadow .15s ease;
 }
-.tab.active{ background:#fff; color:var(--text); box-shadow: var(--shadow-card); }
+.tab:hover:not(.active){ color: var(--text); background: rgba(20,23,31,0.04); }
+.tab:focus-visible{ outline: 2px solid var(--accent); outline-offset: 2px; }
+.tab.active{
+  background:#fff; color:var(--text);
+  box-shadow: 0 1px 2px rgba(20,23,31,.06), 0 2px 6px -2px rgba(20,23,31,.12);
+}
 
 .chart-wrap{ padding: 6px 4px 0; }
 #trendChart{ width:100%; height:190px; display:block; }
@@ -731,3 +741,94 @@ table.tickets tbody tr:hover{ background: var(--paper); }
 .alert-banner svg{ width:16px; height:16px; flex-shrink:0; }
 
 .page-head-actions{ display:flex; gap:10px; }
+
+/* =========================================================================
+   Dashboard extras — Customer/Staff/Admin dashboards
+   Everything else these pages use (.modal-box, .modal-head, .modal-foot,
+   .detail-row, .detail-section-title, .remarks-box, .chip, .priority,
+   table.tickets, .panel, .stat-card, .staff-list, etc.) already exists
+   above — this section only covers what's genuinely new for them.
+   ========================================================================= */
+
+/* Clickable ticket rows (customer ticket list, staff/admin working tables —
+   note History tables are intentionally plain/non-clickable, so this class
+   isn't applied there) */
+.row-clickable{ cursor: pointer; }
+.row-clickable:hover{ background: var(--paper); }
+
+/* Status stepper shown in the customer ticket detail modal */
+.status-stepper{
+  display:flex; align-items:flex-start; gap:0;
+  margin: 4px 0 2px;
+}
+.step{
+  display:flex; flex-direction:column; align-items:center;
+  flex:1; position:relative;
+}
+.step:not(:last-child)::after{
+  content:""; position:absolute; top:7px; left:50%; width:100%; height:2px;
+  background: var(--line); z-index:0;
+}
+.step.step-done:not(:last-child)::after{ background: var(--accent); }
+.step-dot{
+  width:16px; height:16px; border-radius:50%;
+  background: var(--gray-soft); border:2px solid var(--line);
+  position:relative; z-index:1;
+}
+.step.step-done .step-dot{ background: var(--accent); border-color: var(--accent); }
+.step-label{
+  font-size:11px; font-weight:600; color: var(--text-muted);
+  margin-top:6px; text-align:center;
+}
+.step.step-done .step-label{ color: var(--accent-ink); }
+
+/* Timeline list shown in the customer ticket detail modal */
+.timeline-list{ list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:2px; }
+.timeline-list li{
+  display:flex; align-items:center; gap:10px;
+  font-size:12.5px; padding:8px 0; border-bottom:1px solid var(--line);
+}
+.timeline-list li:last-child{ border-bottom:0; }
+
+/* Standalone form controls used in the History filter bars and
+   status-update/transfer dropdowns (form-field input above is for
+   full-width labeled fields — these are compact, unlabeled, inline ones) */
+.select, .input{
+  height:36px; border:1px solid var(--line); border-radius:8px;
+  padding:0 10px; font-size:13px; font-family:var(--font-body); color:var(--text);
+  background:#fff; outline:none;
+}
+.select:focus, .input:focus{ border-color: var(--accent); }
+.select{ cursor:pointer; }
+
+/* Staff Performance (AdminDashboard.jsx) — horizontal rows inside the
+   existing .staff-list, each with a segmented bar: the bar's overall
+   length shows that staff member's share of the busiest staff member's
+   workload, and the color segments inside it show the composition
+   (working / resolved / everything else). Scales to any staff count via
+   the scrollable .staff-list wrapper (max-height set inline in the JSX),
+   unlike a vertical bar-per-column chart which gets cramped fast. */
+.perf-legend{
+  display:flex; gap:16px; flex-wrap:wrap;
+}
+.perf-legend-item{
+  display:flex; align-items:center; gap:6px;
+  font-size:11.5px; color: var(--text-muted); font-weight:600;
+}
+.perf-dot{ width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+.perf-dot.working{ background: var(--blue); }
+.perf-dot.resolved{ background: var(--accent); }
+.perf-dot.other{ background: var(--amber); }
+
+.perf-track{
+  height:8px; border-radius:6px; background: var(--gray-soft);
+  overflow:hidden; margin-top:6px;
+}
+.perf-fill{
+  display:flex; height:100%; border-radius:6px; overflow:hidden;
+  transition: width .3s ease;
+}
+.perf-seg{ height:100%; }
+.perf-seg.working{ background: var(--blue); }
+.perf-seg.resolved{ background: var(--accent); }
+.perf-seg.other{ background: var(--amber); }

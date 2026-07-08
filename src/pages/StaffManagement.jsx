@@ -2,10 +2,8 @@ import React, { useEffect, useState } from 'react'
 import api from '../api' // adjust this path to match where api.js actually lives
 import '/src/staff-management.css'
 
-const DEPARTMENTS = ['Technical', 'Billing', 'General', 'Account', 'Product']
-
 const EMPTY_FORM = {
-  name: '', email: '', phone: '', department: DEPARTMENTS[0], role: '', password: '',
+  name: '', email: '', phone: '', department: '', role: '', password: '',
 }
 
 function StaffManagement() {
@@ -16,6 +14,12 @@ function StaffManagement() {
 
   const [roles, setRoles] = useState([]) // [{ id, name }]
   const [rolesLoading, setRolesLoading] = useState(true)
+
+  // Department is now a managed list too, same pattern as roles — see
+  // ASSUMPTION note in fetchDepartments() below re: the staff-departments/
+  // endpoint this expects on the backend.
+  const [departments, setDepartments] = useState([]) // [{ id, name }]
+  const [departmentsLoading, setDepartmentsLoading] = useState(true)
 
   const [showStaffModal, setShowStaffModal] = useState(false)
   const [editingId, setEditingId] = useState(null) // null = adding new, otherwise editing this id
@@ -28,12 +32,20 @@ function StaffManagement() {
   const [roleError, setRoleError] = useState('')
   const [addingRole, setAddingRole] = useState(false)
 
-  // --- Staff detail slide-over (assigned customers) ---
+  const [showDepartmentModal, setShowDepartmentModal] = useState(false)
+  const [newDepartmentName, setNewDepartmentName] = useState('')
+  const [departmentError, setDepartmentError] = useState('')
+  const [addingDepartment, setAddingDepartment] = useState(false)
+
+  // --- Staff detail slide-over (assigned customers + assigned tickets) ---
   const [selectedStaff, setSelectedStaff] = useState(null)
   const [showDetailPanel, setShowDetailPanel] = useState(false)
   const [assignedCustomers, setAssignedCustomers] = useState([])
+  const [assignedTickets, setAssignedTickets] = useState([])
   const [detailLoading, setDetailLoading] = useState(false)
   const [detailError, setDetailError] = useState('')
+  const [ticketsLoading, setTicketsLoading] = useState(false)
+  const [ticketsError, setTicketsError] = useState('')
 
   // --- Delete staff (hard delete, with confirmation) ---
   const [staffToDelete, setStaffToDelete] = useState(null)
@@ -44,6 +56,7 @@ function StaffManagement() {
   useEffect(() => {
     fetchStaff()
     fetchRoles()
+    fetchDepartments()
   }, [])
 
   const fetchStaff = async () => {
@@ -72,9 +85,27 @@ function StaffManagement() {
     }
   }
 
+  // ASSUMPTION: mirrors staff-roles/ exactly — GET/POST staff-departments/
+  // returning [{ id, name }], DELETE staff-departments/{id}/. This endpoint
+  // doesn't exist in what I've seen of the backend yet; it needs adding
+  // (model + serializer + view + URL) alongside whatever already backs
+  // staff-roles/, since that's the pattern this mirrors.
+  const fetchDepartments = async () => {
+    setDepartmentsLoading(true)
+    try {
+      const { data } = await api.get('staff-departments/')
+      setDepartments(data)
+      setForm((prev) => (prev.department ? prev : { ...prev, department: data[0]?.name || '' }))
+    } catch (err) {
+      // Non-fatal — the department dropdown will just show as empty/loading.
+    } finally {
+      setDepartmentsLoading(false)
+    }
+  }
+
   function openAddStaff() {
     setEditingId(null)
-    setForm({ ...EMPTY_FORM, role: roles[0]?.name || '' })
+    setForm({ ...EMPTY_FORM, department: departments[0]?.name || '', role: roles[0]?.name || '' })
     setFormError('')
     setShowStaffModal(true)
   }
@@ -85,7 +116,7 @@ function StaffManagement() {
       name: member.name,
       email: member.email,
       phone: member.phone || '',
-      department: member.department,
+      department: member.department || departments[0]?.name || '',
       role: member.role || roles[0]?.name || '',
       password: '', // left blank on edit — only sent if changed
     })
@@ -181,6 +212,35 @@ function StaffManagement() {
     }
   }
 
+  // Identical shape to handleAddRole/removeRole above, just pointed at
+  // staff-departments/ instead of staff-roles/.
+  async function handleAddDepartment(e) {
+    e.preventDefault()
+    setDepartmentError('')
+    const trimmed = newDepartmentName.trim()
+    if (!trimmed) return
+
+    setAddingDepartment(true)
+    try {
+      const { data } = await api.post('staff-departments/', { name: trimmed })
+      setDepartments((prev) => [...prev, data])
+      setNewDepartmentName('')
+    } catch (err) {
+      setDepartmentError(flattenApiErrors(err.response?.data))
+    } finally {
+      setAddingDepartment(false)
+    }
+  }
+
+  async function removeDepartment(department) {
+    try {
+      await api.delete(`staff-departments/${department.id}/`)
+      setDepartments((prev) => prev.filter((d) => d.id !== department.id))
+    } catch (err) {
+      setDepartmentError('Could not remove this department. It may still be assigned to staff.')
+    }
+  }
+
   // --- Delete staff (hard delete, with confirmation) ---
   function openDeleteConfirm(member) {
     setStaffToDelete(member)
@@ -221,17 +281,25 @@ function StaffManagement() {
   async function openStaffDetail(member) {
     setSelectedStaff(member)
     setShowDetailPanel(true)
+
     setDetailError('')
     setAssignedCustomers([])
     setDetailLoading(true)
-    try {
-      const { data } = await api.get(`staff/${member.id}/assigned-customers/`)
-      setAssignedCustomers(data)
-    } catch (err) {
-      setDetailError('Could not load assigned customers. Please try again.')
-    } finally {
-      setDetailLoading(false)
-    }
+
+    setTicketsError('')
+    setAssignedTickets([])
+    setTicketsLoading(true)
+
+    // Fired together — independent panels, so one failing shouldn't block the other.
+    api.get(`staff/${member.id}/assigned-customers/`)
+      .then(({ data }) => setAssignedCustomers(data))
+      .catch(() => setDetailError('Could not load assigned customers. Please try again.'))
+      .finally(() => setDetailLoading(false))
+
+    api.get(`staff/${member.id}/assigned-tickets/`)
+      .then(({ data }) => setAssignedTickets(data))
+      .catch(() => setTicketsError('Could not load assigned tickets. Please try again.'))
+      .finally(() => setTicketsLoading(false))
   }
 
   function closeStaffDetail() {
@@ -239,6 +307,19 @@ function StaffManagement() {
     setSelectedStaff(null)
     setAssignedCustomers([])
     setDetailError('')
+    setAssignedTickets([])
+    setTicketsError('')
+  }
+
+  const canAddStaff = !rolesLoading && !departmentsLoading && roles.length > 0 && departments.length > 0
+
+  function addStaffDisabledReason() {
+    if (rolesLoading || departmentsLoading) return undefined
+    const missing = []
+    if (departments.length === 0) missing.push('a department')
+    if (roles.length === 0) missing.push('a role/designation')
+    if (missing.length === 0) return undefined
+    return `Add ${missing.join(' and ')} first to enable this.`
   }
 
   return (
@@ -253,6 +334,10 @@ function StaffManagement() {
         </div>
 
         <div className="staff-actions">
+          <button type="button" className="btn btn-ghost" onClick={() => setShowDepartmentModal(true)}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+            Add Department
+          </button>
           <button type="button" className="btn btn-ghost" onClick={() => setShowRoleModal(true)}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 5v14M5 12h14"/></svg>
             Add Role/Designation
@@ -261,8 +346,8 @@ function StaffManagement() {
             type="button"
             className="btn btn-primary"
             onClick={openAddStaff}
-            disabled={rolesLoading || roles.length === 0}
-            title={!rolesLoading && roles.length === 0 ? 'Add a role/designation first to enable this.' : undefined}
+            disabled={!canAddStaff}
+            title={addStaffDisabledReason()}
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 5v14M5 12h14"/></svg>
             Add New Staff
@@ -270,6 +355,11 @@ function StaffManagement() {
         </div>
       </div>
 
+      {!departmentsLoading && departments.length === 0 && (
+        <p className="sm-role-hint">
+          No departments added yet — add one before you can create staff accounts.
+        </p>
+      )}
       {!rolesLoading && roles.length === 0 && (
         <p className="sm-role-hint">
           No roles/designations added yet — add one before you can create staff accounts.
@@ -448,8 +538,10 @@ function StaffManagement() {
                     className="sm-select"
                     value={form.department}
                     onChange={(e) => handleFormChange('department', e.target.value)}
+                    disabled={departmentsLoading}
                   >
-                    {DEPARTMENTS.map((d) => <option key={d} value={d}>{d}</option>)}
+                    {departmentsLoading && <option value="">Loading…</option>}
+                    {departments.map((d) => <option key={d.id} value={d.name}>{d.name}</option>)}
                   </select>
                 </div>
 
@@ -537,7 +629,50 @@ function StaffManagement() {
         </div>
       )}
 
-      {/* ================= Staff Detail Slide-over (Assigned Customers) ================= */}
+      {/* ================= Add / Manage Department Modal =================
+          Identical structure to the Role modal above — same CSS classes
+          on purpose, so it looks and behaves consistently. */}
+      {showDepartmentModal && (
+        <div className="sm-modal-overlay" onClick={() => setShowDepartmentModal(false)}>
+          <div className="sm-modal-card" onClick={(e) => e.stopPropagation()}>
+            <div className="sm-modal-head">
+              <div>
+                <h2 className="sm-modal-title">Manage Departments</h2>
+                <p className="sm-modal-sub">These appear in the Department dropdown when adding staff.</p>
+              </div>
+              <button type="button" className="sm-modal-close" onClick={() => setShowDepartmentModal(false)} aria-label="Close">
+                &times;
+              </button>
+            </div>
+
+            <form onSubmit={handleAddDepartment} className="sm-inline-form">
+              <input
+                type="text"
+                className="sm-input"
+                value={newDepartmentName}
+                onChange={(e) => setNewDepartmentName(e.target.value)}
+                placeholder="e.g. Technical"
+              />
+              <button type="submit" className="btn btn-primary" style={{ flexShrink: 0 }} disabled={addingDepartment}>
+                {addingDepartment ? 'Adding…' : 'Add'}
+              </button>
+            </form>
+
+            {departmentError && <div className="auth-error" style={{ marginTop: 10 }}>{departmentError}</div>}
+
+            <ul className="role-manage-list">
+              {departments.map((d) => (
+                <li className="role-manage-row" key={d.id}>
+                  {d.name}
+                  <button type="button" onClick={() => removeDepartment(d)}>Remove</button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      )}
+
+      {/* ================= Staff Detail Slide-over (Assigned Customers + Assigned Tickets) ================= */}
       {showDetailPanel && selectedStaff && (
         <div className="sm-slideover-overlay" onClick={closeStaffDetail}>
           <div className="sm-slideover-panel" onClick={(e) => e.stopPropagation()}>
@@ -592,6 +727,33 @@ function StaffManagement() {
                       <li className="sm-customer-row" key={`${c.company_id}-${c.product_name}`}>
                         <span className="cust-name">{c.company_name}</span>
                         <span className="cust-scope">{c.product_name || 'All products'}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )
+              )}
+            </div>
+
+            <div className="sm-slideover-section" style={{ marginTop: 28 }}>
+              <h3>Assigned Tickets</h3>
+
+              {ticketsLoading && <p className="sm-empty-row">Loading…</p>}
+              {ticketsError && <div className="auth-error">{ticketsError}</div>}
+
+              {!ticketsLoading && !ticketsError && (
+                assignedTickets.length === 0 ? (
+                  <p className="sm-empty-row">No tickets assigned yet.</p>
+                ) : (
+                  <ul className="sm-customer-list">
+                    {assignedTickets.map((t) => (
+                      <li className="sm-customer-row" key={t.id}>
+                        <div>
+                          <div className="cust-name">{t.subject || 'Untitled ticket'}</div>
+                          <div className="cust-scope" style={{ marginTop: 2 }}>
+                            {t.customer_name ? `Raised by ${t.customer_name}` : 'Raised by —'}
+                          </div>
+                        </div>
+                        <span className="cust-scope">{t.product || 'Not Applicable'}</span>
                       </li>
                     ))}
                   </ul>

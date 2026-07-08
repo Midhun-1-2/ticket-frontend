@@ -503,12 +503,42 @@ function ViewModal({ user, onClose }) {
 }
 
 // ---------------------------------------------------------------------------
-// Edit modal — PATCH name / email / phone
+// Edit modal — PATCH name / email / phone, plus Products (add + remove,
+// sourced from the Product Master catalog via two dependent dropdowns:
+// pick a product name, then pick one of its available versions)
 // ---------------------------------------------------------------------------
 function EditModal({ user, onClose, onSaved }) {
   const [form, setForm] = useState({ name: user.name || '', email: user.email || '', phone: user.phone || '' })
   const [errors, setErrors] = useState({})
   const [saving, setSaving] = useState(false)
+
+  const [detailLoading, setDetailLoading] = useState(true)
+  const [hasCompany, setHasCompany] = useState(false)
+  const [products, setProducts] = useState([])   // products already on this customer's company
+  const [catalog, setCatalog] = useState([])     // Product Master catalog (flat list)
+
+  const [showAddRow, setShowAddRow] = useState(false)
+  const [selectedName, setSelectedName] = useState('')
+  const [selectedVersionId, setSelectedVersionId] = useState('')
+  const [addingProduct, setAddingProduct] = useState(false)
+  const [removingId, setRemovingId] = useState(null)
+  const [productError, setProductError] = useState('')
+
+  useEffect(() => {
+    let active = true
+    Promise.all([
+      api.get(`customers/${user.id}/`),
+      api.get('products/'),
+    ])
+      .then(([custRes, catalogRes]) => {
+        if (!active) return
+        setHasCompany(!!custRes.data.company)
+        setProducts(custRes.data.company?.products || [])
+        setCatalog((catalogRes.data || []).filter((p) => p.is_active))
+      })
+      .finally(() => { if (active) setDetailLoading(false) })
+    return () => { active = false }
+  }, [user.id])
 
   const handleChange = (field) => (e) => setForm((f) => ({ ...f, [field]: e.target.value }))
 
@@ -527,6 +557,102 @@ function EditModal({ user, onClose, onSaved }) {
     } finally {
       setSaving(false)
     }
+  }
+
+  // Keys already attached to this customer's company, so both dropdowns
+  // hide combinations that are already added rather than just the name.
+  const addedKeys = useMemo(
+    () => new Set(products.map((p) => `${p.product_name}|${p.product_version || ''}`)),
+    [products]
+  )
+
+  const catalogByName = useMemo(() => {
+    const map = {}
+    catalog.forEach((p) => {
+      if (!map[p.name]) map[p.name] = []
+      map[p.name].push(p)
+    })
+    return map
+  }, [catalog])
+
+  const versionsFor = (name) =>
+    (catalogByName[name] || []).filter((p) => !addedKeys.has(`${p.name}|${p.version || ''}`))
+
+  const availableNames = useMemo(
+    () => Object.keys(catalogByName).filter((name) => versionsFor(name).length > 0).sort(),
+    [catalogByName, addedKeys]
+  )
+
+  const availableVersions = useMemo(() => versionsFor(selectedName), [catalogByName, selectedName, addedKeys])
+
+  const catalogExhausted = !detailLoading && hasCompany && catalog.length > 0 && availableNames.length === 0
+  const catalogEmpty = !detailLoading && hasCompany && catalog.length === 0
+
+  // Picking a name auto-fills the first available version — most products
+  // only have one anyway, so this makes the common case a single click
+  // instead of forcing two dropdown interactions before Add lights up.
+  const handleNameChange = (e) => {
+    const name = e.target.value
+    setSelectedName(name)
+    const versions = versionsFor(name)
+    setSelectedVersionId(versions[0]?.id || '')
+  }
+
+  const handleAddProduct = async () => {
+    if (!selectedVersionId) return
+    setAddingProduct(true)
+    setProductError('')
+    try {
+      const { data } = await api.post(`customers/${user.id}/products/`, {
+        product_id: selectedVersionId,
+      })
+      setProducts((prev) => [...prev, data])
+      setSelectedName('')
+      setSelectedVersionId('')
+      setShowAddRow(false)
+    } catch (err) {
+      setProductError(err.response?.data?.detail || 'Could not add product.')
+    } finally {
+      setAddingProduct(false)
+    }
+  }
+
+  const handleRemoveProduct = async (product) => {
+    const label = product.product_version
+      ? `${product.product_name} (v${product.product_version})`
+      : product.product_name
+    if (!window.confirm(`Remove ${label} from this customer?`)) return
+
+    setRemovingId(product.id)
+    setProductError('')
+    try {
+      await api.delete(`customers/${user.id}/products/${product.id}/`)
+      setProducts((prev) => prev.filter((p) => p.id !== product.id))
+    } catch (err) {
+      setProductError(err.response?.data?.detail || 'Could not remove product.')
+    } finally {
+      setRemovingId(null)
+    }
+  }
+
+  const closeAddRow = () => {
+    setShowAddRow(false)
+    setSelectedName('')
+    setSelectedVersionId('')
+    setProductError('')
+  }
+
+  const canAdd = !!selectedVersionId && !addingProduct
+
+  const selectStyle = {
+    flex: 1,
+    height: 38,
+    padding: '0 10px',
+    borderRadius: 8,
+    border: '1px solid #dcdacf',
+    background: '#fff',
+    fontSize: 13.5,
+    color: '#1f1e1a',
   }
 
   return (
@@ -557,6 +683,188 @@ function EditModal({ user, onClose, onSaved }) {
             {errors.phone_number && <div className="form-error">{errors.phone_number[0]}</div>}
           </div>
           {errors.detail && <div className="form-error">{errors.detail}</div>}
+
+          {/* ---------------- Products (styled card, teal accent) ---------------- */}
+          <div
+            style={{
+              marginTop: 22,
+              padding: '16px 18px 18px',
+              borderRadius: 12,
+              border: '1px solid #e3e1d6',
+              background: '#faf9f5',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="#0f6e63" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M20.59 13.41 13.42 20.6a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82Z" />
+                  <circle cx="7" cy="7" r="1" fill="#0f6e63" stroke="none" />
+                </svg>
+                <span style={{ fontSize: 12, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', color: '#6c6a5f' }}>
+                  Products
+                </span>
+              </div>
+              {!detailLoading && hasCompany && (
+                <span style={{ fontSize: 12, color: '#8c8a7d' }}>
+                  {products.length} added
+                </span>
+              )}
+            </div>
+
+            {detailLoading && <div className="panel-sub">Loading products…</div>}
+
+            {!detailLoading && !hasCompany && (
+              <div className="panel-sub">This customer has no company profile yet.</div>
+            )}
+
+            {!detailLoading && hasCompany && (
+              <>
+                {products.length > 0 ? (
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>
+                    {products.map((p) => (
+                      <span
+                        key={p.id}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 6,
+                          padding: '6px 8px 6px 12px',
+                          borderRadius: 999,
+                          background: 'rgba(15,110,99,0.08)',
+                          border: '1px solid rgba(15,110,99,0.25)',
+                          color: '#0f6e63',
+                          fontSize: 13,
+                          fontWeight: 500,
+                          opacity: removingId === p.id ? 0.5 : 1,
+                        }}
+                      >
+                        {p.product_name}
+                        {p.product_version && (
+                          <span style={{ fontWeight: 400, opacity: 0.75 }}>v{p.product_version}</span>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveProduct(p)}
+                          disabled={removingId === p.id}
+                          title={`Remove ${p.product_name}`}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            width: 16,
+                            height: 16,
+                            border: 'none',
+                            borderRadius: '50%',
+                            background: 'transparent',
+                            color: '#0f6e63',
+                            cursor: removingId === p.id ? 'default' : 'pointer',
+                            padding: 0,
+                          }}
+                        >
+                          <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round">
+                            <path d="M18 6 6 18M6 6l12 12" />
+                          </svg>
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="panel-sub" style={{ marginBottom: 14 }}>No products added yet.</div>
+                )}
+
+                {!showAddRow && (
+                  <>
+                    <button
+                      type="button"
+                      className="btn btn-ghost"
+                      onClick={() => setShowAddRow(true)}
+                      disabled={availableNames.length === 0}
+                      style={{
+                        fontSize: 13,
+                        opacity: availableNames.length === 0 ? 0.5 : 1,
+                        cursor: availableNames.length === 0 ? 'not-allowed' : 'pointer',
+                      }}
+                    >
+                      + Add Product
+                    </button>
+                    {catalogExhausted && (
+                      <div style={{ fontSize: 12, color: '#8c8a7d', marginTop: 6 }}>
+                        Every product in the catalog is already added to this customer.
+                      </div>
+                    )}
+                    {catalogEmpty && (
+                      <div style={{ fontSize: 12, color: '#8c8a7d', marginTop: 6 }}>
+                        No products exist in Product Master yet.
+                      </div>
+                    )}
+                  </>
+                )}
+
+                {showAddRow && (
+                  <div
+                    style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 10,
+                      padding: 12,
+                      borderRadius: 10,
+                      border: '1px solid #e3e1d6',
+                      background: '#fff',
+                    }}
+                  >
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <select value={selectedName} onChange={handleNameChange} style={selectStyle}>
+                        <option value="">Product name…</option>
+                        {availableNames.map((name) => (
+                          <option key={name} value={name}>{name}</option>
+                        ))}
+                      </select>
+                      <select
+                        value={selectedVersionId}
+                        onChange={(e) => setSelectedVersionId(e.target.value)}
+                        disabled={!selectedName}
+                        style={{ ...selectStyle, opacity: selectedName ? 1 : 0.55 }}
+                      >
+                        <option value="">Version…</option>
+                        {availableVersions.map((p) => (
+                          <option key={p.id} value={p.id}>{p.version || 'No version'}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', alignItems: 'center' }}>
+                      {!canAdd && selectedName && (
+                        <span style={{ fontSize: 12, color: '#8c8a7d', marginRight: 'auto' }}>
+                          Select a version to continue
+                        </span>
+                      )}
+                      <button
+                        type="button"
+                        className="btn btn-ghost"
+                        onClick={closeAddRow}
+                        style={{ fontSize: 13 }}
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-primary"
+                        onClick={handleAddProduct}
+                        disabled={!canAdd}
+                        style={{
+                          fontSize: 13,
+                          opacity: canAdd ? 1 : 0.5,
+                          cursor: canAdd ? 'pointer' : 'not-allowed',
+                        }}
+                      >
+                        {addingProduct ? 'Adding…' : 'Add'}
+                      </button>
+                    </div>
+                  </div>
+                )}
+                {productError && <div className="form-error">{productError}</div>}
+              </>
+            )}
+          </div>
         </div>
         <div className="modal-foot">
           <button className="btn btn-ghost" onClick={onClose} disabled={saving}>Cancel</button>
@@ -568,7 +876,6 @@ function EditModal({ user, onClose, onSaved }) {
     </div>
   )
 }
-
 // ---------------------------------------------------------------------------
 // Confirm modal — Deactivate / Activate
 // ---------------------------------------------------------------------------

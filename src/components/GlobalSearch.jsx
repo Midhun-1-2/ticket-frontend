@@ -2,42 +2,69 @@ import React, { useState, useEffect, useRef, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import '../global-search.css'
 
+// Same localStorage key Header.jsx / App.jsx already read from.
+const getRole = () => localStorage.getItem('role') || ''
+
 // Every destination reachable from the sidebar (+ a couple of aliases/
 // keywords per item so "assign" finds Ticket Assignment, "approve" finds
 // Account Approvals, etc). Add a line here any time a new page/tab is
 // added to Header.jsx and it'll show up in search automatically.
+//
+// `roles` mirrors App.jsx's <RequireRole allow={[...]}> for the matching
+// route exactly (and Header.jsx's can* flags) — search should never
+// surface a page the current role would just get Permission Denied on.
+// If access for a route changes in App.jsx, update the matching entry
+// here too.
 const DESTINATIONS = [
   {
     label: 'Dashboard', path: '/dashboard/', group: 'Overview',
     keywords: ['home', 'overview', 'summary'],
+    roles: ['admin', 'staff', 'customer'],
   },
   {
     label: 'All Tickets', path: '/all-tickets/', group: 'Overview',
     keywords: ['tickets', 'list', 'queue'],
+    roles: ['admin', 'staff', 'customer'],
   },
   {
     label: 'Raise Ticket', path: '/raise-ticket/', group: 'Overview',
     keywords: ['new ticket', 'create ticket', 'open ticket'],
+    roles: ['customer'],
   },
   {
     label: 'Ticket Assignment', path: '/ticket-assignment/', group: 'Triage',
     keywords: ['assign', 'offers', 'claim'],
+    roles: ['admin', 'staff'],
   },
   {
     label: 'Account Approvals', path: '/accountapproval/', group: 'Triage',
     keywords: ['approve', 'approval', 'pending accounts', 'onboarding'],
+    roles: ['admin'],
   },
   {
     label: 'Customers', path: '/customers/', group: 'Manage',
     keywords: ['clients', 'accounts', 'companies'],
+    roles: ['admin'],
   },
   {
     label: 'Staff Management', path: '/staffmanagement/', group: 'Manage',
     keywords: ['staff', 'employees', 'team', 'agents'],
+    roles: ['admin'],
   },
   {
     label: 'Categories', path: '/categories/', group: 'Manage',
     keywords: ['category', 'department', 'tags'],
+    roles: ['admin'],
+  },
+  {
+    label: 'Product Master', path: '/products/', group: 'Manage',
+    keywords: ['products', 'catalog', 'versions'],
+    roles: ['admin'],
+  },
+  {
+    label: 'My Profile', path: '/profile/', group: 'Overview',
+    keywords: ['account', 'settings', 'mpin', 'password'],
+    roles: ['admin', 'staff', 'customer'],
   },
 ]
 
@@ -62,11 +89,20 @@ function GlobalSearch() {
   const desktopInputRef = useRef(null)
   const mobileInputRef = useRef(null)
 
+  // Read once per mount — role doesn't change without a fresh login, and
+  // a fresh login remounts the whole app anyway.
+  const role = useMemo(() => getRole(), [])
+
+  const visibleDestinations = useMemo(
+    () => DESTINATIONS.filter((item) => item.roles.includes(role)),
+    [role]
+  )
+
   const results = useMemo(() => {
     const q = query.trim()
     if (!q) return []
-    return DESTINATIONS.filter((item) => matches(item, q))
-  }, [query])
+    return visibleDestinations.filter((item) => matches(item, q))
+  }, [query, visibleDestinations])
 
   // Reset the highlighted row whenever the result set changes, so arrow
   // keys always start from the top of a fresh search.

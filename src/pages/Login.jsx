@@ -4,6 +4,7 @@ import api from '/src/api.js'
 import '/src/login.css'
 import '/src/style.css'
 import CreateMpinModal from '/src/CreateMpinModal.jsx'
+import ForgotMpinModal from '/src/ForgotMpinModal.jsx'
 
 function Login() {
   const navigate = useNavigate()
@@ -19,6 +20,7 @@ function Login() {
   const [showMpinSetup, setShowMpinSetup] = useState(false)
   const [pendingPassword, setPendingPassword] = useState('')
   const [toastMessage, setToastMessage] = useState('')
+  const [showForgotMpin, setShowForgotMpin] = useState(false)
 
   // Plain JS auto-dismiss — runs whenever toastMessage changes.
   useEffect(() => {
@@ -125,6 +127,12 @@ function Login() {
     setToastMessage('M-PIN created! Please log in with your new M-PIN.')
   }
 
+  function handleMpinReset() {
+    setShowForgotMpin(false)
+    setCredential('')
+    setToastMessage('M-PIN reset! Please log in with your new M-PIN.')
+  }
+
   return (
     <div className="auth-screen">
 
@@ -214,9 +222,14 @@ function Login() {
 
             {hasMpin && (
             <div className="auth-row">
-                <a href="/forgot-mpin/" className="auth-link">
-                Forgot M-PIN?
-                </a>
+                <button
+                  type="button"
+                  className="auth-link"
+                  style={{ background: 'none', border: 0, padding: 0, cursor: 'pointer' }}
+                  onClick={() => setShowForgotMpin(true)}
+                >
+                  Forgot M-PIN?
+                </button>
             </div>
             )}
 
@@ -243,6 +256,14 @@ function Login() {
           password={pendingPassword}
           onSuccess={handleMpinCreated}
           onClose={() => setShowMpinSetup(false)}
+        />
+      )}
+
+      {showForgotMpin && (
+        <ForgotMpinModal
+          phone={phone}
+          onSuccess={handleMpinReset}
+          onClose={() => setShowForgotMpin(false)}
         />
       )}
     </div>

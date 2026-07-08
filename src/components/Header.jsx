@@ -33,10 +33,56 @@ function Header() {
   const isActive = (path) =>
     location.pathname === path ? "nav-link active" : "nav-link";
 
-  const fullName = getFullName();
-  const role = getRole();
+  // full_name / role live in state (not plain consts) so the sidebar and
+  // topbar can react immediately when ProfilePage.jsx updates them —
+  // otherwise a name change on the Profile page would only show up here
+  // after the next full login, since localStorage reads alone don't
+  // trigger a re-render.
+  const [fullName, setFullName] = useState(getFullName());
+  const [role, setRole] = useState(getRole());
   const roleLabel = formatRole(role);
   const initials = getInitials(fullName);
+
+  // ProfilePage.jsx writes the new name to localStorage on save and fires
+  // this event so every mounted Header re-reads it right away. 'storage'
+  // covers the same account being open in another tab.
+  useEffect(() => {
+    function syncFromStorage() {
+      setFullName(getFullName());
+      setRole(getRole());
+    }
+    window.addEventListener('profile-updated', syncFromStorage);
+    window.addEventListener('storage', syncFromStorage);
+    return () => {
+      window.removeEventListener('profile-updated', syncFromStorage);
+      window.removeEventListener('storage', syncFromStorage);
+    };
+  }, []);
+
+  // ---------------------------------------------------------------------
+  // Per-link role visibility — mirrors App.jsx's RequireRole allow-lists
+  // exactly (including Raise Ticket, which is customer-only — staff/admin
+  // work tickets via All Tickets / Ticket Assignment instead of raising
+  // their own). Keeping these in sync matters: a link that shows here but
+  // is blocked in App.jsx sends the person to a Permission Denied page;
+  // a link hidden here but allowed in App.jsx just makes a page
+  // unreachable via the sidebar (still fine via direct URL, but worth
+  // avoiding). If you change access for a route in App.jsx, update the
+  // matching flag here too.
+  // ---------------------------------------------------------------------
+  const canRaiseTicket = role === 'customer';
+  const canTicketAssignment = role === 'admin' || role === 'staff';
+  const canAccountApproval = role === 'admin';
+  const canProductMaster = role === 'admin';
+  const canCustomers = role === 'admin';
+  const canStaffManagement = role === 'admin';
+  const canCategories = role === 'admin';
+
+  // Hide an entire group's label when nothing under it is visible to
+  // this role, rather than showing "Triage" or "Manage" over an empty
+  // list.
+  const showTriageGroup = canTicketAssignment || canAccountApproval;
+  const showManageGroup = canProductMaster || canCustomers || canStaffManagement || canCategories;
 
   // Live count of pending Account Approvals.
   const [pendingApprovals, setPendingApprovals] = useState(null);
@@ -81,6 +127,14 @@ function Header() {
   }, [location.pathname]);
 
   useEffect(() => {
+    // Only staff/admin can even see Account Approvals — skip the poll
+    // entirely for customers rather than firing a request that would
+    // just 403 every 30s.
+    if (!canAccountApproval) {
+      setPendingApprovals(null);
+      return;
+    }
+
     let cancelled = false;
 
     async function loadPendingCount() {
@@ -100,9 +154,16 @@ function Header() {
       cancelled = true;
       clearInterval(interval);
     };
-  }, [location.pathname]);
+  }, [location.pathname, canAccountApproval]);
 
   useEffect(() => {
+    // Same reasoning as above — customers never see Ticket Assignment,
+    // so don't poll for its badge count on their behalf.
+    if (!canTicketAssignment) {
+      setPendingAssignments(null);
+      return;
+    }
+
     let cancelled = false;
 
     async function loadPendingAssignmentCount() {
@@ -122,7 +183,7 @@ function Header() {
       cancelled = true;
       clearInterval(interval);
     };
-  }, [location.pathname]);
+  }, [location.pathname, canTicketAssignment]);
 
   const handleLogout = async (e) => {
     e.preventDefault();
@@ -168,88 +229,113 @@ function Header() {
               <span className="label">All Tickets</span>
             </Link>
           </li>
-          <li className="nav-item">
-            <Link to="/raise-ticket/" className={isActive("/raise-ticket/")}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 5v14M5 12h14"/></svg>
-              <span className="label">Raise Ticket</span>
-            </Link>
-          </li>
+          {canRaiseTicket && (
+            <li className="nav-item">
+              <Link to="/raise-ticket/" className={isActive("/raise-ticket/")}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+                <span className="label">Raise Ticket</span>
+              </Link>
+            </li>
+          )}
         </ul>
 
-        <div className="nav-group-label">Triage</div>
-        <ul className="nav">
-          <li className="nav-item">
-            <Link to="/ticket-assignment/" className={isActive("/ticket-assignment/")}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M7 16V4M7 4l-3 3M7 4l3 3"/><path d="M17 8v12M17 20l3-3M17 20l-3-3"/></svg>
-              <span className="label">Ticket Assignment</span>
-              {pendingAssignments !== null && pendingAssignments > 0 && (
-                <span className="nav-count warn">{pendingAssignments}</span>
+        {showTriageGroup && (
+          <>
+            <div className="nav-group-label">Triage</div>
+            <ul className="nav">
+              {canTicketAssignment && (
+                <li className="nav-item">
+                  <Link to="/ticket-assignment/" className={isActive("/ticket-assignment/")}>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M7 16V4M7 4l-3 3M7 4l3 3"/><path d="M17 8v12M17 20l3-3M17 20l-3-3"/></svg>
+                    <span className="label">Ticket Assignment</span>
+                    {pendingAssignments !== null && pendingAssignments > 0 && (
+                      <span className="nav-count warn">{pendingAssignments}</span>
+                    )}
+                  </Link>
+                </li>
               )}
-            </Link>
-          </li>
-          <li className="nav-item">
-            <Link to="/accountapproval/" className={isActive("/accountapproval/")}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="m17 11 2 2 4-4"/></svg>
-              <span className="label">Account Approvals</span>
-              {pendingApprovals !== null && pendingApprovals > 0 && (
-                <span className="nav-count critical">{pendingApprovals}</span>
+              {canAccountApproval && (
+                <li className="nav-item">
+                  <Link to="/accountapproval/" className={isActive("/accountapproval/")}>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="m17 11 2 2 4-4"/></svg>
+                    <span className="label">Account Approvals</span>
+                    {pendingApprovals !== null && pendingApprovals > 0 && (
+                      <span className="nav-count critical">{pendingApprovals}</span>
+                    )}
+                  </Link>
+                </li>
               )}
-            </Link>
-          </li>
-        </ul>
+            </ul>
+          </>
+        )}
 
-        <div className="nav-group-label">Manage</div>
-        <ul className="nav">
-          <li className="nav-item">
-            <Link to="/products/" className={isActive("/products/")}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M20.59 13.41 11 3.83A2 2 0 0 0 9.59 3.24L4 3v5.59a2 2 0 0 0 .59 1.41l9.58 9.59a2 2 0 0 0 2.83 0l3.59-3.59a2 2 0 0 0 0-2.83Z"/></svg>
-              <span className="label">Product Master</span>
-            </Link>
-          </li>
-          <li className="nav-item">
-            <Link to="/customers/" className={isActive("/customers/")}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-              <span className="label">Customers</span>
-            </Link>
-          </li>
-          <li className="nav-item">
-            <Link to="/staffmanagement/" className={isActive("/staffmanagement/")}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21a8 8 0 1 0-16 0"/><circle cx="12" cy="7" r="4"/><path d="M12 11v2"/></svg>
-              <span className="label">Staff Management</span>
-            </Link>
-          </li>
-          <li className="nav-item">
-            <Link to="/categories/" className={isActive("/categories/")}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M20.59 13.41 11 3.83A2 2 0 0 0 9.59 3.24L4 3v5.59a2 2 0 0 0 .59 1.41l9.58 9.59a2 2 0 0 0 2.83 0l3.59-3.59a2 2 0 0 0 0-2.83Z"/><circle cx="8" cy="8" r="1.2" fill="currentColor" stroke="none"/></svg>
-              <span className="label">Categories</span>
-            </Link>
-          </li>
-        </ul>
+        {showManageGroup && (
+          <>
+            <div className="nav-group-label">Manage</div>
+            <ul className="nav">
+              {canProductMaster && (
+                <li className="nav-item">
+                  <Link to="/products/" className={isActive("/products/")}>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M20.59 13.41 11 3.83A2 2 0 0 0 9.59 3.24L4 3v5.59a2 2 0 0 0 .59 1.41l9.58 9.59a2 2 0 0 0 2.83 0l3.59-3.59a2 2 0 0 0 0-2.83Z"/></svg>
+                    <span className="label">Product Master</span>
+                  </Link>
+                </li>
+              )}
+              {canCustomers && (
+                <li className="nav-item">
+                  <Link to="/customers/" className={isActive("/customers/")}>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                    <span className="label">Customers</span>
+                  </Link>
+                </li>
+              )}
+              {canStaffManagement && (
+                <li className="nav-item">
+                  <Link to="/staffmanagement/" className={isActive("/staffmanagement/")}>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21a8 8 0 1 0-16 0"/><circle cx="12" cy="7" r="4"/><path d="M12 11v2"/></svg>
+                    <span className="label">Staff Management</span>
+                  </Link>
+                </li>
+              )}
+              {canCategories && (
+                <li className="nav-item">
+                  <Link to="/categories/" className={isActive("/categories/")}>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M20.59 13.41 11 3.83A2 2 0 0 0 9.59 3.24L4 3v5.59a2 2 0 0 0 .59 1.41l9.58 9.59a2 2 0 0 0 2.83 0l3.59-3.59a2 2 0 0 0 0-2.83Z"/><circle cx="8" cy="8" r="1.2" fill="currentColor" stroke="none"/></svg>
+                    <span className="label">Categories</span>
+                  </Link>
+                </li>
+              )}
+            </ul>
+          </>
+        )}
 
-        <div className="nav-group-label">System</div>
-        <ul className="nav">
-          <li className="nav-item">
-            <a href="#" className="nav-link">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1.04 1.56V21a2 2 0 0 1-4 0v-.09A1.7 1.7 0 0 0 9 19.37a1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.63 15a1.7 1.7 0 0 0-1.56-1.04H3a2 2 0 0 1 0-4h.09A1.7 1.7 0 0 0 4.63 9a1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 9 4.63a1.7 1.7 0 0 0 1.04-1.56V3a2 2 0 0 1 4 0v.09a1.7 1.7 0 0 0 1.04 1.56 1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.7 1.7 0 0 0 19.37 9a1.7 1.7 0 0 0 1.56 1.04H21a2 2 0 0 1 0 4h-.09a1.7 1.7 0 0 0-1.51 1.06Z"/></svg>
-              <span className="label">Settings</span>
-            </a>
-          </li>
-          <li className="nav-item">
-            <a href="#" className="nav-link" onClick={handleLogout} aria-disabled={loggingOut}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
-              <span className="label">{loggingOut ? "Logging out…" : "Log Out"}</span>
-            </a>
-          </li>
-        </ul>
+        {/* Pinned to the bottom of the sidebar as ONE block — regardless
+            of how many groups above (Triage/Manage) are hidden for the
+            current role. Without this wrapper, "System" just followed
+            whatever content happened to be above it, so a role with
+            fewer visible groups (staff, customer) would see Log Out
+            float up the sidebar instead of staying anchored near the
+            profile card at the bottom. */}
+        <div className="sidebar-bottom" style={{ marginTop: 'auto' }}>
+          <div className="nav-group-label">System</div>
+          <ul className="nav">
+            <li className="nav-item">
+              <a href="#" className="nav-link" onClick={handleLogout} aria-disabled={loggingOut}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
+                <span className="label">{loggingOut ? "Logging out…" : "Log Out"}</span>
+              </a>
+            </li>
+          </ul>
 
-        <div className="sidebar-footer">
-          <a href="#" className="role-card">
-            <div className="avatar">{initials}</div>
-            <div className="role-info">
-              <div className="role-name">{fullName}</div>
-              <div className="role-title">{roleLabel}</div>
-            </div>
-          </a>
+          <div className="sidebar-footer">
+            <Link to="/profile/" className={`role-card ${isActive("/profile/") === "nav-link active" ? "active" : ""}`}>
+              <div className="avatar">{initials}</div>
+              <div className="role-info">
+                <div className="role-name">{fullName}</div>
+                <div className="role-title">{roleLabel}</div>
+              </div>
+            </Link>
+          </div>
         </div>
       </aside>
 
@@ -277,13 +363,13 @@ function Header() {
             <span className="notif-dot"></span>
           </button>
           <div className="topbar-divider"></div>
-          <div className="topbar-profile">
+          <Link to="/profile/" className="topbar-profile">
             <div className="avatar">{initials}</div>
             <div className="role-info">
               <div className="role-name">{fullName}</div>
               <div className="role-title">{roleLabel}</div>
             </div>
-          </div>
+          </Link>
         </div>
       </header>
     </>

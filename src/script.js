@@ -67,6 +67,9 @@ function initCounters() {
 /* ---------------------------------------------------------------------
    Ticket trend chart — lightweight hand-drawn line chart (no deps)
    ------------------------------------------------------------------- */
+
+// Fallback mock data — only used when a page calls initTrendChart() with no
+// dataset, e.g. a page that hasn't been wired up to real tickets yet.
 var TREND_DATA = {
   daily: {
     labels: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
@@ -85,6 +88,126 @@ var TREND_DATA = {
   }
 };
 
+var DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+var MONTH_LABELS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+function startOfDay(d) {
+  var x = new Date(d);
+  x.setHours(0, 0, 0, 0);
+  return x;
+}
+
+function startOfWeek(d) {
+  var x = startOfDay(d);
+  x.setDate(x.getDate() - x.getDay()); // back to Sunday
+  return x;
+}
+
+function startOfMonth(d) {
+  return new Date(d.getFullYear(), d.getMonth(), 1);
+}
+
+// Ticket status values treated as "resolved" for trend purposes — matches
+// how Dashboard.jsx / the role dashboards already group Resolved + Closed.
+var RESOLVED_STATUSES = ["Resolved", "Closed"];
+
+/**
+ * Turns a flat list of tickets (the same shape returned by GET tickets/ —
+ * needs created_at, and ideally updated_at + status) into the
+ * { daily, weekly, monthly } shape drawChart() expects, computed from real
+ * data instead of the hardcoded TREND_DATA above.
+ *
+ * Assumption: there's no dedicated `resolved_at` field on the ticket, so a
+ * ticket counts as "resolved" on the day/week/month of its `updated_at`
+ * timestamp, provided its current status is Resolved or Closed. If the
+ * backend adds a real resolved_at field later, swap the reference below.
+ */
+function buildTrendData(tickets) {
+  tickets = tickets || [];
+
+  // --- Daily: last 7 days ---
+  var dayStarts = [];
+  for (var d = 6; d >= 0; d--) {
+    var s = startOfDay(new Date());
+    s.setDate(s.getDate() - d);
+    dayStarts.push(s);
+  }
+  var daily = dayStarts.map(function (s) {
+    return { start: s, label: DAY_LABELS[s.getDay()], opened: 0, resolved: 0 };
+  });
+
+  // --- Weekly: last 7 weeks ---
+  var weekStarts = [];
+  for (var w = 6; w >= 0; w--) {
+    var ws = startOfWeek(new Date());
+    ws.setDate(ws.getDate() - w * 7);
+    weekStarts.push(ws);
+  }
+  var weekly = weekStarts.map(function (s, i) {
+    return { start: s, label: "W" + (i + 1), opened: 0, resolved: 0 };
+  });
+
+  // --- Monthly: last 7 months ---
+  var monthStarts = [];
+  for (var m = 6; m >= 0; m--) {
+    var base = new Date();
+    var ms = new Date(base.getFullYear(), base.getMonth() - m, 1);
+    monthStarts.push(ms);
+  }
+  var monthly = monthStarts.map(function (s) {
+    return { start: s, label: MONTH_LABELS[s.getMonth()], opened: 0, resolved: 0 };
+  });
+
+  function bucketIndexFor(rows, date, rowStartFn) {
+    for (var i = rows.length - 1; i >= 0; i--) {
+      if (date >= rows[i].start) return i;
+    }
+    return -1;
+  }
+
+  tickets.forEach(function (t) {
+    var isResolved = RESOLVED_STATUSES.indexOf(t.status) !== -1;
+    var openedAt = t.created_at ? new Date(t.created_at) : null;
+    var resolvedAt = isResolved && t.updated_at ? new Date(t.updated_at) : null;
+
+    if (openedAt) {
+      var di = bucketIndexFor(daily, startOfDay(openedAt));
+      if (di !== -1 && di < daily.length && openedAt >= daily[0].start) daily[di].opened++;
+
+      var wi = bucketIndexFor(weekly, startOfWeek(openedAt));
+      if (wi !== -1 && openedAt >= weekly[0].start) weekly[wi].opened++;
+
+      var mi = bucketIndexFor(monthly, startOfMonth(openedAt));
+      if (mi !== -1 && openedAt >= monthly[0].start) monthly[mi].opened++;
+    }
+
+    if (resolvedAt) {
+      var rdi = bucketIndexFor(daily, startOfDay(resolvedAt));
+      if (rdi !== -1 && resolvedAt >= daily[0].start) daily[rdi].resolved++;
+
+      var rwi = bucketIndexFor(weekly, startOfWeek(resolvedAt));
+      if (rwi !== -1 && resolvedAt >= weekly[0].start) weekly[rwi].resolved++;
+
+      var rmi = bucketIndexFor(monthly, startOfMonth(resolvedAt));
+      if (rmi !== -1 && resolvedAt >= monthly[0].start) monthly[rmi].resolved++;
+    }
+  });
+
+  function toSeries(rows) {
+    return {
+      labels: rows.map(function (r) { return r.label; }),
+      opened: rows.map(function (r) { return r.opened; }),
+      resolved: rows.map(function (r) { return r.resolved; })
+    };
+  }
+
+  return {
+    daily: toSeries(daily),
+    weekly: toSeries(weekly),
+    monthly: toSeries(monthly)
+  };
+}
+
 function drawChart(canvas, dataset) {
   var ctx = canvas.getContext("2d");
   var dpr = window.devicePixelRatio || 1;
@@ -100,9 +223,9 @@ function drawChart(canvas, dataset) {
   ctx.clearRect(0, 0, w, h);
 
   var all = dataset.opened.concat(dataset.resolved);
-  var max = Math.max.apply(null, all) * 1.15;
+  var max = Math.max.apply(null, all.concat([1])) * 1.15;
   var n = dataset.labels.length;
-  var stepX = plotW / (n - 1);
+  var stepX = n > 1 ? plotW / (n - 1) : plotW;
 
   // gridlines
   ctx.strokeStyle = "#E5E2DA";
@@ -169,14 +292,21 @@ function drawChart(canvas, dataset) {
   });
 }
 
-function initTrendChart() {
+/**
+ * @param {Object} [customDataset] - Optional { daily, weekly, monthly } shape,
+ *   normally the output of buildTrendData(tickets). If omitted, falls back to
+ *   the hardcoded TREND_DATA mock (only still used by pages that haven't been
+ *   wired up to real ticket data).
+ */
+function initTrendChart(customDataset) {
   var canvas = document.getElementById("trendChart");
   if (!canvas) return;
   var tabs = document.querySelectorAll("[data-trend-tab]");
+  var data = customDataset || TREND_DATA;
   var current = "daily";
 
   function render() {
-    drawChart(canvas, TREND_DATA[current]);
+    drawChart(canvas, data[current]);
   }
 
   tabs.forEach(function (tab) {
@@ -208,4 +338,4 @@ export function initApp() {
   initCounters();
   initTrendChart();
 }
-export { initCounters, initTrendChart };
+export { initCounters, initTrendChart, buildTrendData };

@@ -195,7 +195,17 @@ function TicketDetailModal({ ticketId, onClose, onChanged }) {
                 <span className={`chip ${statusChipClass[ticket.status] || ''}`}>{ticket.status}</span>
               </div>
 
-              {ticket.escalated && (
+              {/* ticket.escalated is permanent history on the backend — it's
+                  never cleared even after the ticket is later transferred
+                  away from admin to a staff member (see TransferTicketView's
+                  own comment: "What changes is just who currently holds it").
+                  So checking escalated alone would keep showing this banner
+                  forever, even long after the ticket moved on. Also
+                  requiring assigned_staff.role === 'admin' means it only
+                  shows while the ticket is actually still sitting with
+                  admin right now. Combined with !isAdmin, it's staff-only
+                  and only while genuinely true. */}
+              {ticket.escalated && ticket.assigned_staff?.role === 'admin' && !isAdmin && (
                 <div className="escalated-banner">
                   <strong>Escalated to admin</strong>
                   {ticket.escalation_note && <p>{ticket.escalation_note}</p>}
