@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import '/src/style.css'
 import '/src/Onboarding.css'
 import api from '/src/api.js'
 
@@ -304,14 +305,7 @@ function Onboarding() {
   )
 
   const renderApiError = () =>
-    apiError ? (
-      <div style={{
-        background: '#fdecea', border: '1px solid #f3b4ae', color: '#a3231b',
-        borderRadius: 8, padding: '10px 14px', fontSize: 13, marginBottom: 18, whiteSpace: 'pre-line',
-      }}>
-        {apiError}
-      </div>
-    ) : null
+    apiError ? <div className="api-error-banner">{apiError}</div> : null
 
   // ---------- Step 1 ----------
 
@@ -558,9 +552,9 @@ function Onboarding() {
          <div className={`form-field full ${errors.productsInUse ? 'error' : ''}`}>
          <label>Product(s) / Service(s) in Use<span className="required">*</span></label>
           <div className="chip-select">
-            {productsLoading && <span style={{ fontSize: 13, color: '#6b7280' }}>Loading products…</span>}
+            {productsLoading && <span className="muted-note">Loading products…</span>}
             {!productsLoading && productOptions.length === 0 && (
-              <span style={{ fontSize: 13, color: '#6b7280' }}>No products available. Contact an admin.</span>
+              <span className="muted-note">No products available. Contact an admin.</span>
             )}
             {productOptions.map((p) => (
               <div
@@ -602,12 +596,12 @@ function Onboarding() {
       {renderApiError()}
       <div className="form-section">
         <div className="section-heading">Product Details</div>
-        <p style={{ fontSize: 13, color: '#6b7280', marginTop: -10, marginBottom: 18 }}>
+        <p className="section-intro">
           Set the version and support details for each product selected in the previous step.
         </p>
 
         {products.length === 0 && (
-          <p style={{ fontSize: 13, color: '#6b7280' }}>
+          <p className="muted-note">
             No products selected. Go back and choose at least one product or service.
           </p>
         )}

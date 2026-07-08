@@ -7,6 +7,7 @@ import StaffDashboard from './pages/StaffDashboard.jsx'
 import AdminDashboard from './pages/AdminDashboard.jsx'
 import Onboarding from './pages/Onboarding.jsx'
 import Login from './pages/Login.jsx'
+import LandingPage from './pages/LandingPage.jsx'
 import CategoryMaster from './pages/CategoryMaster.jsx'
 import RaiseTicket from './pages/RaiseTicket.jsx'
 import StaffManagement from './pages/StaffManagement.jsx'
@@ -48,17 +49,21 @@ const isLoggedIn = () => !!localStorage.getItem('access')
 // token itself (expired/invalid tokens are handled by api.js's response
 // interceptor + refresh flow); this is just the "never even show the
 // page without SOME token" guard for direct URL access.
+//
+// Redirects to "/login" rather than "/" — "/" is now the public landing
+// page, not the login form, so bouncing here still puts the person
+// straight in front of a login form instead of a marketing page.
 function RequireAuth({ children }) {
   if (!isLoggedIn()) {
-    return <Navigate to="/" replace />
+    return <Navigate to="/login" replace />
   }
   return children
 }
 
-// Inverse guard for the login route itself — if someone who's already
-// logged in navigates to "/" directly (bookmark, typed URL, browser
-// back), send them straight to their dashboard instead of showing the
-// login form again.
+// Inverse guard for the landing + login routes — if someone who's
+// already logged in navigates to "/" or "/login" directly (bookmark,
+// typed URL, browser back), send them straight to their dashboard
+// instead of showing marketing copy or the login form again.
 function RedirectIfAuthed({ children }) {
   if (isLoggedIn()) {
     return <Navigate to="/dashboard/" replace />
@@ -230,8 +235,23 @@ function App() {
         </Route>
 
         <Route path='/onboarding' element={<Onboarding />} />
+
+        {/* Public landing page — first thing anyone hits at "/".
+            Already-authenticated visitors get bounced straight to their
+            dashboard instead of seeing marketing copy. */}
         <Route
           path='/'
+          element={
+            <RedirectIfAuthed>
+              <LandingPage />
+            </RedirectIfAuthed>
+          }
+        />
+
+        {/* Login moved off "/" and onto its own path now that "/" is
+            the landing page. */}
+        <Route
+          path='/login'
           element={
             <RedirectIfAuthed>
               <Login />

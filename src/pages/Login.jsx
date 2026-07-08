@@ -150,104 +150,169 @@ function Login() {
         </div>
       )}
 
-      <div className="auth-card">
-        <div className="auth-brand">
-          <div className="brand-mark">TD</div>
-          <div className="brand-text">
-            <div className="brand-name">Ticket Desk</div>
-            <div className="brand-sub">Sign in to your account</div>
+      <div className="auth-shell">
+
+        {/* Branded panel — purely presentational, echoes the app shell's
+            dark ink sidebar so the login screen reads as part of the same
+            product rather than a generic auth page. */}
+        <aside className="auth-visual" aria-hidden="true">
+          <div className="auth-visual-glow"></div>
+
+          <div className="auth-visual-top">
+            <div className="brand-mark">TD</div>
+            <div className="brand-text">
+              <div className="brand-name">Ticket Desk</div>
+              <div className="brand-sub">Admin Console</div>
+            </div>
+          </div>
+
+          <div className="auth-visual-mid">
+            <h1 className="auth-visual-title">
+              Every ticket,<br />tracked in real time.
+            </h1>
+            <p className="auth-visual-desc">
+              One dashboard for your whole support queue — assignment,
+              escalation and resolution, all in sync.
+            </p>
+
+            <ul className="auth-feature-list">
+              <li>
+                <span className="auth-feature-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+                </span>
+                Live ticket queue &amp; SLA tracking
+              </li>
+              <li>
+                <span className="auth-feature-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+                </span>
+                Race-safe assignment &amp; transfers
+              </li>
+              <li>
+                <span className="auth-feature-icon">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+                </span>
+                Staff performance at a glance
+              </li>
+            </ul>
+          </div>
+
+          <div className="auth-visual-ticker">
+            <span className="ticker-dot"></span> LIVE QUEUE
+            <span className="auth-visual-ticker-sep"></span>
+            Synced just now
+          </div>
+        </aside>
+
+        {/* Actual form panel — logic and structure unchanged. */}
+        <div className="auth-card-wrap">
+          <div className="auth-card">
+            <div className="auth-brand auth-brand-mobile">
+              <div className="brand-mark">TD</div>
+              <div className="brand-text">
+                <div className="brand-name">Ticket Desk</div>
+                <div className="brand-sub">Sign in to your account</div>
+              </div>
+            </div>
+
+            <div className="auth-card-head">
+              <div className="page-eyebrow">Welcome back</div>
+              <h2 className="auth-card-title">Sign in</h2>
+              <p className="auth-card-sub">Enter your phone number to continue.</p>
+            </div>
+
+            {pendingApproval ? (
+              <div className="auth-notice">
+                <div className="auth-notice-title">Account Pending Approval</div>
+                <p className="auth-notice-body">
+                  Your account is pending admin approval. You will be notified once approved.
+                </p>
+                <button
+                  type="button"
+                  className="btn btn-ghost auth-back-btn"
+                  onClick={() => setPendingApproval(false)}
+                >
+                  Back to Login
+                </button>
+              </div>
+            ) : (
+              <form className="auth-form" onSubmit={handleSubmit}>
+
+                <label className="auth-field">
+                  <span className="auth-label">Phone Number</span>
+                  <input
+                    type="tel"
+                    inputMode="numeric"
+                    placeholder="Enter 10-digit phone number"
+                    value={phone}
+                    onChange={handlePhoneChange}
+                    maxLength={10}
+                    autoComplete="tel"
+                    required
+                  />
+                </label>
+
+                {/* Role Detected is only surfaced for admin/staff — customers
+                    don't need to see this, and it avoids exposing role info
+                    unnecessarily for the common case. */}
+                {(role === 'admin' || role === 'staff') && (
+                  <div className="auth-role-detected">
+                    Role detected: <span>{role}</span>
+                  </div>
+                )}
+
+                {phoneChecked && (
+                  <label className="auth-field">
+                    <span className="auth-label">{hasMpin ? 'M-PIN' : 'Password'}</span>
+                    <input
+                      type="password"
+                      inputMode={hasMpin ? 'numeric' : 'text'}
+                      placeholder={hasMpin ? 'Enter your M-PIN' : 'Enter your password'}
+                      value={credential}
+                      onChange={(e) => {
+                        const v = hasMpin
+                          ? e.target.value.replace(/\D/g, '').slice(0, 6)
+                          : e.target.value
+                        setCredential(v)
+                      }}
+                      maxLength={hasMpin ? 6 : undefined}
+                      autoComplete="current-password"
+                      required
+                    />
+                  </label>
+                )}
+
+                {hasMpin && (
+                <div className="auth-row">
+                    <button
+                      type="button"
+                      className="auth-link"
+                      style={{ background: 'none', border: 0, padding: 0, cursor: 'pointer' }}
+                      onClick={() => setShowForgotMpin(true)}
+                    >
+                      Forgot M-PIN?
+                    </button>
+                </div>
+                )}
+
+                {error && <div className="auth-error">{error}</div>}
+
+                <button
+                  type="submit"
+                  className="btn btn-primary auth-submit"
+                  disabled={loading || !phoneChecked}
+                >
+                  {loading ? 'Signing in…' : 'Login'}
+                </button>
+
+                <p className="auth-signup">
+                  Don't have an account? <Link to="/onboarding" className="auth-link">Sign up</Link>
+                </p>
+              </form>
+            )}
           </div>
         </div>
 
-        {pendingApproval ? (
-          <div className="auth-notice">
-            <div className="auth-notice-title">Account Pending Approval</div>
-            <p className="auth-notice-body">
-              Your account is pending admin approval. You will be notified once approved.
-            </p>
-            <button
-              type="button"
-              className="btn btn-ghost auth-back-btn"
-              onClick={() => setPendingApproval(false)}
-            >
-              Back to Login
-            </button>
-          </div>
-        ) : (
-          <form className="auth-form" onSubmit={handleSubmit}>
-
-            <label className="auth-field">
-              <span className="auth-label">Phone Number</span>
-              <input
-                type="tel"
-                inputMode="numeric"
-                placeholder="Enter 10-digit phone number"
-                value={phone}
-                onChange={handlePhoneChange}
-                maxLength={10}
-                autoComplete="tel"
-                required
-              />
-            </label>
-
-            {/* Role Detected is only surfaced for admin/staff — customers
-                don't need to see this, and it avoids exposing role info
-                unnecessarily for the common case. */}
-            {(role === 'admin' || role === 'staff') && (
-              <div className="auth-role-detected">
-                Role detected: <span>{role}</span>
-              </div>
-            )}
-
-            {phoneChecked && (
-              <label className="auth-field">
-                <span className="auth-label">{hasMpin ? 'M-PIN' : 'Password'}</span>
-                <input
-                  type="password"
-                  inputMode={hasMpin ? 'numeric' : 'text'}
-                  placeholder={hasMpin ? 'Enter your M-PIN' : 'Enter your password'}
-                  value={credential}
-                  onChange={(e) => {
-                    const v = hasMpin
-                      ? e.target.value.replace(/\D/g, '').slice(0, 6)
-                      : e.target.value
-                    setCredential(v)
-                  }}
-                  maxLength={hasMpin ? 6 : undefined}
-                  autoComplete="current-password"
-                  required
-                />
-              </label>
-            )}
-
-            {hasMpin && (
-            <div className="auth-row">
-                <button
-                  type="button"
-                  className="auth-link"
-                  style={{ background: 'none', border: 0, padding: 0, cursor: 'pointer' }}
-                  onClick={() => setShowForgotMpin(true)}
-                >
-                  Forgot M-PIN?
-                </button>
-            </div>
-            )}
-
-            {error && <div className="auth-error">{error}</div>}
-
-            <button
-              type="submit"
-              className="btn btn-primary auth-submit"
-              disabled={loading || !phoneChecked}
-            >
-              {loading ? 'Signing in…' : 'Login'}
-            </button>
-
-            <p className="auth-signup">
-              Don't have an account? <Link to="/onboarding" className="auth-link">Sign up</Link>
-            </p>
-          </form>
-        )}
       </div>
 
       {showMpinSetup && (
