@@ -122,23 +122,32 @@ function flattenApiErrors(data) {
 function Onboarding() {
   const [step, setStep] = useState(1)
   const [formData, setFormData] = useState(initialFormData)
-  const [products, setProducts] = useState([emptyProduct()])
+  const [products, setProducts] = useState([])
   const [confirmed, setConfirmed] = useState(false)
   const [errors, setErrors] = useState({})
   const [submittedCode, setSubmittedCode] = useState(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [apiError, setApiError] = useState('')
 
-  // Product catalog — fetched from the backend instead of hardcoded
-  const [productOptions, setProductOptions] = useState([])
+  // Product catalog — fetched from the backend instead of hardcoded.
+  // Kept as full {id, name, version} objects (not just names) so the
+  // Product Version field in Step 2 can look up the version tied to
+  // whichever product is currently selected in that row.
+  const [productCatalog, setProductCatalog] = useState([])
   const [productsLoading, setProductsLoading] = useState(true)
+
+  // Dedupe by name — the same product can now have multiple ProductMaster
+  // rows (one per version), so without this the Step 1 chip list and the
+  // Step 2 product dropdown would both show the same product name once
+  // per version it has on file.
+  const productOptions = [...new Set(productCatalog.map((p) => p.name))]
 
   useEffect(() => {
     let cancelled = false
     api.get('public-products/')
       .then(({ data }) => {
         if (cancelled) return
-        setProductOptions(data.map((p) => p.name))
+        setProductCatalog(data)
       })
       .catch(() => {
         if (!cancelled) setApiError('Could not load the product list. Please refresh the page.')
@@ -150,13 +159,29 @@ function Onboarding() {
   }, [])
 
   // Once the catalog loads, default the first product row's dropdown
-  // to the first available option (it starts as '' before the fetch resolves)
+  // to the first available option (it starts as '' before the fetch
+  // resolves), and pre-fill its version to match.
+  // Step 2's product blocks are derived directly from whichever products
+  // were checked as chips in Step 1 — one locked block per selected
+  // product, in the order they were picked. Existing per-block data
+  // (version, activation date, support type, remarks) is preserved for
+  // products that stay selected; a fresh block (defaulted to that
+  // product's first known version) is created for newly-checked ones;
+  // blocks for unchecked products are dropped. Runs whenever the Step 1
+  // selection changes OR the catalog finishes loading (so versions can
+  // be filled in retroactively once available).
   useEffect(() => {
-    if (productOptions.length === 0) return
     setProducts((prev) =>
-      prev.map((p) => (p.productName === '' ? { ...p, productName: productOptions[0] } : p))
+      formData.productsInUse.map((name) => {
+        const existing = prev.find((p) => p.productName === name)
+        if (existing) return existing
+        const versions = productCatalog
+          .filter((c) => c.name === name && c.version)
+          .map((c) => c.version)
+        return { ...emptyProduct(), productName: name, productVersion: versions[0] || '' }
+      })
     )
-  }, [productOptions])
+  }, [formData.productsInUse, productCatalog])
 
   const updateField = (field, value) => {
     setFormData((prev) => ({ ...prev, [field]: value }))
@@ -179,8 +204,13 @@ function Onboarding() {
     setProducts((prev) => prev.map((p, i) => (i === index ? { ...p, [field]: value } : p)))
   }
 
-  const addProduct = () => setProducts((prev) => [...prev, emptyProduct()])
-  const removeProduct = (index) => setProducts((prev) => prev.filter((_, i) => i !== index))
+  // Changing the product name resets the version to whatever Product
+  // Master has on file for that product (a product currently maps to
+  // exactly one version in the catalog — see ProductMaster.jsx — so
+  // there's nothing else for the customer to pick until that changes).
+  // No addProduct/removeProduct anymore — the set of product blocks is
+  // fully controlled by the Step 1 chip selection (see the sync effect
+  // above), not managed freely here.
 
   // ---------- Validation ----------
 
@@ -573,66 +603,80 @@ function Onboarding() {
       <div className="form-section">
         <div className="section-heading">Product Details</div>
         <p style={{ fontSize: 13, color: '#6b7280', marginTop: -10, marginBottom: 18 }}>
-          Add each product or service this company has purchased.
+          Set the version and support details for each product selected in the previous step.
         </p>
 
-        {products.map((product, index) => (
-          <div className="product-block" key={index}>
-            {products.length > 1 && (
+        {products.length === 0 && (
+          <p style={{ fontSize: 13, color: '#6b7280' }}>
+            No products selected. Go back and choose at least one product or service.
+          </p>
+        )}
+
+        {products.map((product, index) => {
+          // Version is derived from Product Master, not typed freely — a
+          // product can have several versions on file (each its own
+          // ProductMaster row sharing the same name; see
+          // ProductMaster.jsx's "Add New Version" action), so this
+          // gathers every version tied to this specific block's product.
+          const availableVersions = productCatalog
+            .filter((p) => p.name === product.productName && p.version)
+            .map((p) => p.version)
+
+          return (
+            <div className="product-block" key={product.productName}>
               <div className="product-block-header">
-                <div className="product-block-title">Product {index + 1}</div>
-                <button className="remove-product-btn" onClick={() => removeProduct(index)}>Remove</button>
+                <div className="product-block-title">{product.productName}</div>
               </div>
-            )}
-            <div className="form-grid">
-              <div className="form-field">
-                <label>Product Name</label>
-                <select value={product.productName} onChange={(e) => updateProduct(index, 'productName', e.target.value)}>
-                  <option value="" disabled>Select a product</option>
-                  {productOptions.map((p) => <option key={p} value={p}>{p}</option>)}
-                </select>
-              </div>
+              <div className="form-grid">
+                <div className="form-field">
+                  <label>Product Version</label>
+                  <select
+                    value={product.productVersion}
+                    onChange={(e) => updateProduct(index, 'productVersion', e.target.value)}
+                    disabled={availableVersions.length === 0}
+                  >
+                    {availableVersions.length === 0 ? (
+                      <option value="">No version on file</option>
+                    ) : (
+                      availableVersions.map((v) => <option key={v} value={v}>{v}</option>)
+                    )}
+                  </select>
+                </div>
 
-              <div className="form-field">
-                <label>Product Version</label>
-                <input placeholder="e.g. 4.2" value={product.productVersion} onChange={(e) => updateProduct(index, 'productVersion', e.target.value)} />
-              </div>
+                <div className="form-field">
+                  <label>Date of Activation</label>
+                  <input type="date" value={product.activationDate} onChange={(e) => updateProduct(index, 'activationDate', e.target.value)} />
+                </div>
 
-              <div className="form-field">
-                <label>Date of Activation</label>
-                <input type="date" value={product.activationDate} onChange={(e) => updateProduct(index, 'activationDate', e.target.value)} />
-              </div>
+                <div className="form-field">
+                  <label>Current Support Type</label>
+                  <div className="radio-group" style={{ marginTop: 8 }}>
+                    {SUPPORT_TYPES.map((type) => (
+                      <label className="radio-option" key={type}>
+                        <input
+                          type="radio"
+                          name={`supportType-${index}`}
+                          checked={product.supportType === type}
+                          onChange={() => updateProduct(index, 'supportType', type)}
+                        />
+                        {type}
+                      </label>
+                    ))}
+                  </div>
+                </div>
 
-              <div className="form-field">
-                <label>Current Support Type</label>
-                <div className="radio-group" style={{ marginTop: 8 }}>
-                  {SUPPORT_TYPES.map((type) => (
-                    <label className="radio-option" key={type}>
-                      <input
-                        type="radio"
-                        name={`supportType-${index}`}
-                        checked={product.supportType === type}
-                        onChange={() => updateProduct(index, 'supportType', type)}
-                      />
-                      {type}
-                    </label>
-                  ))}
+                <div className="form-field full">
+                  <label>Remarks<span className="optional">optional</span></label>
+                  <textarea
+                    placeholder="Version notes, migration details, etc."
+                    value={product.remarks}
+                    onChange={(e) => updateProduct(index, 'remarks', e.target.value)}
+                  />
                 </div>
               </div>
-
-              <div className="form-field full">
-                <label>Remarks<span className="optional">optional</span></label>
-                <textarea
-                  placeholder="Version notes, migration details, etc."
-                  value={product.remarks}
-                  onChange={(e) => updateProduct(index, 'remarks', e.target.value)}
-                />
-              </div>
             </div>
-          </div>
-        ))}
-
-        <button className="add-product-btn" onClick={addProduct}>+ Add Another Product</button>
+          )
+        })}
       </div>
 
       <div className="onboarding-actions">

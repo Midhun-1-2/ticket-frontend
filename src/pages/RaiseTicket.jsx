@@ -6,15 +6,22 @@ import '/src/RaiseTicket.css'
 const PRIORITIES = ['Low', 'Medium', 'High', 'Urgent']
 const priorityKey = { Low: 'p-low', Medium: 'p-medium', High: 'p-high', Urgent: 'p-urgent' }
 
+// The dropdown only ever shows THIS customer's own company's products
+// that an admin has verified (from /my-products/) — never the full
+// Product Master catalog, and no "Not Applicable" fallback. That's what
+// stops a customer from raising a ticket against a product they were
+// never registered for (e.g. "Projo"), and makes Product a genuinely
+// required, meaningful choice rather than a default anyone can skip.
+
 const MAX_FILE_SIZE_MB = 10
 const MAX_TOTAL_FILES = 5
 
 const initialForm = {
   subject: '',
   category: '',
-  priority: '', // no default — stays unselected until a category is picked or the customer clicks one
+  priority: '',
   description: '',
-  product: '', // no default — customer must pick one of their approved products
+  product: '',
 }
 
 function formatSize(bytes) {
@@ -50,14 +57,15 @@ function RaiseTicket() {
   const [categoriesLoading, setCategoriesLoading] = useState(true)
   const [categoriesError, setCategoriesError] = useState('')
 
-  const [products, setProducts] = useState([])
+  // Product catalog — scoped to THIS customer's own approved/verified
+  // products (see /my-products/ on the backend), not the full Product
+  // Master catalog. Staff/admin accounts get an empty list from that
+  // endpoint (see MyProductsView), so they'll only ever see
+  // "Not Applicable" here — which matches how this page is meant to be
+  // used (customers raising their own tickets).
+  const [productOptions, setProductOptions] = useState([])
   const [productsLoading, setProductsLoading] = useState(true)
   const [productsError, setProductsError] = useState('')
-
-  // Tracks whether the customer has manually clicked a priority option
-  // themselves. Once true, picking a different category will NOT override
-  // their manual choice — only auto-fills happen before the first manual click.
-  const [priorityTouched, setPriorityTouched] = useState(false)
 
   const [submitting, setSubmitting] = useState(false)
   const [banner, setBanner] = useState(null) // { type: 'success' | 'error', text }
@@ -86,12 +94,11 @@ function RaiseTicket() {
     setProductsLoading(true)
     setProductsError('')
     try {
-      // Only products this customer's company had verified/approved by an
-      // admin during Account Approvals show up here.
       const { data } = await api.get('my-products/')
-      setProducts(data.products || [])
+      setProductOptions(data.products || [])
     } catch (err) {
-      setProductsError('Could not load products.')
+      setProductsError('Could not load your products.')
+      setProductOptions([])
     } finally {
       setProductsLoading(false)
     }
@@ -102,24 +109,16 @@ function RaiseTicket() {
     if (errors[field]) setErrors((prev) => ({ ...prev, [field]: undefined }))
   }
 
-  // Category picked -> auto-select that category's default priority,
-  // unless the customer has already manually chosen a priority themselves.
-  const handleCategoryChange = (categoryName) => {
-    updateField('category', categoryName)
-
-    if (priorityTouched) return // respect the customer's manual override
-
-    const selected = categories.find((c) => c.name === categoryName)
-    if (selected?.priority) {
-      updateField('priority', selected.priority)
-    }
-  }
-
-  // Customer clicked a priority option directly — from now on, changing
-  // category should not overwrite their choice.
-  const handlePriorityClick = (priority) => {
-    setPriorityTouched(true)
-    updateField('priority', priority)
+  // Category has its own handler (rather than going through updateField)
+  // because picking one auto-selects that category's own default
+  // priority (see Category.priority on the backend) instead of just
+  // clearing whatever was there before. The customer can still override
+  // the auto-picked priority afterward — this only sets the starting
+  // point.
+  const updateCategory = (name) => {
+    const matched = categories.find((c) => c.name === name)
+    setForm((prev) => ({ ...prev, category: name, priority: matched?.priority || '' }))
+    setErrors((prev) => ({ ...prev, category: undefined, priority: undefined }))
   }
 
   // ---------- Attachments ----------
@@ -190,8 +189,11 @@ function RaiseTicket() {
       setBanner({ type: 'success', text: 'Ticket raised. Redirecting to your dashboard…' })
       setTimeout(() => navigate('/dashboard/'), 1200)
     } catch (err) {
-      // Surface DRF field errors if present (e.g. { subject: ["..."] }),
-      // otherwise fall back to a generic message.
+      // Surface DRF field errors if present (e.g. { product: ["You can
+      // only raise tickets for products verified on your account..."] }),
+      // otherwise fall back to a generic message. This is what shows the
+      // rejection message if product validation ever fails server-side —
+      // e.g. a stale dropdown selection, or a bypassed/tampered request.
       const data = err.response?.data
       const serverMsg =
         data && typeof data === 'object' ? Object.values(data).flat().join(' ') : null
@@ -232,7 +234,7 @@ function RaiseTicket() {
                 <label>Category / Department<span className="required">*</span></label>
                 <select
                   value={form.category}
-                  onChange={(e) => handleCategoryChange(e.target.value)}
+                  onChange={(e) => updateCategory(e.target.value)}
                   disabled={categoriesLoading}
                 >
                   <option value="">{categoriesLoading ? 'Loading…' : 'Select a category'}</option>
@@ -251,34 +253,35 @@ function RaiseTicket() {
                   onChange={(e) => updateField('product', e.target.value)}
                   disabled={productsLoading}
                 >
-                  <option value="">{productsLoading ? 'Loading…' : 'Select a product'}</option>
-                  {products.map((p) => (
-                    <option key={p} value={p}>{p}</option>
-                  ))}
+                  <option value="" disabled>{productsLoading ? 'Loading…' : 'Select a product'}</option>
+                  {!productsLoading && productOptions.map((p) => <option key={p} value={p}>{p}</option>)}
                 </select>
                 {errors.product && <span className="raise-field-error">{errors.product}</span>}
-                {productsError && <span className="raise-field-error">{productsError}</span>}
-                {!productsLoading && !productsError && products.length === 0 && (
-                  <span className="raise-field-error">
-                    No approved products found for your account. Contact support.
+                {!productsLoading && productOptions.length === 0 && (
+                  <span className="raise-field-hint">
+                    No verified products found on your account yet — contact support to get a
+                    product added before raising a ticket.
                   </span>
                 )}
+                {productsError && <span className="raise-field-error">{productsError}</span>}
               </div>
             </div>
 
             <div className={`raise-field ${errors.priority ? 'error' : ''}`}>
               <label>Priority<span className="required">*</span></label>
-              <div className="priority-select">
+              <div className={`priority-select ${!form.category ? 'disabled' : ''}`}>
                 {PRIORITIES.map((p) => (
                   <div
                     key={p}
                     className={`priority-option ${priorityKey[p]} ${form.priority === p ? 'selected ' + priorityKey[p] : ''}`}
-                    onClick={() => handlePriorityClick(p)}
+                    onClick={() => form.category && updateField('priority', p)}
+                    aria-disabled={!form.category}
                   >
                     {p}
                   </div>
                 ))}
               </div>
+            
               {errors.priority && <span className="raise-field-error">{errors.priority}</span>}
             </div>
 

@@ -1,4 +1,5 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useState, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import api from '../api' // adjust this path to match where api.js actually lives
 
 // ---------------------------------------------------------------------------
@@ -18,6 +19,23 @@ const STATUS_CHIP = {
   'On Hold': 'chip hold',
   Resolved: 'chip resolved',
   Closed: 'chip closed',
+}
+
+// Fix: some status labels ("In Progress", "On Hold") were wrapping onto two
+// lines inside the fixed-height chip pill and getting visually clipped
+// (see screenshot). Forcing nowrap + a little horizontal padding/min-width
+// keeps every status chip on a single line regardless of label length.
+const chipNoWrapStyle = {
+  whiteSpace: 'nowrap',
+  display: 'inline-flex',
+  alignItems: 'center',
+  width: 'fit-content',
+  maxWidth: 'none',
+  minWidth: 'max-content',
+  boxSizing: 'content-box',
+  overflow: 'visible',
+  padding: '4px 12px',
+  lineHeight: 1.4,
 }
 
 const STATUS_TABS = [
@@ -54,6 +72,76 @@ const BACKEND_ORIGIN = api.defaults.baseURL.replace(/\/+$/, '')
 function attachmentUrl(path) {
   if (!path) return '#'
   return path.startsWith('http') ? path : `${BACKEND_ORIGIN}${path}`
+}
+
+// Reflects Ticket.closed_at — set server-side the first time a ticket's
+// status flips to 'Closed', cleared if it's ever reopened. See
+// TicketStatusUpdateView / TicketDetailView.perform_update on the backend.
+function closedOn(ticket) {
+  return ticket.closed_at ? formatDateTime(ticket.closed_at) : '—'
+}
+
+// Shows a small "Note" chip when a ticket has a staff remark (currently
+// sourced from Ticket.escalation_note — the only staff-authored note
+// field on the ticket today). Hovering/focusing reveals the full text via
+// a fixed-position portal on <body>, so it's never clipped by the modal's
+// own overflow-y:auto.
+function RemarkTooltip({ text }) {
+  const [open, setOpen] = useState(false)
+  const [coords, setCoords] = useState({ top: 0, left: 0 })
+  const chipRef = useRef(null)
+
+  if (!text) return <span style={{ color: 'var(--text-faint)' }}>—</span>
+
+  const updatePosition = () => {
+    if (chipRef.current) {
+      const rect = chipRef.current.getBoundingClientRect()
+      setCoords({ top: rect.bottom + window.scrollY + 8, left: rect.left + window.scrollX })
+    }
+  }
+  const show = () => { updatePosition(); setOpen(true) }
+  const hide = () => setOpen(false)
+
+  return (
+    <span
+      ref={chipRef}
+      className="chip hold"
+      style={{ cursor: 'help', ...chipNoWrapStyle }}
+      tabIndex={0}
+      onMouseEnter={show}
+      onMouseLeave={hide}
+      onFocus={show}
+      onBlur={hide}
+    >
+      Note
+      {open && createPortal(
+        <div
+          onMouseEnter={show}
+          onMouseLeave={hide}
+          style={{
+            position: 'absolute',
+            top: coords.top,
+            left: coords.left,
+            zIndex: 1000,
+            maxWidth: 260,
+            background: 'var(--ink)',
+            color: '#DADCE4',
+            borderRadius: 8,
+            padding: '10px 12px',
+            fontSize: 12.5,
+            lineHeight: 1.5,
+            boxShadow: '0 12px 30px -8px rgba(20,23,31,0.45)',
+          }}
+        >
+          <div style={{ fontSize: 10.5, textTransform: 'uppercase', letterSpacing: '.05em', color: '#8A8FA3', marginBottom: 4, fontWeight: 600 }}>
+            Staff Remark
+          </div>
+          {text}
+        </div>,
+        document.body
+      )}
+    </span>
+  )
 }
 
 function AllTickets() {
@@ -247,16 +335,19 @@ function AllTickets() {
                   <th>Product</th>
                   <th>Priority</th>
                   <th>Status</th>
+                  <th>Assigned Staff</th>
+                  <th>Remarks</th>
                   <th>Raised On</th>
+                  <th>Closed On</th>
                   <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {loading && (
-                  <tr><td colSpan={8}>Loading tickets…</td></tr>
+                  <tr><td colSpan={11}>Loading tickets…</td></tr>
                 )}
                 {!loading && filtered.length === 0 && (
-                  <tr><td colSpan={8}>No tickets found.</td></tr>
+                  <tr><td colSpan={11}>No tickets found.</td></tr>
                 )}
                 {!loading && filtered.map((t) => (
                   <tr key={t.id}>
@@ -276,12 +367,19 @@ function AllTickets() {
                     <td>{t.category}</td>
                     <td>{t.product || '—'}</td>
                     <td>
-                      <span className={`priority ${PRIORITY_KEY[t.priority] || ''}`}>
+                      <span className={`priority ${PRIORITY_KEY[t.priority] || ''}`} style={chipNoWrapStyle}>
                         <span className="dot" />{t.priority}
                       </span>
                     </td>
-                    <td><span className={STATUS_CHIP[t.status] || 'chip open'}>{t.status}</span></td>
+                    <td>
+                      <span className={STATUS_CHIP[t.status] || 'chip open'} style={chipNoWrapStyle}>
+                        {t.status}
+                      </span>
+                    </td>
+                    <td>{t.assigned_staff?.full_name || <span style={{ color: 'var(--text-faint)' }}>Unassigned</span>}</td>
+                    <td><RemarkTooltip text={t.escalation_note} /></td>
                     <td className="sla ok">{formatDateTime(t.created_at)}</td>
+                    <td className="sla ok">{closedOn(t)}</td>
                     <td>
                       <div className="row-actions">
                         <button className="icon-action" title="View" onClick={() => setViewTicket(t)}>
@@ -305,7 +403,7 @@ function AllTickets() {
           ticket={viewTicket}
           onClose={() => setViewTicket(null)}
           onUpdated={(updated) => {
-            patchLocal(updated.id, { status: updated.status })
+            patchLocal(updated.id, updated)
             setViewTicket(updated)
           }}
         />
@@ -326,8 +424,8 @@ const selectStyle = {
 }
 
 // ---------------------------------------------------------------------------
-// Ticket detail modal — full description, attachments, and a status
-// updater (PATCH tickets/<id>/).
+// Ticket detail modal — full description, attachments, assigned staff,
+// remarks, closed date/time, and a status updater (PATCH tickets/<id>/).
 // ---------------------------------------------------------------------------
 function TicketModal({ ticket, onClose, onUpdated }) {
   const [status, setStatus] = useState(ticket.status)
@@ -370,7 +468,16 @@ function TicketModal({ ticket, onClose, onUpdated }) {
             <div className="detail-row"><span className="k">Category</span><span className="v">{ticket.category}</span></div>
             <div className="detail-row"><span className="k">Product</span><span className="v">{ticket.product || '—'}</span></div>
             <div className="detail-row"><span className="k">Priority</span><span className="v">{ticket.priority}</span></div>
+            <div className="detail-row">
+              <span className="k">Status</span>
+              <span className="v">
+                <span className={STATUS_CHIP[ticket.status] || 'chip open'} style={chipNoWrapStyle}>
+                  {ticket.status}
+                </span>
+              </span>
+            </div>
             <div className="detail-row"><span className="k">Raised On</span><span className="v">{formatDateTime(ticket.created_at)}</span></div>
+            <div className="detail-row"><span className="k">Closed On</span><span className="v">{closedOn(ticket)}</span></div>
             <div className="detail-row"><span className="k">Last Updated</span><span className="v">{formatDateTime(ticket.updated_at)}</span></div>
           </div>
 
@@ -381,8 +488,26 @@ function TicketModal({ ticket, onClose, onUpdated }) {
             <div className="detail-row"><span className="k">Role</span><span className="v">{ticket.raised_by?.role || '—'}</span></div>
           </div>
 
+          <div className="detail-section-title">Assigned Staff</div>
+          {ticket.assigned_staff ? (
+            <div className="detail-grid">
+              <div className="detail-row"><span className="k">Name</span><span className="v">{ticket.assigned_staff.full_name || '—'}</span></div>
+              <div className="detail-row"><span className="k">Phone</span><span className="v">{ticket.assigned_staff.phone_number || '—'}</span></div>
+              <div className="detail-row"><span className="k">Role</span><span className="v">{ticket.assigned_staff.role || '—'}</span></div>
+            </div>
+          ) : (
+            <div className="panel-sub">Not yet assigned to any staff member.</div>
+          )}
+
           <div className="detail-section-title">Description</div>
           <div className="remarks-box">{ticket.description}</div>
+
+          {ticket.escalation_note && (
+            <>
+              <div className="detail-section-title">Remarks</div>
+              <div className="remarks-box">{ticket.escalation_note}</div>
+            </>
+          )}
 
           {ticket.attachments?.length > 0 && (
             <>
@@ -426,6 +551,7 @@ function TicketModal({ ticket, onClose, onUpdated }) {
                     cursor: 'pointer',
                     outline: status === s ? '2px solid #1f8a83' : 'none',
                     outlineOffset: 2,
+                    ...chipNoWrapStyle,
                   }}
                 >
                   {s}

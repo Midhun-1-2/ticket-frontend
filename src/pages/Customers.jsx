@@ -1,4 +1,5 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useState, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import api from '../api' // adjust this path to match where api.js actually lives
 
 const STATUS_CHIP = {
@@ -43,6 +44,71 @@ function formatDateTime(iso) {
   })
 }
 
+// Shows a small "Note" chip when a ticket has a staff remark (currently
+// sourced from Ticket.escalation_note — the only staff-authored note
+// field on the ticket today). Hovering/focusing reveals the full text via
+// a fixed-position portal on <body>, so it's never clipped by the modal's
+// own overflow-y:auto. Mirrors the HolderChip pattern in
+// TicketAssignment.jsx, but self-contained (no external CSS classes)
+// since this file doesn't import ticket-assignment.css.
+function RemarkTooltip({ text }) {
+  const [open, setOpen] = useState(false)
+  const [coords, setCoords] = useState({ top: 0, left: 0 })
+  const chipRef = useRef(null)
+
+  if (!text) return <span style={{ color: 'var(--text-faint)' }}>—</span>
+
+  const updatePosition = () => {
+    if (chipRef.current) {
+      const rect = chipRef.current.getBoundingClientRect()
+      setCoords({ top: rect.bottom + window.scrollY + 8, left: rect.left + window.scrollX })
+    }
+  }
+  const show = () => { updatePosition(); setOpen(true) }
+  const hide = () => setOpen(false)
+
+  return (
+    <span
+      ref={chipRef}
+      className="chip hold"
+      style={{ cursor: 'help' }}
+      tabIndex={0}
+      onMouseEnter={show}
+      onMouseLeave={hide}
+      onFocus={show}
+      onBlur={hide}
+    >
+      Note
+      {open && createPortal(
+        <div
+          onMouseEnter={show}
+          onMouseLeave={hide}
+          style={{
+            position: 'absolute',
+            top: coords.top,
+            left: coords.left,
+            zIndex: 1000,
+            maxWidth: 260,
+            background: 'var(--ink)',
+            color: '#DADCE4',
+            borderRadius: 8,
+            padding: '10px 12px',
+            fontSize: 12.5,
+            lineHeight: 1.5,
+            boxShadow: '0 12px 30px -8px rgba(20,23,31,0.45)',
+          }}
+        >
+          <div style={{ fontSize: 10.5, textTransform: 'uppercase', letterSpacing: '.05em', color: '#8A8FA3', marginBottom: 4, fontWeight: 600 }}>
+            Staff Remark
+          </div>
+          {text}
+        </div>,
+        document.body
+      )}
+    </span>
+  )
+}
+
 function Customers() {
   const [customers, setCustomers] = useState([])
   const [loading, setLoading] = useState(true)
@@ -54,6 +120,7 @@ function Customers() {
   const [viewUser, setViewUser] = useState(null)
   const [editUser, setEditUser] = useState(null)
   const [confirmUser, setConfirmUser] = useState(null)
+  const [deleteUser, setDeleteUser] = useState(null)
 
   useEffect(() => {
     fetchCustomers()
@@ -115,6 +182,11 @@ function Customers() {
     } finally {
       setConfirmUser(null)
     }
+  }
+
+  const handleDeleted = (id) => {
+    setCustomers((prev) => prev.filter((c) => c.id !== id))
+    setDeleteUser(null)
   }
 
   return (
@@ -235,6 +307,13 @@ function Customers() {
                             <path d="M18.36 6.64a9 9 0 1 1-12.73 0" /><path d="M12 2v10" />
                           </svg>
                         </button>
+                        <button className="icon-action danger" title="Delete" onClick={() => setDeleteUser(c)}>
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M3 6h18" /><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                            <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+                            <path d="M10 11v6" /><path d="M14 11v6" />
+                          </svg>
+                        </button>
                       </div>
                     </td>
                   </tr>
@@ -272,6 +351,13 @@ function Customers() {
           confirmLabel={confirmUser.status === 'Blocked' ? 'Activate' : 'Deactivate'}
           onCancel={() => setConfirmUser(null)}
           onConfirm={handleDeactivateConfirm}
+        />
+      )}
+      {deleteUser && (
+        <DeleteCustomerModal
+          user={deleteUser}
+          onCancel={() => setDeleteUser(null)}
+          onDeleted={() => handleDeleted(deleteUser.id)}
         />
       )}
     </main>
@@ -471,6 +557,8 @@ function ViewModal({ user, onClose }) {
                         <th>Category</th>
                         <th>Priority</th>
                         <th>Status</th>
+                        <th>Assigned Staff</th>
+                        <th>Remarks</th>
                         <th>Raised On</th>
                       </tr>
                     </thead>
@@ -482,6 +570,8 @@ function ViewModal({ user, onClose }) {
                           <td>{t.category}</td>
                           <td>{t.priority}</td>
                           <td><span className={TICKET_STATUS_CHIP[t.status] || 'chip open'}>{t.status}</span></td>
+                          <td>{t.assigned_staff_name || <span style={{ color: 'var(--text-faint)' }}>Unassigned</span>}</td>
+                          <td><RemarkTooltip text={t.remarks} /></td>
                           <td className="sla ok">{formatDateTime(t.created_at)}</td>
                         </tr>
                       ))}
@@ -902,6 +992,90 @@ function ConfirmModal({ title, text, confirmLabel, onCancel, onConfirm }) {
           <button className="btn btn-danger" onClick={handleConfirm} disabled={busy}>
             {busy ? 'Please wait…' : confirmLabel}
           </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Delete modal — fetches the customer's ticket count first. If they have
+// ANY tickets (even one), deletion is blocked entirely and only a "Close"
+// button is shown. Only customers with zero tickets can be deleted.
+// ---------------------------------------------------------------------------
+function DeleteCustomerModal({ user, onCancel, onDeleted }) {
+  const [checking, setChecking] = useState(true)
+  const [ticketCount, setTicketCount] = useState(null)
+  const [error, setError] = useState('')
+  const [deleting, setDeleting] = useState(false)
+
+  useEffect(() => {
+    let active = true
+    api.get(`customers/${user.id}/`)
+      .then(({ data }) => {
+        if (!active) return
+        setTicketCount(data.ticket_stats?.total ?? 0)
+        setChecking(false)
+      })
+      .catch(() => {
+        if (!active) return
+        setError('Could not verify ticket history for this customer.')
+        setChecking(false)
+      })
+    return () => { active = false }
+  }, [user.id])
+
+  const handleDelete = async () => {
+    setDeleting(true)
+    setError('')
+    try {
+      await api.delete(`customers/${user.id}/`)
+      onDeleted()
+    } catch (err) {
+      // Backend also enforces this (409 if tickets exist) — covers a race
+      // where a ticket got raised between opening this modal and confirming.
+      setError(err.response?.data?.detail || 'Could not delete this customer.')
+    } finally {
+      setDeleting(false)
+    }
+  }
+
+  const blocked = !checking && ticketCount > 0
+
+  return (
+    <div className="modal-overlay" onClick={onCancel}>
+      <div className="modal-box narrow" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-head">
+          <div className="modal-title">Delete customer?</div>
+        </div>
+        <div className="modal-body">
+          {checking && <p className="confirm-text">Checking ticket history…</p>}
+
+          {!checking && blocked && (
+              <p className="confirm-text">
+                <strong>{user.name}</strong> has raised {ticketCount === 1 ? 'a ticket' : `${ticketCount} tickets`} and cannot be
+                deleted. Deactivate the account instead if you need to restrict access.
+              </p>
+            )}
+
+          {!checking && !blocked && !error && (
+            <p className="confirm-text">
+              This will permanently delete <strong>{user.name}</strong>'s account. This customer has no tickets on
+              record. This can't be undone.
+            </p>
+          )}
+
+          {error && <div className="form-error" style={{ marginTop: 8 }}>{error}</div>}
+        </div>
+        <div className="modal-foot">
+          <button className="btn btn-ghost" onClick={onCancel} disabled={deleting}>
+            {blocked ? 'Close' : 'Cancel'}
+          </button>
+          {!checking && !blocked && (
+            <button className="btn btn-danger" onClick={handleDelete} disabled={deleting}>
+              {deleting ? 'Deleting…' : 'Delete'}
+            </button>
+          )}
         </div>
       </div>
     </div>
