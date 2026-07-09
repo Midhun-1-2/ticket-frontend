@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useEffect, useRef, useState, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import '../landing.css' // adjust this path if landing.css lives somewhere else
 
@@ -46,72 +46,221 @@ const Icon = {
   ),
 }
 
-const FEATURES = [
-  {
-    icon: Icon.Claim,
-    tone: 'accent',
-    title: 'Race-safe claiming',
-    body: 'Two staff hit the same ticket at once — only one wins. Row-locked assignment means no double-work, ever.',
-  },
-  {
-    icon: Icon.Route,
-    tone: 'blue',
-    title: 'Transfer & escalation',
-    body: 'Hand a ticket to another department or flag it up to admin in one click, with a permanent escalation trail.',
-  },
-  {
-    icon: Icon.Layers,
-    tone: 'violet',
-    title: 'Role-built dashboards',
-    body: 'Customers, staff, and admins each see exactly what their role needs — nothing borrowed from a generic template.',
-  },
-  {
-    icon: Icon.Chart,
-    tone: 'amber',
-    title: 'Live performance charts',
-    body: 'Resolution trends and staff throughput computed straight from real ticket timestamps, not sampled estimates.',
-  },
-  {
-    icon: Icon.Shield,
-    tone: 'red',
-    title: 'Full audit trail',
-    body: 'Every claim, transfer, and status change is logged against the ticket — nothing gets lost in a side channel.',
-  },
-  {
-    icon: Icon.Bell,
-    tone: 'accent',
-    title: 'Real-time offers',
-    body: 'New tickets are offered to the right staff instantly, with unclaimed offers surfaced before they go stale.',
-  },
-]
+// ---------------------------------------------------------------------------
+// Splash / boot sequence — shown once per browser session
+// ---------------------------------------------------------------------------
+// sessionStorage (not localStorage) is the right tool here: it persists
+// across reloads and navigation within the same tab, but is wiped the
+// moment the browser (or that tab's session) closes — which is exactly
+// "shown once until the browser closes." A brand-new tab gets its own
+// sessionStorage, so it will boot again there; that's expected sessionStorage
+// behavior, not a bug — localStorage would be the fix if you instead want
+// "once ever, even in new tabs," but that also means real returning visitors
+// would never see it again either.
+const BOOT_SESSION_KEY = 'ticketdesk:boot-shown'
 
-const LIFECYCLE = [
-  { label: 'Open', chip: 'chip open' },
-  { label: 'In Progress', chip: 'chip hold' },
-  { label: 'On Hold', chip: 'chip hold' },
-  { label: 'Resolved', chip: 'chip resolved' },
-  { label: 'Closed', chip: 'chip closed' },
-]
+function hasBootedThisSession() {
+  if (typeof window === 'undefined') return true
+  try {
+    return window.sessionStorage.getItem(BOOT_SESSION_KEY) === '1'
+  } catch {
+    // sessionStorage can throw in locked-down/private contexts — fail open
+    // (skip the boot) rather than break the page.
+    return true
+  }
+}
 
-const ROLES = [
-  {
-    tag: 'Customer',
-    tone: 'accent',
-    heading: 'Raise it, track it, done.',
-    points: ['Raise tickets against your products', 'Watch status change in real time', 'See every staff remark in one thread'],
-  },
-  {
-    tag: 'Staff',
-    tone: 'blue',
-    heading: 'Your queue, actually yours.',
-    points: ['Claim offers before they slip away', 'Transfer what isn\u2019t yours to fix', 'Track your own resolution stats'],
-  },
-  {
-    tag: 'Admin',
-    tone: 'violet',
-    heading: 'The whole desk, one screen.',
-    points: ['Every ticket, every team, one view', 'Escalations land on your desk automatically', 'Approve accounts, manage staff & categories'],
-  },
+function markBootedThisSession() {
+  try {
+    window.sessionStorage.setItem(BOOT_SESSION_KEY, '1')
+  } catch {
+    /* ignore — worst case it boots again next time */
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Motion hooks
+// ---------------------------------------------------------------------------
+
+/** True once the element has scrolled into view (fires once, then disconnects). */
+function useInView(threshold = 0.2) {
+  const ref = useRef(null)
+  const [inView, setInView] = useState(false)
+
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
+      setInView(true)
+      return
+    }
+    const io = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setInView(true)
+          io.disconnect()
+        }
+      },
+      { threshold, rootMargin: '0px 0px -8% 0px' }
+    )
+    io.observe(el)
+    return () => io.disconnect()
+  }, [threshold])
+
+  return [ref, inView]
+}
+
+/** Wraps children in a fade/rise reveal, staggered by `index` within its group. */
+function Reveal({ as: Tag = 'div', index = 0, className = '', scale = false, children, ...rest }) {
+  const [ref, inView] = useInView()
+  return (
+    <Tag
+      ref={ref}
+      className={`reveal${scale ? ' reveal--scale' : ''}${inView ? ' is-visible' : ''} ${className}`}
+      style={{ '--stagger': index }}
+      {...rest}
+    >
+      {children}
+    </Tag>
+  )
+}
+
+/** Animates a numeric value counting up once its container scrolls into view. */
+function useCountUp(target, { duration = 1200, decimals = 0, start: startValue = 0 } = {}) {
+  const [ref, inView] = useInView(0.6)
+  const [value, setValue] = useState(startValue)
+
+  useEffect(() => {
+    if (!inView) return
+    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
+      setValue(target)
+      return
+    }
+    let raf
+    const t0 = performance.now()
+    const tick = (now) => {
+      const p = Math.min(1, (now - t0) / duration)
+      const eased = 1 - Math.pow(1 - p, 3)
+      setValue(startValue + (target - startValue) * eased)
+      if (p < 1) raf = requestAnimationFrame(tick)
+    }
+    raf = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(raf)
+  }, [inView, target, duration, startValue])
+
+  return [ref, decimals ? value.toFixed(decimals) : Math.round(value)]
+}
+
+function StatValue({ target, decimals = 0, prefix = '', suffix = '' }) {
+  const [ref, display] = useCountUp(target, { decimals })
+  return (
+    <span ref={ref} className="landing-stat-value">
+      {prefix}{display}{suffix}
+    </span>
+  )
+}
+
+/** Types out a rotating log of console lines, one character at a time. */
+function useConsoleFeed(lines) {
+  const [i, setI] = useState(0)
+  const [charCount, setCharCount] = useState(0)
+  const [done, setDone] = useState([])
+  const reduced = typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+
+  useEffect(() => {
+    if (reduced) {
+      setDone(lines.map((l) => l.text))
+      setI(lines.length)
+      return
+    }
+    const current = lines[i % lines.length]
+    if (charCount < current.text.length) {
+      const t = setTimeout(() => setCharCount((c) => c + 1), 22 + Math.random() * 26)
+      return () => clearTimeout(t)
+    }
+    const pause = setTimeout(() => {
+      setDone((d) => {
+        const next = [...d, current.text]
+        return next.length > 4 ? next.slice(next.length - 4) : next
+      })
+      setCharCount(0)
+      setI((n) => n + 1)
+    }, 900)
+    return () => clearTimeout(pause)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [charCount, i])
+
+  const current = lines[i % lines.length]
+  const typedCurrent = reduced ? '' : current.text.slice(0, charCount)
+  return { history: done, current: typedCurrent, tag: current.tag, showCursor: charCount < current.text.length }
+}
+
+/**
+ * The page's unique entrance: a full-viewport console "boot" overlay that
+ * types an init line, fills a progress rule, then iris-wipes shut toward
+ * the nav's logo mark — uncovering the hero exactly as its own staggered
+ * reveal begins. Skipped entirely under prefers-reduced-motion, and skipped
+ * after the first time it's played in this browser session (see onDone).
+ */
+function BootOverlay({ onDone }) {
+  const FULL_TEXT = 'INITIALIZING TICKET DESK CONSOLE'
+  const [typed, setTyped] = useState('')
+  const [barPct, setBarPct] = useState(0)
+  const [exiting, setExiting] = useState(false)
+
+  useEffect(() => {
+    let i = 0
+    const typeTimer = setInterval(() => {
+      i += 1
+      setTyped(FULL_TEXT.slice(0, i))
+      if (i >= FULL_TEXT.length) clearInterval(typeTimer)
+    }, 26)
+
+    const barTimer = setTimeout(() => setBarPct(100), 80)
+
+    const exitTimer = setTimeout(() => {
+      const mark = document.querySelector('.landing-brand-mark')
+      if (mark) {
+        const rect = mark.getBoundingClientRect()
+        document.documentElement.style.setProperty('--boot-exit-x', `${rect.left + rect.width / 2}px`)
+        document.documentElement.style.setProperty('--boot-exit-y', `${rect.top + rect.height / 2}px`)
+      }
+      setExiting(true)
+      onDone()
+    }, 1450)
+
+    return () => {
+      clearInterval(typeTimer)
+      clearTimeout(barTimer)
+      clearTimeout(exitTimer)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  return (
+    <div
+      className={`landing-boot${exiting ? ' is-exiting' : ''}`}
+      style={{ '--exit-x': 'var(--boot-exit-x, 40px)', '--exit-y': 'var(--boot-exit-y, 34px)' }}
+      aria-hidden="true"
+    >
+      <div className="landing-boot-mark">TD</div>
+      <div className="landing-boot-line">
+        {typed}
+        <span className="landing-boot-cursor" />
+      </div>
+      <div className="landing-boot-bar">
+        <div className="landing-boot-bar-fill" style={{ width: `${barPct}%` }} />
+      </div>
+    </div>
+  )
+}
+
+const CONSOLE_LINES = [
+  { tag: 'claim', text: 'TD-2291 claimed by @maya · 0.4s' },
+  { tag: 'transfer', text: 'TD-2286 transferred: billing → network' },
+  { tag: 'resolve', text: 'TD-2280 resolved · 1st response 6m' },
+  { tag: 'claim', text: 'TD-2294 offered to 3 staff, claimed by @arjun' },
+  { tag: 'transfer', text: 'TD-2288 escalated to admin · urgent' },
 ]
 
 const MOCK_TICKETS = {
@@ -143,12 +292,55 @@ function MockTicket({ t, floating }) {
   )
 }
 
+/** Splits a headline into <span class="word"> pieces so CSS can stagger them in on load. */
+function AnimatedWords({ text, startIndex = 0 }) {
+  return text.split(' ').map((w, idx) => (
+    <span key={idx} className="word" style={{ '--i': startIndex + idx }}>
+      {w}{idx < text.split(' ').length - 1 ? '\u00A0' : ''}
+    </span>
+  ))
+}
+
 export default function LandingPage() {
+  const [scrolled, setScrolled] = useState(false)
+
+  // Boot overlay plays only if: motion isn't reduced AND it hasn't already
+  // played earlier in this browser session (tab). Computed once, synchronously,
+  // before first paint, so there's no flash-of-boot-then-hide on repeat visits.
+  const [skipBoot] = useState(() => {
+    if (typeof window === 'undefined') return true
+    const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+    return Boolean(reduced) || hasBootedThisSession()
+  })
+  const [booted, setBooted] = useState(skipBoot)
+  const feed = useConsoleFeed(CONSOLE_LINES)
+
+  const handleBootDone = useCallback(() => {
+    setBooted(true)
+    markBootedThisSession()
+  }, [])
+
+  const onScroll = useCallback(() => setScrolled(window.scrollY > 8), [])
+  useEffect(() => {
+    onScroll()
+    window.addEventListener('scroll', onScroll, { passive: true })
+    return () => window.removeEventListener('scroll', onScroll)
+  }, [onScroll])
+
+  // Lock scroll while the boot sequence is playing so the reveal feels intentional.
+  useEffect(() => {
+    if (skipBoot) return
+    document.body.style.overflow = booted ? '' : 'hidden'
+    return () => { document.body.style.overflow = '' }
+  }, [booted, skipBoot])
+
   return (
     <div className="landing">
 
+      {!skipBoot && <BootOverlay onDone={handleBootDone} />}
+
       {/* ---------------- Nav ---------------- */}
-      <header className="landing-nav">
+      <header className={`landing-nav${scrolled ? ' is-scrolled' : ''}`}>
         <div className="landing-nav-inner">
           <div className="landing-brand">
             <span className="landing-brand-mark">TD</span>
@@ -165,7 +357,7 @@ export default function LandingPage() {
       </header>
 
       {/* ---------------- Hero ---------------- */}
-      <section className="landing-hero">
+      <section className={`landing-hero${booted ? ' is-booted' : ''}`}>
         <div className="landing-hero-inner">
           <div className="landing-hero-copy">
             <div className="landing-eyebrow">
@@ -173,7 +365,11 @@ export default function LandingPage() {
               Live dispatch, not a shared inbox
             </div>
             <h1 className="landing-h1">
-              Every ticket, <span className="landing-h1-accent">claimed</span> — never dropped, never doubled.
+              <AnimatedWords text="Every ticket," startIndex={0} />{' '}
+              <span className="landing-h1-accent" style={{ display: 'inline-block' }}>
+                claimed
+              </span>{' '}
+              <AnimatedWords text="— never dropped, never doubled." startIndex={3} />
             </h1>
             <p className="landing-sub">
               Ticket Desk routes support requests to the right person, locks claims so nobody
@@ -204,6 +400,22 @@ export default function LandingPage() {
               <div className="mock-ticker">
                 <span className="mock-ticker-dot" /> LIVE&nbsp;&nbsp;<b>4</b>&nbsp;open&nbsp;&middot;&nbsp;<b>1</b>&nbsp;in progress&nbsp;&middot;&nbsp;<b>1</b>&nbsp;resolved today
               </div>
+
+              {/* typewriter console feed — mirrors real claim/transfer/resolve events */}
+              <div className="mock-console">
+                {feed.history.map((line, idx) => (
+                  <div className="mock-console-line" key={idx}>
+                    <span className="t">{'>'}</span>
+                    <span>{line}</span>
+                  </div>
+                ))}
+                <div className="mock-console-line">
+                  <span className="t">{'>'}</span>
+                  <span>{feed.current}</span>
+                  {feed.showCursor && <span className="mock-console-cursor" />}
+                </div>
+              </div>
+
               <div className="mock-board">
                 <div className="mock-col">
                   <div className="mock-col-head"><MiniChip tone="amber">Open</MiniChip></div>
@@ -223,7 +435,6 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ---------------- Stat strip ---------------- */}
-         </div>
+    </div>
   )
 }
