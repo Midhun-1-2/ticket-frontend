@@ -1,7 +1,12 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
+import { Country, State } from 'country-state-city'
+import { isValidPhoneNumber, isSupportedCountry, getCountryCallingCode, getExampleNumber } from 'libphonenumber-js'
+import examplesMobile from 'libphonenumber-js/examples.mobile.json'
+import { postcodeValidator, postcodeValidatorExistsForCountry } from 'postcode-validator'
 import '/src/style.css'
-import '/src/Onboarding.css'
+import '/src/onboarding.css'
 import api from '/src/api.js'
+import SearchableSelect from '/src/SearchableSelect.jsx'
 
 // ---------- Static dropdown options ----------
 
@@ -9,14 +14,38 @@ const COMPANY_TYPES = ['Private Limited', 'Public Limited', 'LLP', 'Partnership'
 const INDUSTRY_TYPES = ['Retail', 'IT / Software', 'Manufacturing', 'Healthcare', 'Education', 'Finance', 'Logistics', 'Other']
 const TURNOVER_RANGES = ['< ₹1 Cr', '₹1 Cr - ₹5 Cr', '₹5 Cr - ₹25 Cr', '₹25 Cr - ₹100 Cr', '> ₹100 Cr']
 const EMPLOYEE_RANGES = ['1-10', '11-50', '51-200', '201-500', '500+']
-const STATES = ['Andhra Pradesh', 'Delhi', 'Gujarat', 'Karnataka', 'Kerala', 'Maharashtra', 'Tamil Nadu', 'Telangana', 'Uttar Pradesh', 'West Bengal']
-const COUNTRIES = ['India', 'United States', 'United Kingdom', 'United Arab Emirates', 'Singapore']
 const AMC_STATUSES = ['Active', 'Inactive', 'Expired', 'Not Applicable']
 const SUPPORT_CHANNELS = ['Email', 'Phone', 'Portal', 'WhatsApp']
 const SUPPORT_TIMES = ['9 AM - 6 PM IST', '24x7', 'Custom SLA']
 const SUPPORT_TYPES = ['AMC', 'NON-AMC', 'SAS']
 
 const STEP_LABELS = ['Company & Contact Details', 'Product Details', 'Review & Submit']
+
+// Step 1 is broken into sub-sections so the page is never one long scroll —
+// only one section's fields are shown at a time, navigated from the sidebar
+// or the Continue/Back buttons at the bottom of the card.
+const SECTION_META = [
+  { key: 'company', label: 'Company Info', heading: 'Company Information', subtitle: 'Tell us about your organisation.' },
+  { key: 'address', label: 'Address', heading: 'Address Details', subtitle: 'Where is your company registered or based?' },
+  { key: 'contact', label: 'Primary Contact', heading: 'Primary Contact Details', subtitle: 'This person is the main point of contact and login owner.' },
+  { key: 'additional', label: 'Support & Products', heading: 'Additional Information', subtitle: 'Support preferences and the products or services you use.' },
+]
+
+// Which formData fields "belong" to each Step 1 sub-section — used to flag
+// a sidebar sub-step with an error dot, and to scope validation.
+const SECTION_FIELDS = [
+  ['companyName', 'companyType', 'gstNumber'],
+  ['addressLine1', 'city', 'state', 'country', 'pincode'],
+  ['contactName', 'email', 'mobileNumber', 'phoneNumber', 'password', 'confirmPassword'],
+  ['amcStatus', 'productsInUse'],
+]
+
+const SECTION_REQUIRED = [
+  { companyName: 'Company name is required', companyType: 'Company type is required', gstNumber: 'GST number is required' },
+  { addressLine1: 'Address line 1 is required', city: 'City is required', state: 'State is required', country: 'Country is required', pincode: 'Pincode is required' },
+  { contactName: 'Contact person name is required', email: 'Email is required', mobileNumber: 'Mobile number is required', password: 'Password is required', confirmPassword: 'Please confirm your password' },
+  {},
+]
 
 const emptyProduct = () => ({
   productName: '',
@@ -64,8 +93,58 @@ const initialFormData = {
   contractRefNumber: '',
 }
 
+// Real max character length (digits, letters and separators combined) for
+// common postal code formats, plus a representative example. Used to cap
+// the Pincode field's input length and hint its format once a country is
+// selected. postcode-validator validates the actual pattern at submit time
+// (see computeStep1Errors/validateSection) — this map only bounds typing,
+// so an unlisted country safely falls back to a generous default rather
+// than blocking legitimate input.
+const POSTAL_CODE_META = {
+  IN: { maxLength: 6, example: '682016' },
+  US: { maxLength: 10, example: '90210 or 90210-1234' },
+  CA: { maxLength: 7, example: 'A1A 1A1' },
+  GB: { maxLength: 8, example: 'SW1A 1AA' },
+  AU: { maxLength: 4, example: '2000' },
+  DE: { maxLength: 5, example: '10115' },
+  FR: { maxLength: 6, example: '75001' },
+  IT: { maxLength: 5, example: '00100' },
+  CH: { maxLength: 4, example: '8001' },
+  AT: { maxLength: 4, example: '1010' },
+  ES: { maxLength: 5, example: '28001' },
+  NL: { maxLength: 7, example: '1012 AB' },
+  BE: { maxLength: 4, example: '1000' },
+  DK: { maxLength: 4, example: '1050' },
+  SE: { maxLength: 6, example: '111 22' },
+  NO: { maxLength: 4, example: '0150' },
+  BR: { maxLength: 9, example: '01310-100' },
+  PT: { maxLength: 8, example: '1000-001' },
+  IE: { maxLength: 8, example: 'D02 AF30' },
+  SG: { maxLength: 6, example: '049483' },
+  CN: { maxLength: 6, example: '100000' },
+  JP: { maxLength: 8, example: '100-0001' },
+}
+const DEFAULT_POSTAL_META = { maxLength: 10, example: null }
+
 // Strips non-digit characters and caps length — used for phone-style inputs.
 const digitsOnly = (value, maxLen) => value.replace(/\D/g, '').slice(0, maxLen)
+
+// Same normalizer used in ProductMaster.jsx — case- and whitespace-
+// insensitive (all whitespace stripped, not just collapsed) so
+// "Excel Upload", "excelupload", "Excel Upload " etc. are treated as the
+// exact same product when grouping versions together. Without this, two
+// versions of one product saved with slightly different casing/spacing
+// would show up here as two separate chips instead of one product with
+// multiple versions.
+function normalizeName(name) {
+  return (name || '').replace(/\s+/g, '').toLowerCase()
+}
+
+// Standard 15-character Indian GSTIN pattern (2-digit state code, 10-char
+// PAN, entity code, "Z", checksum). Only enforced when the company's
+// country is India — for other countries we still require the field to be
+// filled in, just without assuming this specific format.
+const GSTIN_PATTERN = /^\d{2}[A-Za-z]{5}\d{4}[A-Za-z]{1}[1-9A-Za-z]{1}Z[0-9A-Za-z]{1}$/
 
 // ---------- camelCase (frontend) <-> snake_case (backend) mapping ----------
 
@@ -122,6 +201,7 @@ function flattenApiErrors(data) {
 
 function Onboarding() {
   const [step, setStep] = useState(1)
+  const [activeSection, setActiveSection] = useState(0) // Step 1 sub-section (0-3)
   const [formData, setFormData] = useState(initialFormData)
   const [products, setProducts] = useState([])
   const [confirmed, setConfirmed] = useState(false)
@@ -130,6 +210,13 @@ function Onboarding() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [apiError, setApiError] = useState('')
 
+  // Debounced "is this mobile number already registered?" check.
+  // status: 'idle' | 'checking' | 'available' | 'taken' | 'error'
+  // value holds the exact number the current status refers to, so a
+  // stale "available"/"taken" result never gets shown against a number
+  // the person has since edited.
+  const [mobileCheck, setMobileCheck] = useState({ status: 'idle', value: '' })
+
   // Product catalog — fetched from the backend instead of hardcoded.
   // Kept as full {id, name, version} objects (not just names) so the
   // Product Version field in Step 2 can look up the version tied to
@@ -137,11 +224,118 @@ function Onboarding() {
   const [productCatalog, setProductCatalog] = useState([])
   const [productsLoading, setProductsLoading] = useState(true)
 
-  // Dedupe by name — the same product can now have multiple ProductMaster
-  // rows (one per version), so without this the Step 1 chip list and the
-  // Step 2 product dropdown would both show the same product name once
-  // per version it has on file.
-  const productOptions = [...new Set(productCatalog.map((p) => p.name))]
+  // Full country list (250 countries) and the states/provinces for
+  // whichever country is currently selected. formData.country/state keep
+  // storing plain names (not ISO codes) so the backend payload shape is
+  // unchanged from before — the ISO codes are only looked up locally,
+  // here, to drive the state list and the phone/pincode validation below.
+  const countries = useMemo(() => Country.getAllCountries(), [])
+  const selectedCountry = useMemo(
+    () => countries.find((c) => c.name === formData.country),
+    [countries, formData.country]
+  )
+  const statesForCountry = useMemo(
+    () => (selectedCountry ? State.getStatesOfCountry(selectedCountry.isoCode) : []),
+    [selectedCountry]
+  )
+  const callingCode = useMemo(() => {
+    if (!selectedCountry || !isSupportedCountry(selectedCountry.isoCode)) return null
+    try {
+      return getCountryCallingCode(selectedCountry.isoCode)
+    } catch {
+      return null
+    }
+  }, [selectedCountry])
+
+  // Real national-number length for the selected country's mobile numbers
+  // (e.g. India → 10, Singapore → 8, UAE → 9), pulled from libphonenumber-js's
+  // own example-number metadata rather than guessed — used to cap how many
+  // digits the Mobile/Phone fields will even accept.
+  const mobileMaxLength = useMemo(() => {
+    if (!selectedCountry) return 15
+    try {
+      const example = getExampleNumber(selectedCountry.isoCode, examplesMobile)
+      return example ? example.nationalNumber.length : 15
+    } catch {
+      return 15
+    }
+  }, [selectedCountry])
+
+  // Postal code length/format hint for the selected country (see
+  // POSTAL_CODE_META above for why this is a curated map rather than
+  // pulled from postcode-validator directly).
+  const postalMeta = selectedCountry
+    ? (POSTAL_CODE_META[selectedCountry.isoCode] || DEFAULT_POSTAL_META)
+    : DEFAULT_POSTAL_META
+
+  // Debounced duplicate check — only fires once the number already looks
+  // locally valid for the selected country (no point round-tripping to
+  // the server on every keystroke of an obviously-incomplete number).
+  // NOTE: this assumes a `check-mobile/` endpoint that accepts
+  // ?mobile_number=&country_code= and returns { exists: boolean }.
+  // Adjust the URL/params/response field below to match your actual
+  // backend if it differs.
+  useEffect(() => {
+    const value = formData.mobileNumber
+    const iso = selectedCountry?.isoCode
+
+    if (!value || !iso || !isSupportedCountry(iso) || !isValidPhoneNumber(value, iso)) {
+      setMobileCheck({ status: 'idle', value: '' })
+      return
+    }
+
+    let cancelled = false
+    setMobileCheck({ status: 'checking', value })
+
+    const timer = setTimeout(() => {
+      api.get('check-mobile/', { params: { mobile_number: value, country_code: iso } })
+        .then(({ data }) => {
+          if (cancelled) return
+          setMobileCheck({ status: data?.exists ? 'taken' : 'available', value })
+        })
+        .catch(() => {
+          // Endpoint missing/unreachable — don't block the person over
+          // an infrastructure hiccup; the backend still enforces
+          // uniqueness for real at final submit either way.
+          if (cancelled) return
+          setMobileCheck({ status: 'idle', value: '' })
+        })
+    }, 500)
+
+    return () => {
+      cancelled = true
+      clearTimeout(timer)
+    }
+  }, [formData.mobileNumber, selectedCountry])
+
+  // Groups every version row under one entry per product — matched
+  // case/whitespace-insensitively via normalizeName, exactly like
+  // ProductMaster.jsx's own table does. Each group's "canonical" display
+  // name is taken from its most-recently-activated version (falling back
+  // to the highest id), so the chip label stays stable and consistent
+  // with whatever the admin table is showing as the primary row.
+  const productGroups = useMemo(() => {
+    const byKey = new Map()
+    productCatalog.forEach((p) => {
+      const key = normalizeName(p.name)
+      if (!byKey.has(key)) byKey.set(key, [])
+      byKey.get(key).push(p)
+    })
+    return Array.from(byKey.entries()).map(([key, versions]) => {
+      const sorted = [...versions].sort((a, b) => {
+        const aTime = a.activation_date ? new Date(a.activation_date).getTime() : -Infinity
+        const bTime = b.activation_date ? new Date(b.activation_date).getTime() : -Infinity
+        if (bTime !== aTime) return bTime - aTime
+        return (b.id > a.id ? 1 : -1)
+      })
+      return { key, name: sorted[0].name, versions: sorted }
+    })
+  }, [productCatalog])
+
+  // One chip per product group (not per version row) — this is what fixes
+  // the same product appearing twice when a second version was saved with
+  // slightly different capitalization/spacing.
+  const productOptions = productGroups.map((g) => g.name)
 
   useEffect(() => {
     let cancelled = false
@@ -159,9 +353,6 @@ function Onboarding() {
     return () => { cancelled = true }
   }, [])
 
-  // Once the catalog loads, default the first product row's dropdown
-  // to the first available option (it starts as '' before the fetch
-  // resolves), and pre-fill its version to match.
   // Step 2's product blocks are derived directly from whichever products
   // were checked as chips in Step 1 — one locked block per selected
   // product, in the order they were picked. Existing per-block data
@@ -170,23 +361,41 @@ function Onboarding() {
   // product's first known version) is created for newly-checked ones;
   // blocks for unchecked products are dropped. Runs whenever the Step 1
   // selection changes OR the catalog finishes loading (so versions can
-  // be filled in retroactively once available).
+  // be filled in retroactively once available). Matches by normalizeName
+  // (not exact string) so it lines up with the grouped chip list above.
   useEffect(() => {
     setProducts((prev) =>
       formData.productsInUse.map((name) => {
-        const existing = prev.find((p) => p.productName === name)
+        const existing = prev.find((p) => normalizeName(p.productName) === normalizeName(name))
         if (existing) return existing
-        const versions = productCatalog
-          .filter((c) => c.name === name && c.version)
+        const group = productGroups.find((g) => normalizeName(g.name) === normalizeName(name))
+        const versions = (group?.versions || [])
+          .filter((c) => c.version)
           .map((c) => c.version)
         return { ...emptyProduct(), productName: name, productVersion: versions[0] || '' }
       })
     )
-  }, [formData.productsInUse, productCatalog])
+  }, [formData.productsInUse, productGroups])
 
   const updateField = (field, value) => {
     setFormData((prev) => ({ ...prev, [field]: value }))
     if (errors[field]) setErrors((prev) => ({ ...prev, [field]: undefined }))
+  }
+
+  // Changing country invalidates whatever state was picked for the old
+  // country (state lists differ per country), so it's cleared here rather
+  // than left stale and mismatched. Pincode/phone errors are also cleared
+  // since their required *format* depends on which country is selected.
+  const handleCountryChange = (isoCode) => {
+    const c = countries.find((x) => x.isoCode === isoCode)
+    if (!c) return
+    setFormData((prev) => ({ ...prev, country: c.name, state: '' }))
+    setErrors((prev) => ({ ...prev, country: undefined, state: undefined, pincode: undefined, mobileNumber: undefined, phoneNumber: undefined }))
+  }
+
+  const handleStateChange = (isoCode) => {
+    const s = statesForCountry.find((x) => x.isoCode === isoCode)
+    updateField('state', s ? s.name : '')
   }
 
   const toggleProduct = (name) => {
@@ -205,20 +414,16 @@ function Onboarding() {
     setProducts((prev) => prev.map((p, i) => (i === index ? { ...p, [field]: value } : p)))
   }
 
-  // Changing the product name resets the version to whatever Product
-  // Master has on file for that product (a product currently maps to
-  // exactly one version in the catalog — see ProductMaster.jsx — so
-  // there's nothing else for the customer to pick until that changes).
-  // No addProduct/removeProduct anymore — the set of product blocks is
-  // fully controlled by the Step 1 chip selection (see the sync effect
-  // above), not managed freely here.
-
   // ---------- Validation ----------
 
-  const validateStep1 = () => {
+  // Full Step 1 check across every section — used as the final gate before
+  // moving on to Step 2, so nothing can slip through even if the person
+  // jumped straight to the last sub-section via the sidebar.
+  const computeStep1Errors = () => {
     const required = {
       companyName: 'Company name is required',
       companyType: 'Company type is required',
+      gstNumber: 'GST number is required',
       addressLine1: 'Address line 1 is required',
       city: 'City is required',
       state: 'State is required',
@@ -234,14 +439,28 @@ function Onboarding() {
     Object.entries(required).forEach(([field, message]) => {
       if (!String(formData[field] || '').trim()) nextErrors[field] = message
     })
+    if (formData.gstNumber && selectedCountry?.isoCode === 'IN' && !GSTIN_PATTERN.test(formData.gstNumber)) {
+      nextErrors.gstNumber = 'Enter a valid 15-character GSTIN'
+    }
     if (formData.email && !/^\S+@\S+\.\S+$/.test(formData.email)) {
       nextErrors.email = 'Enter a valid email address'
     }
-    if (formData.mobileNumber && formData.mobileNumber.length !== 10) {
-      nextErrors.mobileNumber = 'Mobile number must be exactly 10 digits'
+    if (formData.pincode && selectedCountry && postcodeValidatorExistsForCountry(selectedCountry.isoCode)) {
+      if (!postcodeValidator(formData.pincode, selectedCountry.isoCode)) {
+        nextErrors.pincode = `Enter a valid pincode for ${selectedCountry.name}`
+      }
     }
-    if (formData.phoneNumber && formData.phoneNumber.length !== 10) {
-      nextErrors.phoneNumber = 'Phone number must be exactly 10 digits'
+    if (formData.mobileNumber && selectedCountry && isSupportedCountry(selectedCountry.isoCode)) {
+      if (!isValidPhoneNumber(formData.mobileNumber, selectedCountry.isoCode)) {
+        nextErrors.mobileNumber = `Enter a valid mobile number for ${selectedCountry.name}`
+      } else if (mobileCheck.value === formData.mobileNumber && mobileCheck.status === 'taken') {
+        nextErrors.mobileNumber = 'This mobile number is already registered'
+      }
+    }
+    if (formData.phoneNumber && selectedCountry && isSupportedCountry(selectedCountry.isoCode)) {
+      if (!isValidPhoneNumber(formData.phoneNumber, selectedCountry.isoCode)) {
+        nextErrors.phoneNumber = `Enter a valid phone number for ${selectedCountry.name}`
+      }
     }
     if (formData.password && formData.password.length < 8) {
       nextErrors.password = 'Password must be at least 8 characters'
@@ -251,12 +470,109 @@ function Onboarding() {
     }
     if (!formData.amcStatus) nextErrors.amcStatus = 'AMC status is required'
     if (formData.productsInUse.length === 0) nextErrors.productsInUse = 'Select at least one product or service'
-    setErrors(nextErrors)
-    return Object.keys(nextErrors).length === 0
+    return nextErrors
   }
 
-  const handleNextFromStep1 = () => {
-    if (validateStep1()) setStep(2)
+  // Lighter check scoped to just one sub-section — used by that section's
+  // own "Continue" button so people get immediate, localized feedback.
+  const validateSection = (idx) => {
+    const requiredMap = SECTION_REQUIRED[idx]
+    const nextErrors = { ...errors }
+    let ok = true
+
+    Object.entries(requiredMap).forEach(([field, message]) => {
+      if (!String(formData[field] || '').trim()) {
+        nextErrors[field] = message
+        ok = false
+      } else {
+        nextErrors[field] = undefined
+      }
+    })
+
+    if (idx === 0) {
+      if (formData.gstNumber && selectedCountry?.isoCode === 'IN' && !GSTIN_PATTERN.test(formData.gstNumber)) {
+        nextErrors.gstNumber = 'Enter a valid 15-character GSTIN'
+        ok = false
+      }
+    }
+
+    if (idx === 1) {
+      if (formData.pincode && selectedCountry && postcodeValidatorExistsForCountry(selectedCountry.isoCode)) {
+        if (!postcodeValidator(formData.pincode, selectedCountry.isoCode)) {
+          nextErrors.pincode = `Enter a valid pincode for ${selectedCountry.name}`
+          ok = false
+        }
+      }
+    }
+
+    if (idx === 2) {
+      if (formData.email && !/^\S+@\S+\.\S+$/.test(formData.email)) {
+        nextErrors.email = 'Enter a valid email address'
+        ok = false
+      }
+      if (formData.mobileNumber && selectedCountry && isSupportedCountry(selectedCountry.isoCode)) {
+        if (!isValidPhoneNumber(formData.mobileNumber, selectedCountry.isoCode)) {
+          nextErrors.mobileNumber = `Enter a valid mobile number for ${selectedCountry.name}`
+          ok = false
+        } else if (mobileCheck.value === formData.mobileNumber && mobileCheck.status === 'taken') {
+          nextErrors.mobileNumber = 'This mobile number is already registered'
+          ok = false
+        }
+      }
+      if (formData.phoneNumber && selectedCountry && isSupportedCountry(selectedCountry.isoCode)) {
+        if (!isValidPhoneNumber(formData.phoneNumber, selectedCountry.isoCode)) {
+          nextErrors.phoneNumber = `Enter a valid phone number for ${selectedCountry.name}`
+          ok = false
+        }
+      }
+      if (formData.password && formData.password.length < 8) {
+        nextErrors.password = 'Password must be at least 8 characters'
+        ok = false
+      }
+      if (formData.password && formData.confirmPassword && formData.password !== formData.confirmPassword) {
+        nextErrors.confirmPassword = 'Passwords do not match'
+        ok = false
+      }
+    }
+
+    if (idx === 3) {
+      if (!formData.amcStatus) {
+        nextErrors.amcStatus = 'AMC status is required'
+        ok = false
+      }
+      if (formData.productsInUse.length === 0) {
+        nextErrors.productsInUse = 'Select at least one product or service'
+        ok = false
+      }
+    }
+
+    setErrors(nextErrors)
+    return ok
+  }
+
+  const sectionHasError = (idx) => SECTION_FIELDS[idx].some((f) => errors[f])
+
+  const handleSectionContinue = () => {
+    if (!validateSection(activeSection)) return
+    if (activeSection < 3) {
+      setActiveSection(activeSection + 1)
+    } else {
+      goToStep2()
+    }
+  }
+
+  // Final gate before Step 2 — re-checks every section (not just the one
+  // currently open) and, if something's missing, jumps straight to the
+  // first sub-section that needs attention instead of failing silently.
+  const goToStep2 = () => {
+    const nextErrors = computeStep1Errors()
+    setErrors(nextErrors)
+    if (Object.keys(nextErrors).length === 0) {
+      setStep(2)
+      return
+    }
+    const firstInvalid = SECTION_FIELDS.findIndex((fields) => fields.some((f) => nextErrors[f]))
+    setActiveSection(firstInvalid === -1 ? 0 : firstInvalid)
   }
 
   const handleNextFromStep2 = () => {
@@ -281,310 +597,410 @@ function Onboarding() {
     }
   }
 
-  // ---------- Stepper ----------
-
-  const renderStepper = () => (
-    <div className="stepper">
-      {STEP_LABELS.map((label, i) => {
-        const num = i + 1
-        const isDone = step > num || step === 4
-        const isActive = step === num
-        return (
-          <React.Fragment key={label}>
-            <div className={`stepper-item ${isActive ? 'active' : ''} ${isDone ? 'done' : ''}`}>
-              <div className="stepper-circle">{isDone ? '✓' : num}</div>
-              <div className="stepper-label">{label}</div>
-            </div>
-            {i < STEP_LABELS.length - 1 && (
-              <div className={`stepper-line ${step > num ? 'done' : ''}`} />
-            )}
-          </React.Fragment>
-        )
-      })}
-    </div>
-  )
-
   const renderApiError = () =>
     apiError ? <div className="api-error-banner">{apiError}</div> : null
 
-  // ---------- Step 1 ----------
+  // ---------- Sidebar ----------
+
+  const renderSidebar = () => (
+    <aside className="onboarding-sidebar">
+      <div className="sidebar-brand">
+        <div className="brand-mark">TD</div>
+        <div>
+          <div className="brand-title">Ticket Desk</div>
+          <div className="brand-subtitle">Create your company account</div>
+        </div>
+      </div>
+
+      <nav className="sidebar-nav">
+        <div className="sidebar-nav-label">Setup</div>
+        {STEP_LABELS.map((label, i) => {
+          const num = i + 1
+          const isDone = step > num || step === 4
+          const isActive = step === num
+          return (
+            <div className="sidebar-nav-group" key={label}>
+              <div
+                className={`sidebar-step ${isActive ? 'active' : ''} ${isDone ? 'done' : ''}`}
+                onClick={() => { if (isDone) setStep(num) }}
+              >
+                <div className="sidebar-step-circle">{isDone ? '✓' : num}</div>
+                <div className="sidebar-step-title">{label}</div>
+              </div>
+
+              {num === 1 && step === 1 && (
+                <div className="sidebar-substeps">
+                  {SECTION_META.map((s, si) => (
+                    <div
+                      key={s.key}
+                      className={`sidebar-substep ${activeSection === si ? 'active' : ''}`}
+                      onClick={() => setActiveSection(si)}
+                    >
+                      <span className="sidebar-substep-dot" />
+                      <span>{s.label}</span>
+                      {sectionHasError(si) && <span className="sidebar-substep-flag">!</span>}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </nav>
+
+      <div className="sidebar-footer">
+        <div className="sidebar-footer-title">Need a hand?</div>
+        <p className="sidebar-footer-text">
+          Your account stays pending until an admin reviews it — you're free to revisit any section before submitting.
+        </p>
+      </div>
+    </aside>
+  )
+
+  // ---------- Main header (breadcrumb + heading, mirrors the dashboard) ----------
+
+  const renderMainHeader = () => {
+    if (step === 1) {
+      const meta = SECTION_META[activeSection]
+      return (
+        <div className="main-header">
+          <div className="main-eyebrow">ONBOARDING · SECTION {activeSection + 1} OF {SECTION_META.length}</div>
+          <h1 className="main-heading">{meta.heading}</h1>
+          <p className="main-subtitle">{meta.subtitle}</p>
+        </div>
+      )
+    }
+    if (step === 2) {
+      return (
+        <div className="main-header">
+          <div className="main-eyebrow">ONBOARDING · STEP 2 OF 3</div>
+          <h1 className="main-heading">Product Details</h1>
+          <p className="main-subtitle">Set the version and support details for each product selected in the previous step.</p>
+        </div>
+      )
+    }
+    if (step === 3) {
+      return (
+        <div className="main-header">
+          <div className="main-eyebrow">ONBOARDING · STEP 3 OF 3</div>
+          <h1 className="main-heading">Review &amp; Submit</h1>
+          <p className="main-subtitle">Check everything looks right before you send it off for approval.</p>
+        </div>
+      )
+    }
+    return null
+  }
+
+  // ---------- Step 1 sections ----------
+
+  const renderSectionCompany = () => (
+    <div className="form-grid">
+      <div className={`form-field ${errors.companyName ? 'error' : ''}`}>
+        <label>Company Name<span className="required">*</span></label>
+        <input
+          placeholder="e.g. Marsh & Fenwick LLP"
+          value={formData.companyName}
+          onChange={(e) => updateField('companyName', e.target.value)}
+        />
+        {errors.companyName && <span className="field-error">{errors.companyName}</span>}
+      </div>
+
+      <div className="form-field">
+        <label>Company Code</label>
+        <input placeholder="Auto-generated after submit" value={formData.companyCode} disabled />
+      </div>
+
+      <div className={`form-field ${errors.companyType ? 'error' : ''}`}>
+        <label>Company Type<span className="required">*</span></label>
+        <select value={formData.companyType} onChange={(e) => updateField('companyType', e.target.value)}>
+          <option value="">Select</option>
+          {COMPANY_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+        </select>
+        {errors.companyType && <span className="field-error">{errors.companyType}</span>}
+      </div>
+
+      <div className={`form-field ${errors.gstNumber ? 'error' : ''}`}>
+        <label>GST Number<span className="required">*</span></label>
+        <input placeholder="29ABCDE1234F1Z5" value={formData.gstNumber} onChange={(e) => updateField('gstNumber', e.target.value)} />
+        {errors.gstNumber && <span className="field-error">{errors.gstNumber}</span>}
+      </div>
+
+      <div className="form-field">
+        <label>PAN Number</label>
+        <input placeholder="ABCDE1234F" value={formData.panNumber} onChange={(e) => updateField('panNumber', e.target.value)} />
+      </div>
+
+      <div className="form-field">
+        <label>Website<span className="optional">optional</span></label>
+        <input placeholder="https://" value={formData.website} onChange={(e) => updateField('website', e.target.value)} />
+      </div>
+
+      <div className="form-field">
+        <label>Industry Type</label>
+        <select value={formData.industryType} onChange={(e) => updateField('industryType', e.target.value)}>
+          {INDUSTRY_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+        </select>
+      </div>
+
+      <div className="form-field">
+        <label>Annual Turnover</label>
+        <select value={formData.annualTurnover} onChange={(e) => updateField('annualTurnover', e.target.value)}>
+          {TURNOVER_RANGES.map((t) => <option key={t} value={t}>{t}</option>)}
+        </select>
+      </div>
+
+      <div className="form-field">
+        <label>No. of Employees</label>
+        <select value={formData.employeeCount} onChange={(e) => updateField('employeeCount', e.target.value)}>
+          {EMPLOYEE_RANGES.map((t) => <option key={t} value={t}>{t}</option>)}
+        </select>
+      </div>
+    </div>
+  )
+
+  const renderSectionAddress = () => (
+    <div className="form-grid">
+      <div className={`form-field full ${errors.addressLine1 ? 'error' : ''}`}>
+        <label>Address Line 1<span className="required">*</span></label>
+        <input placeholder="Building, street" value={formData.addressLine1} onChange={(e) => updateField('addressLine1', e.target.value)} />
+        {errors.addressLine1 && <span className="field-error">{errors.addressLine1}</span>}
+      </div>
+
+      <div className="form-field full">
+        <label>Address Line 2<span className="optional">optional</span></label>
+        <input placeholder="Landmark, area" value={formData.addressLine2} onChange={(e) => updateField('addressLine2', e.target.value)} />
+      </div>
+
+      <div className={`form-field ${errors.city ? 'error' : ''}`}>
+        <label>City<span className="required">*</span></label>
+        <input placeholder="Ernakulam" value={formData.city} onChange={(e) => updateField('city', e.target.value)} />
+        {errors.city && <span className="field-error">{errors.city}</span>}
+      </div>
+
+      <div className={`form-field ${errors.country ? 'error' : ''}`}>
+        <label>Country<span className="required">*</span></label>
+        <SearchableSelect
+          value={selectedCountry?.isoCode || ''}
+          onChange={handleCountryChange}
+          options={countries}
+          placeholder="Select a country"
+          searchPlaceholder="Search countries…"
+          getValue={(c) => c.isoCode}
+          getLabel={(c) => c.name}
+          renderOption={(c) => <>{c.flag} {c.name}</>}
+        />
+        {errors.country && <span className="field-error">{errors.country}</span>}
+      </div>
+
+      <div className={`form-field ${errors.state ? 'error' : ''}`}>
+        <label>State / Province<span className="required">*</span></label>
+        {statesForCountry.length > 0 ? (
+          <SearchableSelect
+            value={statesForCountry.find((s) => s.name === formData.state)?.isoCode || ''}
+            onChange={handleStateChange}
+            options={statesForCountry}
+            placeholder="Select a state / province"
+            searchPlaceholder="Search…"
+            getValue={(s) => s.isoCode}
+            getLabel={(s) => s.name}
+          />
+        ) : (
+          <input
+            placeholder={selectedCountry ? `State / province in ${selectedCountry.name}` : 'State / province'}
+            value={formData.state}
+            onChange={(e) => updateField('state', e.target.value)}
+          />
+        )}
+        {errors.state && <span className="field-error">{errors.state}</span>}
+      </div>
+
+      <div className={`form-field ${errors.pincode ? 'error' : ''}`}>
+        <label>Pincode<span className="required">*</span></label>
+        <input
+          placeholder={postalMeta.example ? `e.g. ${postalMeta.example}` : '682016'}
+          maxLength={postalMeta.maxLength}
+          value={formData.pincode}
+          onChange={(e) => updateField('pincode', e.target.value.slice(0, postalMeta.maxLength))}
+        />
+        {errors.pincode && <span className="field-error">{errors.pincode}</span>}
+      </div>
+    </div>
+  )
+
+  const renderSectionContact = () => (
+    <div className="form-grid">
+      <div className={`form-field ${errors.contactName ? 'error' : ''}`}>
+        <label>Contact Person Name<span className="required">*</span></label>
+        <input placeholder="Full name" value={formData.contactName} onChange={(e) => updateField('contactName', e.target.value)} />
+        {errors.contactName && <span className="field-error">{errors.contactName}</span>}
+      </div>
+
+      <div className="form-field">
+        <label>Designation</label>
+        <input placeholder="e.g. IT Manager" value={formData.designation} onChange={(e) => updateField('designation', e.target.value)} />
+      </div>
+
+      <div className={`form-field ${errors.email ? 'error' : ''}`}>
+        <label>Email<span className="required">*</span></label>
+        <input placeholder="used as login ID" value={formData.email} onChange={(e) => updateField('email', e.target.value)} />
+        {errors.email && <span className="field-error">{errors.email}</span>}
+      </div>
+
+      <div className={`form-field ${errors.mobileNumber ? 'error' : ''}`}>
+        <label>Mobile Number<span className="required">*</span></label>
+        <div className="phone-input">
+          <span className="phone-prefix">{callingCode ? `+${callingCode}` : '+'}</span>
+          <input
+            placeholder="9845021190"
+            inputMode="numeric"
+            maxLength={mobileMaxLength}
+            value={formData.mobileNumber}
+            onChange={(e) => updateField('mobileNumber', digitsOnly(e.target.value, mobileMaxLength))}
+          />
+        </div>
+        {errors.mobileNumber && <span className="field-error">{errors.mobileNumber}</span>}
+        {!errors.mobileNumber && mobileCheck.value === formData.mobileNumber && mobileCheck.status === 'checking' && (
+          <span className="field-hint">Checking availability…</span>
+        )}
+        {!errors.mobileNumber && mobileCheck.value === formData.mobileNumber && mobileCheck.status === 'available' && (
+          <span className="field-success">✓ Available</span>
+        )}
+        {!errors.mobileNumber && mobileCheck.value === formData.mobileNumber && mobileCheck.status === 'taken' && (
+          <span className="field-error">This mobile number is already registered</span>
+        )}
+      </div>
+
+      <div className={`form-field ${errors.phoneNumber ? 'error' : ''}`}>
+        <label>Phone Number<span className="optional">optional</span></label>
+        <div className="phone-input">
+          <span className="phone-prefix">{callingCode ? `+${callingCode}` : '+'}</span>
+          <input
+            placeholder="Landline"
+            inputMode="numeric"
+            maxLength={mobileMaxLength}
+            value={formData.phoneNumber}
+            onChange={(e) => updateField('phoneNumber', digitsOnly(e.target.value, mobileMaxLength))}
+          />
+        </div>
+        {errors.phoneNumber && <span className="field-error">{errors.phoneNumber}</span>}
+      </div>
+
+      <div className="form-field">
+        <label>Alternate Email<span className="optional">optional</span></label>
+        <input placeholder="backup contact" value={formData.alternateEmail} onChange={(e) => updateField('alternateEmail', e.target.value)} />
+      </div>
+
+      <div className={`form-field ${errors.password ? 'error' : ''}`}>
+        <label>Password<span className="required">*</span></label>
+        <input
+          type="password"
+          placeholder="At least 8 characters"
+          value={formData.password}
+          onChange={(e) => updateField('password', e.target.value)}
+        />
+        {errors.password && <span className="field-error">{errors.password}</span>}
+      </div>
+
+      <div className={`form-field ${errors.confirmPassword ? 'error' : ''}`}>
+        <label>Confirm Password<span className="required">*</span></label>
+        <input
+          type="password"
+          placeholder="Re-enter password"
+          value={formData.confirmPassword}
+          onChange={(e) => updateField('confirmPassword', e.target.value)}
+        />
+        {errors.confirmPassword && <span className="field-error">{errors.confirmPassword}</span>}
+      </div>
+    </div>
+  )
+
+  const renderSectionAdditional = () => (
+    <div className="form-grid">
+      <div className={`form-field ${errors.amcStatus ? 'error' : ''}`}>
+        <label>AMC Status<span className="required">*</span></label>
+        <select value={formData.amcStatus} onChange={(e) => updateField('amcStatus', e.target.value)}>
+          {AMC_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
+        </select>
+      </div>
+
+      <div className="form-field">
+        <label>Contract Reference No.<span className="optional">optional</span></label>
+        <input placeholder="AGR-2026-0417" value={formData.contractRefNumber} onChange={(e) => updateField('contractRefNumber', e.target.value)} />
+      </div>
+
+      <div className="form-field">
+        <label>AMC Start Date</label>
+        <input type="date" value={formData.amcStartDate} onChange={(e) => updateField('amcStartDate', e.target.value)} />
+      </div>
+
+      <div className="form-field">
+        <label>AMC End Date</label>
+        <input type="date" value={formData.amcEndDate} onChange={(e) => updateField('amcEndDate', e.target.value)} />
+      </div>
+
+      <div className="form-field">
+        <label>Preferred Support Channel</label>
+        <select value={formData.preferredChannel} onChange={(e) => updateField('preferredChannel', e.target.value)}>
+          {SUPPORT_CHANNELS.map((c) => <option key={c} value={c}>{c}</option>)}
+        </select>
+      </div>
+
+      <div className="form-field">
+        <label>Preferred Support Time</label>
+        <select value={formData.preferredTime} onChange={(e) => updateField('preferredTime', e.target.value)}>
+          {SUPPORT_TIMES.map((t) => <option key={t} value={t}>{t}</option>)}
+        </select>
+      </div>
+
+      <div className={`form-field full ${errors.productsInUse ? 'error' : ''}`}>
+        <label>Product(s) / Service(s) in Use<span className="required">*</span></label>
+        <div className="chip-select">
+          {productsLoading && <span className="muted-note">Loading products…</span>}
+          {!productsLoading && productOptions.length === 0 && (
+            <span className="muted-note">No products available. Contact an admin.</span>
+          )}
+          {productOptions.map((p) => (
+            <div
+              key={p}
+              className={`chip ${formData.productsInUse.includes(p) ? 'selected' : ''}`}
+              onClick={() => toggleProduct(p)}
+            >
+              {p}
+            </div>
+          ))}
+        </div>
+        {errors.productsInUse && <span className="field-error">{errors.productsInUse}</span>}
+      </div>
+
+      <div className="form-field full">
+        <label>Remarks<span className="optional">optional</span></label>
+        <textarea
+          placeholder="Anything else we should know?"
+          maxLength={250}
+          value={formData.remarks}
+          onChange={(e) => updateField('remarks', e.target.value)}
+        />
+        <span className="char-count">{formData.remarks.length} / 250</span>
+      </div>
+    </div>
+  )
 
   const renderStep1 = () => (
     <div className="onboarding-card">
       {renderApiError()}
-      {/* Section A */}
-      <div className="form-section">
-        <div className="section-heading">
-          <span className="section-badge">A</span> Company Information
-        </div>
-        <div className="form-grid">
-          <div className={`form-field ${errors.companyName ? 'error' : ''}`}>
-            <label>Company Name<span className="required">*</span></label>
-            <input
-              placeholder="e.g. Marsh & Fenwick LLP"
-              value={formData.companyName}
-              onChange={(e) => updateField('companyName', e.target.value)}
-            />
-            {errors.companyName && <span className="field-error">{errors.companyName}</span>}
-          </div>
 
-          <div className="form-field">
-            <label>Company Code</label>
-            <input placeholder="Auto-generated after submit" value={formData.companyCode} disabled />
-          </div>
-
-          <div className={`form-field ${errors.companyType ? 'error' : ''}`}>
-            <label>Company Type<span className="required">*</span></label>
-            <select value={formData.companyType} onChange={(e) => updateField('companyType', e.target.value)}>
-              <option value="">Select</option>
-              {COMPANY_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
-            </select>
-            {errors.companyType && <span className="field-error">{errors.companyType}</span>}
-          </div>
-
-          <div className="form-field">
-            <label>GST Number</label>
-            <input placeholder="29ABCDE1234F1Z5" value={formData.gstNumber} onChange={(e) => updateField('gstNumber', e.target.value)} />
-          </div>
-
-          <div className="form-field">
-            <label>PAN Number</label>
-            <input placeholder="ABCDE1234F" value={formData.panNumber} onChange={(e) => updateField('panNumber', e.target.value)} />
-          </div>
-
-          <div className="form-field">
-            <label>Website<span className="optional">optional</span></label>
-            <input placeholder="https://" value={formData.website} onChange={(e) => updateField('website', e.target.value)} />
-          </div>
-
-          <div className="form-field">
-            <label>Industry Type</label>
-            <select value={formData.industryType} onChange={(e) => updateField('industryType', e.target.value)}>
-              {INDUSTRY_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
-            </select>
-          </div>
-
-          <div className="form-field">
-            <label>Annual Turnover</label>
-            <select value={formData.annualTurnover} onChange={(e) => updateField('annualTurnover', e.target.value)}>
-              {TURNOVER_RANGES.map((t) => <option key={t} value={t}>{t}</option>)}
-            </select>
-          </div>
-
-          <div className="form-field">
-            <label>No. of Employees</label>
-            <select value={formData.employeeCount} onChange={(e) => updateField('employeeCount', e.target.value)}>
-              {EMPLOYEE_RANGES.map((t) => <option key={t} value={t}>{t}</option>)}
-            </select>
-          </div>
-        </div>
-      </div>
-
-      {/* Section B */}
-      <div className="form-section">
-        <div className="section-heading">
-          <span className="section-badge">B</span> Address Details
-        </div>
-        <div className="form-grid">
-          <div className={`form-field full ${errors.addressLine1 ? 'error' : ''}`}>
-            <label>Address Line 1<span className="required">*</span></label>
-            <input placeholder="Building, street" value={formData.addressLine1} onChange={(e) => updateField('addressLine1', e.target.value)} />
-            {errors.addressLine1 && <span className="field-error">{errors.addressLine1}</span>}
-          </div>
-
-          <div className="form-field full">
-            <label>Address Line 2<span className="optional">optional</span></label>
-            <input placeholder="Landmark, area" value={formData.addressLine2} onChange={(e) => updateField('addressLine2', e.target.value)} />
-          </div>
-
-          <div className={`form-field ${errors.city ? 'error' : ''}`}>
-            <label>City<span className="required">*</span></label>
-            <input placeholder="Ernakulam" value={formData.city} onChange={(e) => updateField('city', e.target.value)} />
-            {errors.city && <span className="field-error">{errors.city}</span>}
-          </div>
-
-          <div className={`form-field ${errors.state ? 'error' : ''}`}>
-            <label>State<span className="required">*</span></label>
-            <select value={formData.state} onChange={(e) => updateField('state', e.target.value)}>
-              <option value="">Select</option>
-              {STATES.map((s) => <option key={s} value={s}>{s}</option>)}
-            </select>
-            {errors.state && <span className="field-error">{errors.state}</span>}
-          </div>
-
-          <div className={`form-field ${errors.country ? 'error' : ''}`}>
-            <label>Country<span className="required">*</span></label>
-            <select value={formData.country} onChange={(e) => updateField('country', e.target.value)}>
-              {COUNTRIES.map((c) => <option key={c} value={c}>{c}</option>)}
-            </select>
-          </div>
-
-          <div className={`form-field ${errors.pincode ? 'error' : ''}`}>
-            <label>Pincode<span className="required">*</span></label>
-            <input placeholder="682016" value={formData.pincode} onChange={(e) => updateField('pincode', e.target.value)} />
-            {errors.pincode && <span className="field-error">{errors.pincode}</span>}
-          </div>
-        </div>
-      </div>
-
-      {/* Section C */}
-      <div className="form-section">
-        <div className="section-heading">
-          <span className="section-badge">C</span> Primary Contact Details
-        </div>
-        <div className="form-grid">
-          <div className={`form-field ${errors.contactName ? 'error' : ''}`}>
-            <label>Contact Person Name<span className="required">*</span></label>
-            <input placeholder="Full name" value={formData.contactName} onChange={(e) => updateField('contactName', e.target.value)} />
-            {errors.contactName && <span className="field-error">{errors.contactName}</span>}
-          </div>
-
-          <div className="form-field">
-            <label>Designation</label>
-            <input placeholder="e.g. IT Manager" value={formData.designation} onChange={(e) => updateField('designation', e.target.value)} />
-          </div>
-
-          <div className={`form-field ${errors.email ? 'error' : ''}`}>
-            <label>Email<span className="required">*</span></label>
-            <input placeholder="used as login ID" value={formData.email} onChange={(e) => updateField('email', e.target.value)} />
-            {errors.email && <span className="field-error">{errors.email}</span>}
-          </div>
-
-          <div className={`form-field ${errors.mobileNumber ? 'error' : ''}`}>
-            <label>Mobile Number<span className="required">*</span></label>
-            <div className="phone-input">
-              <span className="phone-prefix">+91</span>
-              <input
-                placeholder="9845021190"
-                inputMode="numeric"
-                value={formData.mobileNumber}
-                onChange={(e) => updateField('mobileNumber', digitsOnly(e.target.value, 10))}
-              />
-            </div>
-            {errors.mobileNumber && <span className="field-error">{errors.mobileNumber}</span>}
-          </div>
-
-          <div className={`form-field ${errors.phoneNumber ? 'error' : ''}`}>
-            <label>Phone Number<span className="optional">optional</span></label>
-            <div className="phone-input">
-              <span className="phone-prefix">+91</span>
-              <input
-                placeholder="Landline"
-                inputMode="numeric"
-                value={formData.phoneNumber}
-                onChange={(e) => updateField('phoneNumber', digitsOnly(e.target.value, 10))}
-              />
-            </div>
-            {errors.phoneNumber && <span className="field-error">{errors.phoneNumber}</span>}
-          </div>
-
-          <div className="form-field">
-            <label>Alternate Email<span className="optional">optional</span></label>
-            <input placeholder="backup contact" value={formData.alternateEmail} onChange={(e) => updateField('alternateEmail', e.target.value)} />
-          </div>
-
-          <div className={`form-field ${errors.password ? 'error' : ''}`}>
-            <label>Password<span className="required">*</span></label>
-            <input
-              type="password"
-              placeholder="At least 8 characters"
-              value={formData.password}
-              onChange={(e) => updateField('password', e.target.value)}
-            />
-            {errors.password && <span className="field-error">{errors.password}</span>}
-          </div>
-
-          <div className={`form-field ${errors.confirmPassword ? 'error' : ''}`}>
-            <label>Confirm Password<span className="required">*</span></label>
-            <input
-              type="password"
-              placeholder="Re-enter password"
-              value={formData.confirmPassword}
-              onChange={(e) => updateField('confirmPassword', e.target.value)}
-            />
-            {errors.confirmPassword && <span className="field-error">{errors.confirmPassword}</span>}
-          </div>
-        </div>
-      </div>
-
-      {/* Section D */}
-      <div className="form-section">
-        <div className="section-heading">
-          <span className="section-badge">D</span> Additional Information
-        </div>
-        <div className="form-grid">
-          <div className={`form-field ${errors.amcStatus ? 'error' : ''}`}>
-            <label>AMC Status<span className="required">*</span></label>
-            <select value={formData.amcStatus} onChange={(e) => updateField('amcStatus', e.target.value)}>
-              {AMC_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
-            </select>
-          </div>
-
-          <div className="form-field">
-            <label>Contract Reference No.<span className="optional">optional</span></label>
-            <input placeholder="AGR-2026-0417" value={formData.contractRefNumber} onChange={(e) => updateField('contractRefNumber', e.target.value)} />
-          </div>
-
-          <div className="form-field">
-            <label>AMC Start Date</label>
-            <input type="date" value={formData.amcStartDate} onChange={(e) => updateField('amcStartDate', e.target.value)} />
-          </div>
-
-          <div className="form-field">
-            <label>AMC End Date</label>
-            <input type="date" value={formData.amcEndDate} onChange={(e) => updateField('amcEndDate', e.target.value)} />
-          </div>
-
-          <div className="form-field">
-            <label>Preferred Support Channel</label>
-            <select value={formData.preferredChannel} onChange={(e) => updateField('preferredChannel', e.target.value)}>
-              {SUPPORT_CHANNELS.map((c) => <option key={c} value={c}>{c}</option>)}
-            </select>
-          </div>
-
-          <div className="form-field">
-            <label>Preferred Support Time</label>
-            <select value={formData.preferredTime} onChange={(e) => updateField('preferredTime', e.target.value)}>
-              {SUPPORT_TIMES.map((t) => <option key={t} value={t}>{t}</option>)}
-            </select>
-          </div>
-
-         <div className={`form-field full ${errors.productsInUse ? 'error' : ''}`}>
-         <label>Product(s) / Service(s) in Use<span className="required">*</span></label>
-          <div className="chip-select">
-            {productsLoading && <span className="muted-note">Loading products…</span>}
-            {!productsLoading && productOptions.length === 0 && (
-              <span className="muted-note">No products available. Contact an admin.</span>
-            )}
-            {productOptions.map((p) => (
-              <div
-                key={p}
-                className={`chip ${formData.productsInUse.includes(p) ? 'selected' : ''}`}
-                onClick={() => toggleProduct(p)}
-              >
-                {p}
-              </div>
-            ))}
-          </div>
-          {errors.productsInUse && <span className="field-error">{errors.productsInUse}</span>}
-        </div>
-
-          <div className="form-field full">
-            <label>Remarks<span className="optional">optional</span></label>
-            <textarea
-              placeholder="Anything else we should know?"
-              maxLength={250}
-              value={formData.remarks}
-              onChange={(e) => updateField('remarks', e.target.value)}
-            />
-            <span className="char-count">{formData.remarks.length} / 250</span>
-          </div>
-        </div>
-      </div>
+      {activeSection === 0 && renderSectionCompany()}
+      {activeSection === 1 && renderSectionAddress()}
+      {activeSection === 2 && renderSectionContact()}
+      {activeSection === 3 && renderSectionAdditional()}
 
       <div className="onboarding-actions">
-        <div />
-        <button className="btn btn-primary" onClick={handleNextFromStep1}>Next: Product Details →</button>
+        {activeSection > 0
+          ? <button className="btn btn-secondary" onClick={() => setActiveSection(activeSection - 1)}>← Back</button>
+          : <div />}
+        <button className="btn btn-primary" onClick={handleSectionContinue}>
+          {activeSection < 3 ? 'Continue →' : 'Next: Product Details →'}
+        </button>
       </div>
     </div>
   )
@@ -594,84 +1010,81 @@ function Onboarding() {
   const renderStep2 = () => (
     <div className="onboarding-card">
       {renderApiError()}
-      <div className="form-section">
-        <div className="section-heading">Product Details</div>
-        <p className="section-intro">
-          Set the version and support details for each product selected in the previous step.
+
+      {products.length === 0 && (
+        <p className="muted-note">
+          No products selected. Go back and choose at least one product or service.
         </p>
+      )}
 
-        {products.length === 0 && (
-          <p className="muted-note">
-            No products selected. Go back and choose at least one product or service.
-          </p>
-        )}
+      {products.map((product, index) => {
+        // Version is derived from Product Master, not typed freely — a
+        // product can have several versions on file (each its own
+        // ProductMaster row sharing the same name; see
+        // ProductMaster.jsx's "Add New Version" action). Matched by
+        // normalizeName (not an exact string) so this still finds every
+        // version even if they were saved with slightly different
+        // casing/spacing — the same reason the Step 1 chip list groups
+        // them together instead of showing duplicate products.
+        const availableVersions = productCatalog
+          .filter((p) => normalizeName(p.name) === normalizeName(product.productName) && p.version)
+          .map((p) => p.version)
 
-        {products.map((product, index) => {
-          // Version is derived from Product Master, not typed freely — a
-          // product can have several versions on file (each its own
-          // ProductMaster row sharing the same name; see
-          // ProductMaster.jsx's "Add New Version" action), so this
-          // gathers every version tied to this specific block's product.
-          const availableVersions = productCatalog
-            .filter((p) => p.name === product.productName && p.version)
-            .map((p) => p.version)
-
-          return (
-            <div className="product-block" key={product.productName}>
-              <div className="product-block-header">
-                <div className="product-block-title">{product.productName}</div>
+        return (
+          <div className="product-block" key={product.productName}>
+            <div className="product-block-header">
+              <div className="product-block-title">{product.productName}</div>
+            </div>
+            <div className="form-grid">
+              <div className="form-field">
+                <label>Product Version</label>
+                <select
+                  value={product.productVersion}
+                  onChange={(e) => updateProduct(index, 'productVersion', e.target.value)}
+                  disabled={availableVersions.length === 0}
+                >
+                  {availableVersions.length === 0 ? (
+                    <option value="">No version on file</option>
+                  ) : (
+                    availableVersions.map((v) => <option key={v} value={v}>{v}</option>)
+                  )}
+                </select>
               </div>
-              <div className="form-grid">
-                <div className="form-field">
-                  <label>Product Version</label>
-                  <select
-                    value={product.productVersion}
-                    onChange={(e) => updateProduct(index, 'productVersion', e.target.value)}
-                    disabled={availableVersions.length === 0}
-                  >
-                    {availableVersions.length === 0 ? (
-                      <option value="">No version on file</option>
-                    ) : (
-                      availableVersions.map((v) => <option key={v} value={v}>{v}</option>)
-                    )}
-                  </select>
-                </div>
 
-                <div className="form-field">
-                  <label>Date of Activation</label>
-                  <input type="date" value={product.activationDate} onChange={(e) => updateProduct(index, 'activationDate', e.target.value)} />
-                </div>
+              <div className="form-field">
+                <label>Date of Activation</label>
+                <input type="date" value={product.activationDate} onChange={(e) => updateProduct(index, 'activationDate', e.target.value)} />
+              </div>
 
-                <div className="form-field">
-                  <label>Current Support Type</label>
-                  <div className="radio-group" style={{ marginTop: 8 }}>
-                    {SUPPORT_TYPES.map((type) => (
-                      <label className="radio-option" key={type}>
-                        <input
-                          type="radio"
-                          name={`supportType-${index}`}
-                          checked={product.supportType === type}
-                          onChange={() => updateProduct(index, 'supportType', type)}
-                        />
-                        {type}
-                      </label>
-                    ))}
-                  </div>
+              <div className="form-field full">
+                <label>Current Support Type</label>
+                <div className="segmented">
+                  {SUPPORT_TYPES.map((type) => (
+                    <label className="segmented-option" key={type}>
+                      <input
+                        type="radio"
+                        name={`supportType-${index}`}
+                        checked={product.supportType === type}
+                        onChange={() => updateProduct(index, 'supportType', type)}
+                      />
+                      <span className="segmented-label">{type}</span>
+                    </label>
+                  ))}
                 </div>
+              </div>
 
-                <div className="form-field full">
-                  <label>Remarks<span className="optional">optional</span></label>
-                  <textarea
-                    placeholder="Version notes, migration details, etc."
-                    value={product.remarks}
-                    onChange={(e) => updateProduct(index, 'remarks', e.target.value)}
-                  />
-                </div>
+              <div className="form-field full">
+                <label>Remarks<span className="optional">optional</span></label>
+                <textarea
+                  placeholder="Version notes, migration details, etc."
+                  value={product.remarks}
+                  onChange={(e) => updateProduct(index, 'remarks', e.target.value)}
+                />
               </div>
             </div>
-          )
-        })}
-      </div>
+          </div>
+        )
+      })}
 
       <div className="onboarding-actions">
         <button className="btn btn-secondary" onClick={() => setStep(1)}>← Back</button>
@@ -710,7 +1123,7 @@ function Onboarding() {
           </div>
           <div className="review-item">
             <div className="review-label">Mobile</div>
-            <div className="review-value">{formData.mobileNumber ? `+91 ${formData.mobileNumber}` : '—'}</div>
+            <div className="review-value">{formData.mobileNumber ? `${callingCode ? `+${callingCode}` : ''} ${formData.mobileNumber}` : '—'}</div>
           </div>
           <div className="review-item" style={{ gridColumn: '1 / -1' }}>
             <div className="review-label">Address</div>
@@ -776,22 +1189,17 @@ function Onboarding() {
   )
 
   return (
-    <div className="onboarding-page">
-      <div className="onboarding-brand">
-        <div className="brand-mark">TD</div>
-        <div>
-          <div className="brand-title">Ticket Desk</div>
-          <div className="brand-subtitle">Create your company account</div>
+    <div className="onboarding-layout">
+      {renderSidebar()}
+      <main className="onboarding-main">
+        <div className="onboarding-shell">
+          {renderMainHeader()}
+          {step === 1 && renderStep1()}
+          {step === 2 && renderStep2()}
+          {step === 3 && renderStep3()}
+          {step === 4 && renderPending()}
         </div>
-      </div>
-
-      <div className="onboarding-shell">
-        {step < 4 && renderStepper()}
-        {step === 1 && renderStep1()}
-        {step === 2 && renderStep2()}
-        {step === 3 && renderStep3()}
-        {step === 4 && renderPending()}
-      </div>
+      </main>
     </div>
   )
 }

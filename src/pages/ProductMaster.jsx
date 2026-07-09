@@ -2,6 +2,26 @@ import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import api from '../api'
 
+// Same fix as AllTickets.jsx / the dashboards / TicketAssignment.jsx /
+// StaffManagement.jsx / Customers.jsx: forces every status chip on this
+// page onto a single line and sizes it to its own content, matching the
+// design used everywhere else in the app. Merged into each chip's own
+// inline style (e.g. { ...chipNoWrapStyle, fontSize: 10.5 }) rather than
+// replacing it outright, since several chips here already set a smaller
+// fontSize for compact contexts like the versions dropdown.
+const chipNoWrapStyle = {
+  whiteSpace: 'nowrap',
+  display: 'inline-flex',
+  alignItems: 'center',
+  width: 'fit-content',
+  maxWidth: 'none',
+  minWidth: 'max-content',
+  boxSizing: 'content-box',
+  overflow: 'visible',
+  padding: '4px 12px',
+  lineHeight: 1.4,
+}
+
 function formatDate(iso) {
   if (!iso) return '—'
   return new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
@@ -152,7 +172,7 @@ function ProductMasterPage() {
   }, [products])
 
   const renderStatusChip = (p) => (
-    <span className={p.is_active ? 'chip resolved' : 'chip closed'} style={{ whiteSpace: 'nowrap' }}>
+    <span className={p.is_active ? 'chip resolved' : 'chip closed'} style={chipNoWrapStyle}>
       {p.is_active ? 'Active' : 'Inactive'}
     </span>
   )
@@ -330,7 +350,7 @@ function VersionsDropdown({ group }) {
     <span ref={triggerRef} style={{ position: 'relative', display: 'inline-block' }}>
       <span
         className="chip hold"
-        style={{ whiteSpace: 'nowrap', fontSize: 11, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4 }}
+        style={{ ...chipNoWrapStyle, fontSize: 11, cursor: 'pointer', gap: 4 }}
         onClick={() => (open ? setOpen(false) : openPanel())}
       >
         {group.versions.length} versions
@@ -371,7 +391,7 @@ function VersionsDropdown({ group }) {
             >
               <span className="mono">{displayVersion(v.version)}</span>
               <span style={{ color: '#6b7280', fontSize: 12 }}>{formatDate(v.activation_date)}</span>
-              <span className={v.is_active ? 'chip resolved' : 'chip closed'} style={{ whiteSpace: 'nowrap', fontSize: 10.5 }}>
+              <span className={v.is_active ? 'chip resolved' : 'chip closed'} style={{ ...chipNoWrapStyle, fontSize: 10.5 }}>
                 {v.is_active ? 'Active' : 'Inactive'}
               </span>
             </div>
@@ -594,7 +614,7 @@ function EditProductModal({ group, onClose, onSaved, onVersionRemoved }) {
                       <span style={{ color: '#6b7280', flex: 1 }}>
                         {formatDate(currentDate)}
                       </span>
-                      <span className={v.is_active ? 'chip resolved' : 'chip closed'} style={{ whiteSpace: 'nowrap', fontSize: 10.5 }}>
+                      <span className={v.is_active ? 'chip resolved' : 'chip closed'} style={{ ...chipNoWrapStyle, fontSize: 10.5 }}>
                         {v.is_active ? 'Active' : 'Inactive'}
                       </span>
                       <svg

@@ -11,6 +11,23 @@ const STATUS_CHIP = {
   Closed: 'chip resolved',
 }
 
+// Same fix as AllTickets.jsx: forces the status pill onto a single line
+// and sizes it to its own content, matching that page's status design
+// exactly.
+const chipNoWrapStyle = {
+  whiteSpace: 'nowrap',
+  display: 'inline-flex',
+  alignItems: 'center',
+  width: 'fit-content',
+  maxWidth: 'none',
+  minWidth: 'max-content',
+  boxSizing: 'content-box',
+  overflow: 'visible',
+  padding: '4px 12px',
+  lineHeight: 1.4,
+}
+
+
 const PRIORITY_CLASS = { Low: 'low', Medium: 'medium', High: 'high', Urgent: 'urgent' }
 
 const CAT_COLORS = ['var(--blue)', undefined, 'var(--amber)', 'var(--violet)', 'var(--red)']
@@ -94,7 +111,7 @@ function TicketDetailModal({ ticket, onClose, onRevoke, revoking }) {
 
           <div className="detail-section-title">Status</div>
           {isSideState ? (
-            <span className={STATUS_CHIP[ticket.status] || 'chip hold'}>{ticket.status}</span>
+            <span className={STATUS_CHIP[ticket.status] || 'chip hold'} style={chipNoWrapStyle}>{ticket.status}</span>
           ) : (
             <div className="status-stepper">
               {FLOW_STEPS.map((step, i) => (
@@ -110,7 +127,7 @@ function TicketDetailModal({ ticket, onClose, onRevoke, revoking }) {
           <ul className="timeline-list">
             {history.map((h, i) => (
               <li key={i}>
-                <span className={STATUS_CHIP[h.status] || 'chip open'}>{h.status}</span>
+                <span className={STATUS_CHIP[h.status] || 'chip open'} style={chipNoWrapStyle}>{h.status}</span>
                 <span className="panel-sub">{h.note}</span>
                 <span className="panel-sub">{formatDate(h.changed_at)}</span>
               </li>
@@ -334,7 +351,7 @@ function CustomerDashboard() {
                   <th>Ticket</th>
                   <th>Subject</th>
                   <th>Priority</th>
-                  <th>Status</th>
+                  <th className="status-col">Status</th>
                   <th>Raised</th>
                 </tr>
               </thead>
@@ -352,7 +369,7 @@ function CustomerDashboard() {
                         <span className="dot"></span>{t.priority}
                       </span>
                     </td>
-                    <td><span className={STATUS_CHIP[t.status] || 'chip open'}>{t.status}</span></td>
+                    <td className="status-col"><span className={STATUS_CHIP[t.status] || 'chip open'} style={chipNoWrapStyle}>{t.status}</span></td>
                     <td className="sla ok">{timeAgo(t.created_at)}</td>
                   </tr>
                 ))}

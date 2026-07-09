@@ -18,6 +18,22 @@ const STATUS_META = {
   transferred: { label: 'Transferred',       chip: 'hold' },
 }
 
+// Same fix as AllTickets.jsx / the three dashboards: forces every status
+// chip on this page onto a single line and sizes it to its own content,
+// matching the design used everywhere else in the app.
+const chipNoWrapStyle = {
+  whiteSpace: 'nowrap',
+  display: 'inline-flex',
+  alignItems: 'center',
+  width: 'fit-content',
+  maxWidth: 'none',
+  minWidth: 'max-content',
+  boxSizing: 'content-box',
+  overflow: 'visible',
+  padding: '4px 12px',
+  lineHeight: 1.4,
+}
+
 const PAST_FILTERS = ['all', 'accepted', 'unavailable', 'declined', 'transferred']
 
 const PRIORITY_ORDER = { Urgent: 0, High: 1, Medium: 2, Low: 3 }
@@ -151,6 +167,7 @@ function HolderChip({ ticket }) {
     <span
       ref={chipRef}
       className={`chip holder-chip ${ticket.assigned_staff ? 'resolved' : 'open'}`}
+      style={chipNoWrapStyle}
       tabIndex={0}
       onMouseEnter={show}
       onMouseLeave={hide}
@@ -185,7 +202,7 @@ function HolderChip({ ticket }) {
             return visibleEvents.map((e) => (
               <div key={e.id} className="transfer-history-row">
                 <span className="transfer-history-name">{eventLabel(e)}</span>
-                <span className={`chip ${EVENT_META[e.action]?.chip}`}>{e.action}</span>
+                <span className={`chip ${EVENT_META[e.action]?.chip}`} style={chipNoWrapStyle}>{e.action}</span>
               </div>
             ))
           })()}
@@ -304,9 +321,16 @@ function TicketAssignment() {
     : allPastOffers.filter((o) => o.status === pastFilter)
 
   const groupedAll = groupByTicket(allAssignments)
-  const grouped = adminFilter
-    ? groupedAll.filter((g) => g.offers.some((o) => o.status === adminFilter))
-    : groupedAll
+  // "Unavailable" is meant to mean "nobody has this right now" — a ticket
+  // that picked up an unavailable offer along the way but was later
+  // accepted by someone else shouldn't still show up here just because
+  // one of its historical offers has that status. Every other tab keeps
+  // the simple "any offer matches" behavior.
+  const grouped = adminFilter === 'unavailable'
+    ? groupedAll.filter((g) => !g.ticket.assigned_staff && g.offers.some((o) => o.status === 'unavailable'))
+    : adminFilter
+      ? groupedAll.filter((g) => g.offers.some((o) => o.status === adminFilter))
+      : groupedAll
   const escalatedGrouped = groupByTicket(escalatedAssignments)
   const stats = {
     pending: allAssignments.filter((a) => a.status === 'pending').length,
@@ -373,7 +397,7 @@ function TicketAssignment() {
             </button>
           </div>
         ) : (
-          <span className={`chip ${meta.chip}`}>{label}</span>
+          <span className={`chip ${meta.chip}`} style={chipNoWrapStyle}>{label}</span>
         )}
       </div>
     )
@@ -475,7 +499,7 @@ function TicketAssignment() {
                   <div className="panel-sub">Grouped by ticket — click a row to view full details</div>
                 </div>
                 <div className="tabs">
-                  {['pending', 'accepted', 'unavailable', ''].map((f) => (
+                  {['pending', 'accepted', ''].map((f) => (
                     <div
                       key={f || 'all'}
                       className={`tab ${adminFilter === f ? 'active' : ''}`}
@@ -505,7 +529,6 @@ function TicketAssignment() {
                       </thead>
                       <tbody>
                         {grouped.map(({ ticket, offers: ticketOffers }) => {
-                          const accepted = ticketOffers.find((o) => o.status === 'accepted')
                           return (
                             <tr
                               key={ticket.id}
@@ -531,12 +554,14 @@ function TicketAssignment() {
                                 <HolderChip ticket={ticket} />
                               </td>
                               <td>
-                                {accepted ? (
-                                  <span className="chip resolved">
-                                    Accepted by {displayName(accepted.staff)}
+                                {ticket.assigned_staff ? (
+                                  <span className="chip resolved" style={chipNoWrapStyle}>
+                                    Accepted by {displayName(ticket.assigned_staff)}
                                   </span>
+                                ) : ticketOffers.some((o) => o.status === 'pending') ? (
+                                  <span className="chip open" style={chipNoWrapStyle}>Awaiting response</span>
                                 ) : (
-                                  <span className="chip open">Awaiting response</span>
+                                  <span className="chip hold" style={chipNoWrapStyle}>Unassigned</span>
                                 )}
                               </td>
                             </tr>

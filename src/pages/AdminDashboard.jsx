@@ -10,6 +10,23 @@ const STATUS_CHIP = {
   Closed: 'chip resolved',
 }
 
+// Same fix as AllTickets.jsx: forces the status pill onto a single line
+// and sizes it to its own content, matching that page's status design
+// exactly.
+const chipNoWrapStyle = {
+  whiteSpace: 'nowrap',
+  display: 'inline-flex',
+  alignItems: 'center',
+  width: 'fit-content',
+  maxWidth: 'none',
+  minWidth: 'max-content',
+  boxSizing: 'content-box',
+  overflow: 'visible',
+  padding: '4px 12px',
+  lineHeight: 1.4,
+}
+
+
 const PRIORITY_CLASS = { Low: 'low', Medium: 'medium', High: 'high', Urgent: 'urgent' }
 const ALL_STATUSES = ['Open', 'In Progress', 'On Hold', 'Resolved', 'Closed']
 const CAT_COLORS = ['var(--blue)', undefined, 'var(--amber)', 'var(--violet)', 'var(--red)']
@@ -122,7 +139,7 @@ function TicketDetailModal({ ticket, staffList, readOnly, onClose, onTransfer, t
           </div>
           <div className="detail-row">
             <span className="k">Status</span>
-            <span className="v"><span className={STATUS_CHIP[ticket.status] || 'chip open'}>{ticket.status}</span></span>
+            <span className="v"><span className={STATUS_CHIP[ticket.status] || 'chip open'} style={chipNoWrapStyle}>{ticket.status}</span></span>
           </div>
 
           {ticket.description && (
@@ -538,7 +555,7 @@ function AdminDashboard() {
                   <th>Subject / Raised By</th>
                   <th>Assigned To</th>
                   <th>Priority</th>
-                  <th>Status</th>
+                  <th className="status-col">Status</th>
                   <th>Raised</th>
                 </tr>
               </thead>
@@ -560,7 +577,7 @@ function AdminDashboard() {
                         <span className="dot"></span>{t.priority}
                       </span>
                     </td>
-                    <td><span className={STATUS_CHIP[t.status] || 'chip open'}>{t.status}</span></td>
+                    <td className="status-col"><span className={STATUS_CHIP[t.status] || 'chip open'} style={chipNoWrapStyle}>{t.status}</span></td>
                     <td className="sla ok">{timeAgo(t.created_at)}</td>
                   </tr>
                 ))}
@@ -599,7 +616,7 @@ function AdminDashboard() {
                   <th>Subject / Raised By</th>
                   <th>Assigned To</th>
                   <th>Priority</th>
-                  <th>Status</th>
+                  <th className="status-col">Status</th>
                   <th>Raised</th>
                 </tr>
               </thead>
@@ -620,7 +637,7 @@ function AdminDashboard() {
                         <span className="dot"></span>{t.priority}
                       </span>
                     </td>
-                    <td><span className={STATUS_CHIP[t.status] || 'chip open'}>{t.status}</span></td>
+                    <td className="status-col"><span className={STATUS_CHIP[t.status] || 'chip open'} style={chipNoWrapStyle}>{t.status}</span></td>
                     <td className="sla ok">{timeAgo(t.created_at)}</td>
                   </tr>
                 ))}

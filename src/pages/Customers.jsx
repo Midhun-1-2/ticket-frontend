@@ -19,6 +19,23 @@ const TICKET_STATUS_CHIP = {
   Closed: 'chip closed',
 }
 
+// Same fix as AllTickets.jsx / the dashboards / TicketAssignment.jsx /
+// StaffManagement.jsx: forces every status chip on this page onto a
+// single line and sizes it to its own content, matching the design used
+// everywhere else in the app.
+const chipNoWrapStyle = {
+  whiteSpace: 'nowrap',
+  display: 'inline-flex',
+  alignItems: 'center',
+  width: 'fit-content',
+  maxWidth: 'none',
+  minWidth: 'max-content',
+  boxSizing: 'content-box',
+  overflow: 'visible',
+  padding: '4px 12px',
+  lineHeight: 1.4,
+}
+
 const STATUS_TABS = [
   { key: 'all', label: 'All' },
   { key: 'active', label: 'Active' },
@@ -71,7 +88,7 @@ function RemarkTooltip({ text }) {
     <span
       ref={chipRef}
       className="chip hold"
-      style={{ cursor: 'help' }}
+      style={{ cursor: 'help', ...chipNoWrapStyle }}
       tabIndex={0}
       onMouseEnter={show}
       onMouseLeave={hide}
@@ -284,7 +301,7 @@ function Customers() {
                       </div>
                     </td>
                     <td>{c.company || '—'}</td>
-                    <td><span className={STATUS_CHIP[c.status] || 'chip open'}>{c.status}</span></td>
+                    <td><span className={STATUS_CHIP[c.status] || 'chip open'} style={chipNoWrapStyle}>{c.status}</span></td>
                     <td className="sla ok">{formatDate(c.date_joined)}</td>
                     <td>
                       <div className="row-actions">
@@ -406,7 +423,7 @@ function ViewModal({ user, onClose }) {
               <div className="detail-section-title">Account</div>
               <div className="detail-grid">
                 <div className="detail-row"><span className="k">Name</span><span className="v">{detail.name}</span></div>
-                <div className="detail-row"><span className="k">Status</span><span className="v"><span className={STATUS_CHIP[detail.status] || 'chip open'}>{detail.status}</span></span></div>
+                <div className="detail-row"><span className="k">Status</span><span className="v"><span className={STATUS_CHIP[detail.status] || 'chip open'} style={chipNoWrapStyle}>{detail.status}</span></span></div>
                 <div className="detail-row"><span className="k">Email</span><span className="v">{detail.email || '—'}</span></div>
                 <div className="detail-row"><span className="k">Phone</span><span className="v">{detail.phone}</span></div>
                 <div className="detail-row"><span className="k">Joined</span><span className="v">{formatDate(detail.date_joined)}</span></div>
@@ -569,7 +586,7 @@ function ViewModal({ user, onClose }) {
                           <td>{t.product || '—'}</td>
                           <td>{t.category}</td>
                           <td>{t.priority}</td>
-                          <td><span className={TICKET_STATUS_CHIP[t.status] || 'chip open'}>{t.status}</span></td>
+                          <td><span className={TICKET_STATUS_CHIP[t.status] || 'chip open'} style={chipNoWrapStyle}>{t.status}</span></td>
                           <td>{t.assigned_staff_name || <span style={{ color: 'var(--text-faint)' }}>Unassigned</span>}</td>
                           <td><RemarkTooltip text={t.remarks} /></td>
                           <td className="sla ok">{formatDateTime(t.created_at)}</td>

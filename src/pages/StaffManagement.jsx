@@ -6,6 +6,22 @@ const EMPTY_FORM = {
   name: '', email: '', phone: '', department: '', role: '', password: '',
 }
 
+// Same fix as AllTickets.jsx / the dashboards / TicketAssignment.jsx:
+// forces the status chip onto a single line and sizes it to its own
+// content, matching the design used everywhere else in the app.
+const chipNoWrapStyle = {
+  whiteSpace: 'nowrap',
+  display: 'inline-flex',
+  alignItems: 'center',
+  width: 'fit-content',
+  maxWidth: 'none',
+  minWidth: 'max-content',
+  boxSizing: 'content-box',
+  overflow: 'visible',
+  padding: '4px 12px',
+  lineHeight: 1.4,
+}
+
 function StaffManagement() {
   const [staff, setStaff] = useState([])
   const [staffLoading, setStaffLoading] = useState(true)
@@ -409,7 +425,10 @@ function StaffManagement() {
                       <td>{member.role || '—'}</td>
                       <td className="mono">{member.ticketsAssigned}</td>
                       <td>
-                        <span className={`chip ${member.status === 'active' ? 'active' : 'inactive'}`}>
+                        <span
+                          className={`chip ${member.status === 'active' ? 'active' : 'inactive'}`}
+                          style={chipNoWrapStyle}
+                        >
                           {member.status === 'active' ? 'Active' : 'Inactive'}
                         </span>
                       </td>
@@ -702,7 +721,10 @@ function StaffManagement() {
               </div>
               <div className="meta-item">
                 <span className="meta-label">Status</span>
-                <span className={`chip ${selectedStaff.status === 'active' ? 'active' : 'inactive'}`}>
+                <span
+                  className={`chip ${selectedStaff.status === 'active' ? 'active' : 'inactive'}`}
+                  style={chipNoWrapStyle}
+                >
                   {selectedStaff.status === 'active' ? 'Active' : 'Inactive'}
                 </span>
               </div>
