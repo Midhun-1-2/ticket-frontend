@@ -6,6 +6,12 @@
    shell's sidebar). Right = paper-toned form panel. On narrow viewports
    the brand panel collapses away and only the form card remains,
    centered — same pattern the app shell uses for its own sidebar.
+
+   ANIMATION NOTE: this page borrows its motion language from
+   landing.css — the reveal/rise easing, the staggered word-in headline,
+   the pulse dot, and the button shine sweep are all the same curves and
+   timings used there, just triggered on mount instead of on scroll
+   (there's nothing to scroll on a login screen — it's all above the fold).
    ========================================================================= */
 
 .auth-screen{
@@ -13,6 +19,64 @@
   width: 100%;
   background: var(--paper);
   overflow-x: hidden;
+  transition: opacity .45s ease;
+}
+.auth-screen.is-transitioning{
+  opacity: 0;
+}
+
+/* Crossfade played on successful login, right before the actual route
+   change — the login screen fades out while this overlay fades in at
+   the exact same rate, so it reads as one continuous dissolve rather
+   than a wipe or jump cut. The centered brand mark + ring-pulse reuses
+   the same language as the landing page's boot sequence, so it reads as
+   "loading into the app" rather than an arbitrary color flash.
+   Navigation (redirectByRole in Login.jsx) fires once this has fully
+   faded in. */
+.auth-transition-overlay{
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--ink, #14171F);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .45s ease;
+}
+.auth-transition-overlay.is-active{
+  opacity: 1;
+  pointer-events: all;
+}
+.auth-transition-overlay::before{
+  content: "";
+  position: absolute; inset: 0;
+  background-image: radial-gradient(rgba(255,255,255,.05) 1px, transparent 1px);
+  background-size: 24px 24px;
+  mask-image: radial-gradient(480px 320px at 50% 50%, #000, transparent 75%);
+}
+.auth-transition-mark{
+  width: 46px; height: 46px;
+  border-radius: 11px;
+  background: linear-gradient(155deg, var(--accent, #0F6E63) 0%, var(--accent-ink, #0B4F47) 100%);
+  display: flex; align-items: center; justify-content: center;
+  color: #EAF6F3;
+  font-family: var(--font-display); font-weight: 700; font-size: 16px;
+  position: relative; z-index: 1;
+  transform: scale(.75);
+  opacity: 0;
+  transition: transform .45s cubic-bezier(.16,.8,.24,1), opacity .45s ease;
+}
+.auth-transition-overlay.is-active .auth-transition-mark{
+  transform: scale(1);
+  opacity: 1;
+  animation: auth-transition-ring 1.5s ease-out .35s infinite;
+}
+@keyframes auth-transition-ring{
+  0%{ box-shadow: 0 0 0 0 rgba(95,203,187,.45); }
+  70%{ box-shadow: 0 0 0 24px rgba(95,203,187,0); }
+  100%{ box-shadow: 0 0 0 0 rgba(95,203,187,0); }
 }
 
 .auth-shell{
@@ -20,6 +84,26 @@
   width: 100%;
   display: grid;
   grid-template-columns: minmax(0, 480px) 1fr;
+}
+
+/* =========================================================================
+   Motion primitives (same language as landing.css, mount-triggered)
+   ========================================================================= */
+@keyframes auth-rise{
+  from{ opacity: 0; transform: translateY(18px); }
+  to{ opacity: 1; transform: translateY(0); }
+}
+@keyframes auth-word-in{
+  from{ opacity: 0; transform: translateY(.5em) rotate(1.5deg); filter: blur(4px); }
+  to{ opacity: 1; transform: translateY(0) rotate(0); filter: blur(0); }
+}
+@keyframes auth-shine{
+  0%{ background-position: -140% 0; }
+  100%{ background-position: 240% 0; }
+}
+@keyframes auth-card-in{
+  from{ opacity: 0; transform: translateY(22px) scale(.985); }
+  to{ opacity: 1; transform: translateY(0) scale(1); }
 }
 
 /* =========================================================================
@@ -51,6 +135,8 @@
   display: flex;
   align-items: center;
   gap: 12px;
+  opacity: 0;
+  animation: auth-rise .6s cubic-bezier(.16,.8,.24,1) both;
 }
 .auth-visual .brand-mark{
   width: 38px; height: 38px; flex-shrink: 0;
@@ -79,11 +165,22 @@
   letter-spacing: -0.01em;
   margin: 0 0 14px;
 }
+/* Headline is split into <span className="word"> pieces in the JSX so
+   each word can animate in on its own, staggered via --i — same trick
+   as landing.css's .landing-h1 .word. */
+.auth-visual-title .word{
+  display: inline-block;
+  opacity: 0;
+  animation: auth-word-in .7s cubic-bezier(.16,.8,.24,1) both;
+  animation-delay: calc(var(--i, 0) * 70ms + 120ms);
+}
 .auth-visual-desc{
   font-size: 14px;
   line-height: 1.6;
   color: #9EA2B2;
   margin: 0 0 30px;
+  opacity: 0;
+  animation: auth-rise .7s .55s cubic-bezier(.16,.8,.24,1) both;
 }
 
 .auth-feature-list{
@@ -101,7 +198,13 @@
   font-size: 13.5px;
   color: #C9CBD4;
   font-weight: 500;
+  opacity: 0;
+  animation: auth-rise .55s cubic-bezier(.16,.8,.24,1) both;
 }
+.auth-feature-list li:nth-child(1){ animation-delay: .68s; }
+.auth-feature-list li:nth-child(2){ animation-delay: .77s; }
+.auth-feature-list li:nth-child(3){ animation-delay: .86s; }
+
 .auth-feature-icon{
   width: 22px; height: 22px; flex-shrink: 0;
   border-radius: 50%;
@@ -125,6 +228,8 @@
   letter-spacing: .03em;
   padding: 8px 14px;
   border-radius: 20px;
+  opacity: 0;
+  animation: auth-rise .6s .98s cubic-bezier(.16,.8,.24,1) both;
 }
 .auth-visual-ticker .ticker-dot{
   width: 7px; height: 7px; border-radius: 50%;
@@ -141,6 +246,11 @@
 @media (prefers-reduced-motion: reduce){
   .auth-visual-ticker .ticker-dot{ animation: none; }
 }
+
+/* Hidden by default — only shown below 860px (see media query further
+   down), where it replaces the dark .auth-visual panel that gets
+   display:none at that breakpoint. */
+.auth-mobile-hero{ display: none; }
 
 /* =========================================================================
    Right — form panel
@@ -160,6 +270,8 @@
   border-radius: var(--radius);
   box-shadow: var(--shadow-card);
   padding: 34px 30px 30px;
+  opacity: 0;
+  animation: auth-card-in .65s .18s cubic-bezier(.16,.8,.24,1) both;
 }
 
 /* Brand block shown only inside the card on narrow screens, once the
@@ -214,6 +326,24 @@
   gap: 16px;
 }
 
+/* Staggered entrance for whatever the form currently renders (phone field,
+   role-detected chip, credential field, forgot-mpin row, error banner,
+   submit button, signup link). Using nth-child instead of per-element
+   inline delays means this keeps working correctly no matter which of
+   the conditional blocks (role chip / credential field / error) are
+   present at a given moment — no JSX changes required here. */
+.auth-form > *{
+  opacity: 0;
+  animation: auth-rise .5s cubic-bezier(.16,.8,.24,1) both;
+}
+.auth-form > *:nth-child(1){ animation-delay: .32s; }
+.auth-form > *:nth-child(2){ animation-delay: .39s; }
+.auth-form > *:nth-child(3){ animation-delay: .46s; }
+.auth-form > *:nth-child(4){ animation-delay: .53s; }
+.auth-form > *:nth-child(5){ animation-delay: .60s; }
+.auth-form > *:nth-child(6){ animation-delay: .67s; }
+.auth-form > *:nth-child(7){ animation-delay: .74s; }
+
 .auth-field{
   display: flex;
   flex-direction: column;
@@ -241,6 +371,11 @@
 .auth-field input:focus{
   border-color: var(--accent);
   box-shadow: 0 0 0 3px rgba(15,110,99,0.12);
+  animation: auth-focus-ring .35s cubic-bezier(.2,.8,.2,1);
+}
+@keyframes auth-focus-ring{
+  0%{ box-shadow: 0 0 0 0 rgba(15,110,99,0.28); }
+  100%{ box-shadow: 0 0 0 3px rgba(15,110,99,0.12); }
 }
 
 .auth-role-detected{
@@ -256,12 +391,19 @@
   border-radius: 20px;
   padding: 5px 12px 5px 10px;
   margin-top: -6px;
+  animation: auth-chip-pop .4s cubic-bezier(.34,1.56,.64,1) both !important;
+}
+@keyframes auth-chip-pop{
+  0%{ opacity: 0; transform: scale(.6) translateY(4px); }
+  60%{ opacity: 1; transform: scale(1.06) translateY(0); }
+  100%{ opacity: 1; transform: scale(1) translateY(0); }
 }
 .auth-role-detected::before{
   content: "";
   width: 6px; height: 6px; border-radius: 50%;
   background: var(--accent);
   flex-shrink: 0;
+  animation: auth-pulse 1.8s ease-in-out infinite;
 }
 .auth-role-detected span{
   color: var(--accent-ink);
@@ -316,15 +458,34 @@
    of relying on .btn / .btn-primary from style.css cascading in — kept,
    but now uses the same gradient-press treatment as the dashboard's
    primary buttons (see .customers-page .btn-primary in style.css) so the
-   two screens feel like one product. */
+   two screens feel like one product. Shine sweep on hover matches
+   .landing-btn-primary in landing.css. */
+.auth-submit.auth-submit,
+.auth-submit.auth-submit:hover,
+.auth-submit.auth-submit:focus,
+.auth-submit.auth-submit:active,
+.auth-submit.auth-submit:disabled{
+  height: 44px !important;
+  min-height: 44px !important;
+  max-height: 44px !important;
+  padding: 0 !important;
+  line-height: 1 !important;
+  font-size: 14px !important;
+  box-sizing: border-box !important;
+  transform: none !important;
+}
 .auth-submit{
+  position: relative;
+  overflow: hidden;
   width: 100%;
   display: flex !important;
   align-items: center;
   justify-content: center;
   height: 44px;
   margin-top: 4px;
-  background: linear-gradient(180deg, #12897c 0%, var(--accent, #0F6E63) 55%, var(--accent-ink, #0B4F47) 100%) !important;
+  background: linear-gradient(120deg, #0B4F47 0%, #0F6E63 22%, #1CBBA8 50%, #0F6E63 78%, #0B4F47 100%) !important;
+  background-size: 250% 100% !important;
+  background-position: 0% 0% !important;
   color: #ffffff !important;
   border: 1px solid transparent !important;
   border-radius: 8px;
@@ -335,7 +496,78 @@
   opacity: 1 !important;
   visibility: visible !important;
   box-shadow: 0 4px 12px rgba(15,110,99,0.32), inset 0 1px 0 rgba(255,255,255,0.28);
-  transition: transform .15s ease, box-shadow .15s ease;
+  transition: background-position .8s cubic-bezier(.2,.8,.2,1), transform .15s ease, box-shadow .15s ease;
+}
+.auth-submit.auth-submit:hover:not(:disabled){
+  background-position: 100% 0% !important;
+  animation: auth-submit-ping 1.6s ease-out infinite;
+}
+.auth-submit:active:not(:disabled){ box-shadow: inset 0 2px 6px rgba(11,79,71,.35); }
+.auth-submit:disabled{ opacity: .55 !important; cursor: not-allowed; box-shadow: none; }
+
+/* Sonar-style ring ping instead of a soft breathing glow — a ring
+   expands outward and fades, repeating while hovered. Same idea as the
+   ring pulse on the landing page's boot mark, reused here so the two
+   pages share a motion "signature." */
+@keyframes auth-submit-ping{
+  0%{ box-shadow: 0 4px 12px rgba(15,110,99,0.32), inset 0 1px 0 rgba(255,255,255,0.28), 0 0 0 0 rgba(95,203,187,.55); }
+  70%{ box-shadow: 0 4px 12px rgba(15,110,99,0.32), inset 0 1px 0 rgba(255,255,255,0.28), 0 0 0 13px rgba(95,203,187,0); }
+  100%{ box-shadow: 0 4px 12px rgba(15,110,99,0.32), inset 0 1px 0 rgba(255,255,255,0.28), 0 0 0 0 rgba(95,203,187,0); }
+}
+
+/* Click ripple — spawned in JS on mousedown, sized/positioned inline,
+   this just defines how it animates and disappears. */
+.auth-submit-ripple{
+  position: absolute;
+  border-radius: 50%;
+  background: rgba(255,255,255,.45);
+  transform: scale(0);
+  opacity: 1;
+  pointer-events: none;
+  animation: auth-ripple .6s ease-out forwards;
+}
+@keyframes auth-ripple{
+  to{ transform: scale(1); opacity: 0; }
+}
+
+/* Label + arrow — arrow is collapsed to zero width at rest so the label
+   sits dead-center. On hover it grows in and does a small elastic
+   rotate+pop instead of just sliding, which reads as more "alive." */
+.auth-submit .btn-label{
+  transition: transform .3s cubic-bezier(.2,.8,.2,1);
+  position: relative; z-index: 1;
+}
+.auth-submit:hover:not(:disabled) .btn-label{
+  transform: translateX(-6px);
+}
+.auth-submit .btn-arrow{
+  width: 0;
+  height: 16px;
+  opacity: 0;
+  margin-left: 0;
+  overflow: visible;
+  flex-shrink: 0;
+  position: relative; z-index: 1;
+  transform: rotate(-35deg) scale(.6);
+  transition: width .3s cubic-bezier(.2,.8,.2,1), opacity .25s ease,
+              transform .4s cubic-bezier(.34,1.56,.64,1), margin-left .3s cubic-bezier(.2,.8,.2,1);
+}
+.auth-submit:hover:not(:disabled) .btn-arrow{
+  width: 16px;
+  opacity: 1;
+  margin-left: 8px;
+  transform: rotate(0deg) scale(1);
+}
+
+/* Checkmark shown in place of the label during transitionPhase
+   'success'/'exiting' — pops in with a slight overshoot rather than
+   just appearing. */
+.auth-submit .btn-check{
+  animation: auth-check-in .25s ease-out both;
+}
+@keyframes auth-check-in{
+  from{ transform: scale(.75); opacity: 0; }
+  to{ transform: scale(1); opacity: 1; }
 }
 .auth-submit:hover:not(:disabled){
   transform: translateY(-1px);
@@ -355,6 +587,8 @@
 .auth-notice{
   text-align: center;
   padding: 8px 0 4px;
+  opacity: 0;
+  animation: auth-rise .5s cubic-bezier(.16,.8,.24,1) both;
 }
 .auth-notice-title{
   font-family: var(--font-display);
@@ -386,6 +620,7 @@
   justify-content: center;
   padding: 20px;
   z-index: 100;
+  animation: auth-rise .25s ease both;
 }
 
 .modal-card{
@@ -396,6 +631,7 @@
   width: 100%;
   max-width: 380px;
   padding: 24px 24px 20px;
+  animation: auth-card-in .35s cubic-bezier(.16,.8,.24,1) both;
 }
 
 .modal-head{ margin-bottom: 18px; }
@@ -489,11 +725,86 @@
   .auth-shell{ grid-template-columns: 1fr; }
   .auth-visual{ display: none; }
   .auth-card-wrap{
-    min-height: 100vh;
+    min-height: auto;
     align-items: flex-start;
-    padding-top: 56px;
+    padding-top: 18px;
   }
-  .auth-brand-mobile{ display: flex; }
+  .auth-brand-mobile{ display: none; }
+
+  /* Subtle dot texture so the mobile background isn't just flat paper —
+     echoes the same dotted-radial trick used on the landing/onboarding
+     pages, just much fainter since there's no dark panel to mask it. */
+  .auth-screen{
+    background-image:
+      radial-gradient(rgba(20,23,31,.07) 1px, transparent 1px),
+      radial-gradient(rgba(20,23,31,.05) 1px, transparent 1px);
+    background-size: 34px 34px, 22px 22px;
+    background-position: 0 0, 11px 11px;
+  }
+
+  .auth-mobile-hero{
+    display: block;
+    position: relative;
+    overflow: hidden;
+    isolation: isolate;
+    background: var(--ink);
+    color: #fff;
+    border-radius: 16px;
+    padding: 20px 20px 18px;
+    margin: 16px 16px 0;
+  }
+  .auth-mobile-hero::before{
+    content: "";
+    position: absolute; inset: 0; z-index: -1;
+    background:
+      radial-gradient(220px 150px at 12% -10%, rgba(15,110,99,.45), transparent 70%),
+      radial-gradient(200px 150px at 108% 115%, rgba(59,91,169,.28), transparent 70%);
+  }
+  .auth-mobile-hero-top{
+    display: flex; align-items: center; gap: 10px;
+    opacity: 0;
+    animation: auth-rise .5s cubic-bezier(.16,.8,.24,1) both;
+  }
+  .auth-mobile-hero .brand-mark{
+    width: 32px; height: 32px; flex-shrink: 0;
+    border-radius: 8px;
+    background: linear-gradient(155deg, var(--accent) 0%, #133C36 100%);
+    display: flex; align-items: center; justify-content: center;
+    color: #EAF6F3; font-family: var(--font-display); font-weight: 700; font-size: 13px;
+  }
+  .auth-mobile-hero .brand-name{ color: #fff; font-family: var(--font-display); font-weight: 700; font-size: 14px; }
+  .auth-mobile-hero .brand-sub{ font-size: 10.5px; color: #7C8092; margin-top: 1px; }
+
+  .auth-mobile-hero-title{
+    font-family: var(--font-display);
+    font-size: 19px; font-weight: 700; line-height: 1.28;
+    margin: 14px 0 0;
+    color: #fff;
+  }
+  .auth-mobile-hero-title .word{
+    display: inline-block;
+    opacity: 0;
+    animation: auth-word-in .6s cubic-bezier(.16,.8,.24,1) both;
+    animation-delay: calc(var(--i, 0) * 55ms + 90ms);
+  }
+
+  .auth-mobile-hero-ticker{
+    display: inline-flex; align-items: center; gap: 8px;
+    margin-top: 14px;
+    background: rgba(255,255,255,.06);
+    border: 1px solid rgba(255,255,255,.14);
+    color: #DADCE4;
+    font-family: var(--font-mono); font-size: 10px; font-weight: 600; letter-spacing: .02em;
+    padding: 6px 12px; border-radius: 20px;
+    opacity: 0;
+    animation: auth-rise .55s .5s cubic-bezier(.16,.8,.24,1) both;
+  }
+  .auth-mobile-hero-ticker .ticker-dot{
+    width: 6px; height: 6px; border-radius: 50%;
+    background: #39D6A1;
+    animation: auth-pulse 1.8s ease-in-out infinite;
+  }
+  .auth-mobile-hero-ticker .sep{ opacity: .45; }
 }
 
 @media (max-width: 768px){
@@ -529,4 +840,41 @@
   .modal-title{
     font-size: 16.5px;
   }
+}
+
+/* =========================================================================
+   Reduced motion — same policy as landing.css
+   ========================================================================= */
+@media (prefers-reduced-motion: reduce){
+  .auth-visual-top,
+  .auth-visual-title .word,
+  .auth-visual-desc,
+  .auth-feature-list li,
+  .auth-visual-ticker,
+  .auth-card,
+  .auth-form > *,
+  .auth-notice,
+  .modal-overlay,
+  .modal-card,
+  .auth-mobile-hero-top,
+  .auth-mobile-hero-title .word,
+  .auth-mobile-hero-ticker{
+    animation-duration: .001ms !important;
+    opacity: 1 !important;
+    transform: none !important;
+    filter: none !important;
+  }
+  .auth-role-detected::before{ animation: none; }
+  .auth-role-detected{ animation: none !important; }
+  .auth-submit.auth-submit:hover:not(:disabled){ animation: none; background-position: 0% 0% !important; box-shadow: var(--shadow-card); }
+  .auth-submit .btn-label,
+  .auth-submit .btn-arrow{ transition: none; }
+  .auth-submit-ripple{ display: none; }
+  .auth-field input:focus{ animation: none; }
+  .auth-mobile-hero-ticker .ticker-dot{ animation: none; }
+  .auth-screen{ transition: none; }
+  .auth-screen.is-transitioning{ opacity: 1; }
+  .auth-transition-overlay{ transition: none; opacity: 0 !important; }
+  .auth-transition-mark{ animation: none; transition: none; }
+  .auth-submit .btn-check{ animation: none; }
 }

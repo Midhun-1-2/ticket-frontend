@@ -22,6 +22,12 @@ function Login() {
   const [toastMessage, setToastMessage] = useState('')
   const [showForgotMpin, setShowForgotMpin] = useState(false)
 
+  // 'idle' -> 'success' (checkmark shows in the button) -> 'exiting' (the
+  // full-screen wipe plays) -> navigate. Purely a presentation layer over
+  // the real login flow below; redirectByRole still does the actual
+  // navigation once the wipe has had time to play.
+  const [transitionPhase, setTransitionPhase] = useState('idle')
+
   // Plain JS auto-dismiss — runs whenever toastMessage changes.
   useEffect(() => {
     if (!toastMessage) return
@@ -103,7 +109,25 @@ function Login() {
       localStorage.setItem('full_name', data.full_name || '')
       localStorage.setItem('phone_number', data.phone_number || '')
 
-      redirectByRole(data.role)
+      const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+      if (reducedMotion) {
+        redirectByRole(data.role)
+        return
+      }
+
+      // Success — button swaps its label for a checkmark (a quick, quiet
+      // confirmation), then the screen crossfades into a branded loading
+      // moment — the same "TD" mark + ring-pulse language already used
+      // on the landing page's boot sequence — rather than a flashy wipe.
+      // Navigation fires once that's fully faded in, so the route swap
+      // happens while covered.
+      setTransitionPhase('success')
+      setTimeout(() => {
+        setTransitionPhase('exiting')
+        setTimeout(() => {
+          redirectByRole(data.role)
+        }, 520)
+      }, 340)
     } catch (err) {
       const detail = err.response?.data?.detail
 
@@ -133,8 +157,35 @@ function Login() {
     setToastMessage('M-PIN reset! Please log in with your new M-PIN.')
   }
 
+  // Spawns a short-lived ripple element at the click point — purely
+  // decorative, doesn't touch submit logic. The ripple sizes itself to
+  // the button so it always fully covers it regardless of viewport width.
+  function spawnRipple(e) {
+    const button = e.currentTarget
+    if (button.disabled) return
+    const rect = button.getBoundingClientRect()
+    const size = Math.max(rect.width, rect.height) * 1.4
+    const ripple = document.createElement('span')
+    ripple.className = 'auth-submit-ripple'
+    ripple.style.width = ripple.style.height = `${size}px`
+    ripple.style.left = `${e.clientX - rect.left - size / 2}px`
+    ripple.style.top = `${e.clientY - rect.top - size / 2}px`
+    button.appendChild(ripple)
+    setTimeout(() => ripple.remove(), 650)
+  }
+
   return (
-    <div className="auth-screen">
+    <>
+      {/* Rendered as a SIBLING of .auth-screen, not a child — see the
+          .is-transitioning containing-block note in login.css. A clean
+          crossfade into a branded loading moment (mark + ring-pulse,
+          same language as the landing page's boot sequence) rather than
+          a wipe. */}
+      <div className={`auth-transition-overlay${transitionPhase === 'exiting' ? ' is-active' : ''}`} aria-hidden="true">
+        <div className="auth-transition-mark">TD</div>
+      </div>
+
+      <div className={`auth-screen${transitionPhase === 'exiting' ? ' is-transitioning' : ''}`}>
 
       {toastMessage && (
         <div className="toast toast-success">
@@ -154,7 +205,10 @@ function Login() {
 
         {/* Branded panel — purely presentational, echoes the app shell's
             dark ink sidebar so the login screen reads as part of the same
-            product rather than a generic auth page. */}
+            product rather than a generic auth page. Headline is split into
+            <span className="word"> pieces (same trick as LandingPage.jsx's
+            AnimatedWords) purely so login.css can stagger them in on
+            mount — no behavior change. */}
         <aside className="auth-visual" aria-hidden="true">
           <div className="auth-visual-glow"></div>
 
@@ -168,7 +222,13 @@ function Login() {
 
           <div className="auth-visual-mid">
             <h1 className="auth-visual-title">
-              Every ticket,<br />tracked in real time.
+              <span className="word" style={{ '--i': 0 }}>Every</span>{' '}
+              <span className="word" style={{ '--i': 1 }}>ticket,</span>
+              <br />
+              <span className="word" style={{ '--i': 2 }}>tracked</span>{' '}
+              <span className="word" style={{ '--i': 3 }}>in</span>{' '}
+              <span className="word" style={{ '--i': 4 }}>real</span>{' '}
+              <span className="word" style={{ '--i': 5 }}>time.</span>
             </h1>
             <p className="auth-visual-desc">
               One dashboard for your whole support queue — assignment,
@@ -204,16 +264,36 @@ function Login() {
           </div>
         </aside>
 
+        {/* Mobile-only condensed hero — the dark .auth-visual panel is
+            hidden below 860px (see media query), so without this, mobile
+            was left with just a plain white card on flat background.
+            This recreates the same brand + headline + ticker moment in
+            miniature, reusing the same word-in/rise/pulse animations as
+            the desktop panel so it still feels like one product. */}
+        <div className="auth-mobile-hero" aria-hidden="true">
+          <div className="auth-mobile-hero-top">
+            <div className="brand-mark">TD</div>
+            <div>
+              <div className="brand-name">Ticket Desk</div>
+              <div className="brand-sub">Admin Console</div>
+            </div>
+          </div>
+          <h2 className="auth-mobile-hero-title">
+            <span className="word" style={{ '--i': 0 }}>Every</span>{' '}
+            <span className="word" style={{ '--i': 1 }}>ticket,</span>{' '}
+            <span className="word" style={{ '--i': 2 }}>tracked</span>{' '}
+            <span className="word" style={{ '--i': 3 }}>in</span>{' '}
+            <span className="word" style={{ '--i': 4 }}>real</span>{' '}
+            <span className="word" style={{ '--i': 5 }}>time.</span>
+          </h2>
+          <div className="auth-mobile-hero-ticker">
+            <span className="ticker-dot"></span> LIVE QUEUE <span className="sep">·</span> Synced just now
+          </div>
+        </div>
+
         {/* Actual form panel — logic and structure unchanged. */}
         <div className="auth-card-wrap">
           <div className="auth-card">
-            <div className="auth-brand auth-brand-mobile">
-              <div className="brand-mark">TD</div>
-              <div className="brand-text">
-                <div className="brand-name">Ticket Desk</div>
-                <div className="brand-sub">Sign in to your account</div>
-              </div>
-            </div>
 
             <div className="auth-card-head">
               <div className="page-eyebrow">Welcome back</div>
@@ -300,9 +380,21 @@ function Login() {
                 <button
                   type="submit"
                   className="btn btn-primary auth-submit"
-                  disabled={loading || !phoneChecked}
+                  disabled={loading || !phoneChecked || transitionPhase !== 'idle'}
+                  onMouseDown={spawnRipple}
                 >
-                  {loading ? 'Signing in…' : 'Login'}
+                  {transitionPhase !== 'idle' ? (
+                    <svg className="btn-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" width="18" height="18">
+                      <path d="M20 6 9 17l-5-5" />
+                    </svg>
+                  ) : (
+                    <>
+                      <span className="btn-label">{loading ? 'Signing in…' : 'Login'}</span>
+                      <svg className="btn-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M5 12h14" /><path d="m13 6 6 6-6 6" />
+                      </svg>
+                    </>
+                  )}
                 </button>
 
                 <p className="auth-signup">
@@ -331,7 +423,8 @@ function Login() {
           onClose={() => setShowForgotMpin(false)}
         />
       )}
-    </div>
+      </div>
+    </>
   )
 }
 

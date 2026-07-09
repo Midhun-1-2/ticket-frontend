@@ -301,6 +301,25 @@ function AnimatedWords({ text, startIndex = 0 }) {
   ))
 }
 
+// ---------------------------------------------------------------------------
+// Click ripple for .landing-btn-primary buttons — same behavior as the
+// login page's submit button ripple, generalized here since these are
+// react-router <Link>s (render as <a>) rather than <button>s. Purely
+// decorative: doesn't touch navigation.
+// ---------------------------------------------------------------------------
+function spawnButtonRipple(e) {
+  const el = e.currentTarget
+  const rect = el.getBoundingClientRect()
+  const size = Math.max(rect.width, rect.height) * 1.4
+  const ripple = document.createElement('span')
+  ripple.className = 'landing-btn-ripple'
+  ripple.style.width = ripple.style.height = `${size}px`
+  ripple.style.left = `${e.clientX - rect.left - size / 2}px`
+  ripple.style.top = `${e.clientY - rect.top - size / 2}px`
+  el.appendChild(ripple)
+  setTimeout(() => ripple.remove(), 650)
+}
+
 export default function LandingPage() {
   const [scrolled, setScrolled] = useState(false)
 
@@ -351,7 +370,9 @@ export default function LandingPage() {
           </div>
           <div className="landing-nav-actions">
             <Link to="/login" className="landing-btn landing-btn-ghost">Log in</Link>
-            <Link to="/onboarding" className="landing-btn landing-btn-primary">Get started</Link>
+            <Link to="/onboarding" className="landing-btn landing-btn-primary" onMouseDown={spawnButtonRipple}>
+              Get started
+            </Link>
           </div>
         </div>
       </header>
@@ -377,8 +398,13 @@ export default function LandingPage() {
               what they do — not one shared view stretched three ways.
             </p>
             <div className="landing-hero-actions">
-              <Link to="/onboarding" className="landing-btn landing-btn-primary landing-btn-lg">
-                Get started free <Icon.Arrow width="16" height="16" />
+              <Link
+                to="/onboarding"
+                className="landing-btn landing-btn-primary landing-btn-lg"
+                onMouseDown={spawnButtonRipple}
+              >
+                <span className="btn-label">Get started free</span>
+                <Icon.Arrow className="btn-arrow" width="16" height="16" />
               </Link>
               <Link to="/login" className="landing-btn landing-btn-ghost landing-btn-lg">Log in</Link>
             </div>

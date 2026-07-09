@@ -6,6 +6,13 @@ import React, { useState, useRef, useEffect } from 'react'
 //
 // Accessible-ish basics: closes on outside click and Escape, keeps the
 // native-select-like keyboard tabbing via a real <button> trigger.
+//
+// VIEWPORT FIX: the panel used to always open downward from the trigger
+// with no check for available space, so on fields lower on the page
+// (State/Province, Pincode) it ran past the bottom of the screen. It now
+// measures actual remaining space above/below the trigger on open and
+// flips upward (adds the `panel-up` class, styled in onboarding.css)
+// whenever there isn't enough room below but there is above.
 function SearchableSelect({
   value,
   onChange,
@@ -20,7 +27,9 @@ function SearchableSelect({
 }) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
+  const [openUpward, setOpenUpward] = useState(false)
   const rootRef = useRef(null)
+  const triggerRef = useRef(null)
 
   useEffect(() => {
     const handleClickOutside = (e) => {
@@ -43,6 +52,18 @@ function SearchableSelect({
     }
   }, [])
 
+  // Decide open-up vs open-down based on real remaining viewport space —
+  // recomputed every time the panel opens, since scroll position can
+  // have changed since the last time it was opened.
+  useEffect(() => {
+    if (!open || !triggerRef.current) return
+    const rect = triggerRef.current.getBoundingClientRect()
+    const spaceBelow = window.innerHeight - rect.bottom
+    const spaceAbove = rect.top
+    const PANEL_ESTIMATE = 300 // search box + ~6 visible rows + padding
+    setOpenUpward(spaceBelow < PANEL_ESTIMATE && spaceAbove > spaceBelow)
+  }, [open])
+
   const selected = options.find((o) => getValue(o) === value)
   const filtered = query.trim()
     ? options.filter((o) => getLabel(o).toLowerCase().includes(query.trim().toLowerCase()))
@@ -53,6 +74,7 @@ function SearchableSelect({
       <button
         type="button"
         className={`searchable-select-trigger ${open ? 'open' : ''}`}
+        ref={triggerRef}
         onClick={() => !disabled && setOpen((o) => !o)}
         disabled={disabled}
       >
@@ -63,7 +85,7 @@ function SearchableSelect({
       </button>
 
       {open && (
-        <div className="searchable-select-panel">
+        <div className={`searchable-select-panel ${openUpward ? 'panel-up' : ''}`}>
           <input
             autoFocus
             type="text"

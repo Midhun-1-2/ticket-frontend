@@ -199,6 +199,25 @@ function flattenApiErrors(data) {
     .join('\n')
 }
 
+// ---------------------------------------------------------------------------
+// Click ripple for .btn-primary buttons — same behavior as the login page's
+// submit button ripple. Purely decorative: doesn't touch any click logic,
+// just spawns a short-lived element sized/positioned at the click point.
+// ---------------------------------------------------------------------------
+function spawnButtonRipple(e) {
+  const el = e.currentTarget
+  if (el.disabled) return
+  const rect = el.getBoundingClientRect()
+  const size = Math.max(rect.width, rect.height) * 1.4
+  const ripple = document.createElement('span')
+  ripple.className = 'btn-ripple'
+  ripple.style.width = ripple.style.height = `${size}px`
+  ripple.style.left = `${e.clientX - rect.left - size / 2}px`
+  ripple.style.top = `${e.clientY - rect.top - size / 2}px`
+  el.appendChild(ripple)
+  setTimeout(() => ripple.remove(), 650)
+}
+
 function Onboarding() {
   const [step, setStep] = useState(1)
   const [activeSection, setActiveSection] = useState(0) // Step 1 sub-section (0-3)
@@ -660,10 +679,14 @@ function Onboarding() {
   // ---------- Main header (breadcrumb + heading, mirrors the dashboard) ----------
 
   const renderMainHeader = () => {
+    // key includes step + activeSection so this remounts (and its
+    // ob-rise entrance animation replays) every time the person moves
+    // between sub-sections or steps — otherwise React would just patch
+    // the text in place and the reveal would only ever play once.
     if (step === 1) {
       const meta = SECTION_META[activeSection]
       return (
-        <div className="main-header">
+        <div className="main-header" key={`header-1-${activeSection}`}>
           <div className="main-eyebrow">ONBOARDING · SECTION {activeSection + 1} OF {SECTION_META.length}</div>
           <h1 className="main-heading">{meta.heading}</h1>
           <p className="main-subtitle">{meta.subtitle}</p>
@@ -672,7 +695,7 @@ function Onboarding() {
     }
     if (step === 2) {
       return (
-        <div className="main-header">
+        <div className="main-header" key="header-2">
           <div className="main-eyebrow">ONBOARDING · STEP 2 OF 3</div>
           <h1 className="main-heading">Product Details</h1>
           <p className="main-subtitle">Set the version and support details for each product selected in the previous step.</p>
@@ -681,7 +704,7 @@ function Onboarding() {
     }
     if (step === 3) {
       return (
-        <div className="main-header">
+        <div className="main-header" key="header-3">
           <div className="main-eyebrow">ONBOARDING · STEP 3 OF 3</div>
           <h1 className="main-heading">Review &amp; Submit</h1>
           <p className="main-subtitle">Check everything looks right before you send it off for approval.</p>
@@ -998,7 +1021,7 @@ function Onboarding() {
         {activeSection > 0
           ? <button className="btn btn-secondary" onClick={() => setActiveSection(activeSection - 1)}>← Back</button>
           : <div />}
-        <button className="btn btn-primary" onClick={handleSectionContinue}>
+        <button className="btn btn-primary" onClick={handleSectionContinue} onMouseDown={spawnButtonRipple}>
           {activeSection < 3 ? 'Continue →' : 'Next: Product Details →'}
         </button>
       </div>
@@ -1088,7 +1111,7 @@ function Onboarding() {
 
       <div className="onboarding-actions">
         <button className="btn btn-secondary" onClick={() => setStep(1)}>← Back</button>
-        <button className="btn btn-primary" onClick={handleNextFromStep2}>Next: Review & Submit →</button>
+        <button className="btn btn-primary" onClick={handleNextFromStep2} onMouseDown={spawnButtonRipple}>Next: Review & Submit →</button>
       </div>
     </div>
   )
@@ -1162,7 +1185,7 @@ function Onboarding() {
 
       <div className="onboarding-actions">
         <button className="btn btn-secondary" onClick={() => setStep(2)}>← Back to Product Details</button>
-        <button className="btn btn-primary" disabled={!confirmed || isSubmitting} onClick={handleSubmit}>
+        <button className="btn btn-primary" disabled={!confirmed || isSubmitting} onClick={handleSubmit} onMouseDown={spawnButtonRipple}>
           {isSubmitting ? 'Submitting...' : 'Submit Project'}
         </button>
       </div>

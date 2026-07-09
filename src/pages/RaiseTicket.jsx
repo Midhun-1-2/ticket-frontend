@@ -43,6 +43,14 @@ const FileIcon = () => (
   </svg>
 )
 
+// Small checkmark used in both the success banner and the submit button
+// once a ticket has been raised — purely decorative, no behavior tied to it.
+const CheckIcon = ({ size = 14 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M20 6 9 17l-5-5" />
+  </svg>
+)
+
 function RaiseTicket() {
   const navigate = useNavigate()
   const fileInputRef = useRef(null)
@@ -187,6 +195,11 @@ function RaiseTicket() {
       })
 
       setBanner({ type: 'success', text: 'Ticket raised. Redirecting to your dashboard…' })
+      // submitting intentionally stays true here (no finally re-enabling
+      // it) so Cancel/Submit can't be clicked again during the 1200ms
+      // redirect window below — previously `finally` reset it to false
+      // immediately, leaving both buttons clickable right up until the
+      // navigate() actually fired.
       setTimeout(() => navigate('/dashboard/'), 1200)
     } catch (err) {
       // Surface DRF field errors if present (e.g. { product: ["You can
@@ -201,12 +214,13 @@ function RaiseTicket() {
         type: 'error',
         text: serverMsg || 'Could not raise the ticket. Please try again.',
       })
-    } finally {
       setSubmitting(false)
     }
   }
 
   const handleCancel = () => navigate('/dashboard/')
+
+  const isSuccess = banner?.type === 'success'
 
   return (
     <main className="main">
@@ -216,8 +230,19 @@ function RaiseTicket() {
           <div className="raise-title">Raise New Ticket</div>
           <div className="raise-subtitle">Describe the issue and route it to the right team.</div>
 
-          <form className="raise-card" onSubmit={handleSubmit}>
-            {banner && <div className={`raise-banner ${banner.type}`}>{banner.text}</div>}
+          {/* is-success only adds a CSS class for the ring-pulse defined in
+              RaiseTicket.css — doesn't touch any submit/validation logic. */}
+          <form className={`raise-card${isSuccess ? ' is-success' : ''}`} onSubmit={handleSubmit}>
+            {banner && (
+              <div className={`raise-banner ${banner.type}`}>
+                {isSuccess && (
+                  <span className="raise-banner-icon">
+                    <CheckIcon size={12} />
+                  </span>
+                )}
+                {banner.text}
+              </div>
+            )}
 
             <div className={`raise-field ${errors.subject ? 'error' : ''}`}>
               <label>Subject / Title<span className="required">*</span></label>
@@ -338,7 +363,11 @@ function RaiseTicket() {
                 Cancel
               </button>
               <button type="submit" className="btn btn-primary" disabled={submitting}>
-                {submitting ? 'Submitting…' : 'Submit Ticket'}
+                {isSuccess ? (
+                  <span className="raise-btn-check"><CheckIcon size={15} /></span>
+                ) : (
+                  submitting ? 'Submitting…' : 'Submit Ticket'
+                )}
               </button>
             </div>
           </form>
