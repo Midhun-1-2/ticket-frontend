@@ -773,7 +773,7 @@ function Onboarding() {
 
       <div className={`form-field ${errors.city ? 'error' : ''}`}>
         <label>City<span className="required">*</span></label>
-        <input placeholder="Ernakulam" value={formData.city} onChange={(e) => updateField('city', e.target.value)} />
+        <input placeholder="Enter your city" value={formData.city} onChange={(e) => updateField('city', e.target.value)} />
         {errors.city && <span className="field-error">{errors.city}</span>}
       </div>
 
