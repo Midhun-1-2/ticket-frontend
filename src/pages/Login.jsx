@@ -388,11 +388,11 @@ function Login() {
                       value={credential}
                       onChange={(e) => {
                         const v = hasMpin
-                          ? e.target.value.replace(/\D/g, '').slice(0, 6)
+                          ? e.target.value.replace(/\D/g, '').slice(0, 4)
                           : e.target.value
                         setCredential(v)
                       }}
-                      maxLength={hasMpin ? 6 : undefined}
+                      maxLength={hasMpin ? 4 : undefined}
                       autoComplete="current-password"
                       required
                     />
