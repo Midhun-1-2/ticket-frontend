@@ -1050,18 +1050,13 @@ function StepD({
   request, assignedSummary, finalAction, setFinalAction, reason, setReason,
   outcome, submitting, actionError, onBack, onSubmit,
 }) {
+  // The parent panel already renders this same "resolved" banner (with the
+  // Revoke Approval action) right above the step navigator whenever
+  // isResolved is true — which is exactly when outcome is set here. So once
+  // resolved, this step has nothing left to show; the Choose Final Action
+  // controls below only make sense pre-decision.
   if (outcome) {
-    return (
-      <div className={`banner ${outcome === "approved" ? "success" : "danger"}`}>
-        {outcome === "approved" ? <ShieldCheck /> : <X />}
-        <div>
-          <b>{outcome === "approved" ? "Account approved" : "Account rejected"}</b>
-          {outcome === "approved"
-            ? "The customer can now log in with the password they set at signup."
-            : "The customer has been notified by email that their registration was declined."}
-        </div>
-      </div>
-    );
+    return null;
   }
 
   return (

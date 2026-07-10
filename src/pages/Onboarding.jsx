@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react'
+import { Link } from 'react-router-dom'
 import { Country, State } from 'country-state-city'
 import { isValidPhoneNumber, isSupportedCountry, getCountryCallingCode, getExampleNumber } from 'libphonenumber-js'
 import examplesMobile from 'libphonenumber-js/examples.mobile.json'
@@ -200,9 +201,14 @@ function flattenApiErrors(data) {
 }
 
 // ---------------------------------------------------------------------------
-// Click ripple for .btn-primary buttons — same behavior as the login page's
-// submit button ripple. Purely decorative: doesn't touch any click logic,
-// just spawns a short-lived element sized/positioned at the click point.
+// Click ripple for .btn-primary AND .btn-secondary buttons — same behavior
+// as the login page's submit button ripple. Purely decorative: doesn't
+// touch any click logic, just spawns a short-lived element sized/positioned
+// at the click point. The ripple's own color is scoped in CSS based on
+// which button it landed in (see .btn-primary .btn-ripple vs
+// .btn-secondary .btn-ripple in onboarding.css), since a white ripple that
+// works on the primary button's colored gradient would be invisible on the
+// secondary button's white background.
 // ---------------------------------------------------------------------------
 function spawnButtonRipple(e) {
   const el = e.currentTarget
@@ -667,11 +673,22 @@ function Onboarding() {
         })}
       </nav>
 
+      {/* Compact standalone version for mobile — the desktop link above
+          lives inside .sidebar-footer, which is hidden entirely at the
+          900px breakpoint (sidebar becomes a horizontal top bar), so
+          without this the link would just disappear on mobile. */}
+      <Link to="/login" className="sidebar-login-link-mobile">
+        Log in <span className="sidebar-login-link-arrow">→</span>
+      </Link>
+
       <div className="sidebar-footer">
         <div className="sidebar-footer-title">Need a hand?</div>
         <p className="sidebar-footer-text">
           Your account stays pending until an admin reviews it — you're free to revisit any section before submitting.
         </p>
+        <Link to="/login" className="sidebar-login-link">
+          Already have an account? <span className="sidebar-login-link-arrow">Log in →</span>
+        </Link>
       </div>
     </aside>
   )
@@ -1019,7 +1036,15 @@ function Onboarding() {
 
       <div className="onboarding-actions">
         {activeSection > 0
-          ? <button className="btn btn-secondary" onClick={() => setActiveSection(activeSection - 1)}>← Back</button>
+          ? (
+            <button
+              className="btn btn-secondary"
+              onClick={() => setActiveSection(activeSection - 1)}
+              onMouseDown={spawnButtonRipple}
+            >
+              <span className="btn-back-arrow">←</span> Back
+            </button>
+          )
           : <div />}
         <button className="btn btn-primary" onClick={handleSectionContinue} onMouseDown={spawnButtonRipple}>
           {activeSection < 3 ? 'Continue →' : 'Next: Product Details →'}
@@ -1110,7 +1135,9 @@ function Onboarding() {
       })}
 
       <div className="onboarding-actions">
-        <button className="btn btn-secondary" onClick={() => setStep(1)}>← Back</button>
+        <button className="btn btn-secondary" onClick={() => setStep(1)} onMouseDown={spawnButtonRipple}>
+          <span className="btn-back-arrow">←</span> Back
+        </button>
         <button className="btn btn-primary" onClick={handleNextFromStep2} onMouseDown={spawnButtonRipple}>Next: Review & Submit →</button>
       </div>
     </div>
@@ -1184,7 +1211,9 @@ function Onboarding() {
       </label>
 
       <div className="onboarding-actions">
-        <button className="btn btn-secondary" onClick={() => setStep(2)}>← Back to Product Details</button>
+        <button className="btn btn-secondary" onClick={() => setStep(2)} onMouseDown={spawnButtonRipple}>
+          <span className="btn-back-arrow">←</span> Back to Product Details
+        </button>
         <button className="btn btn-primary" disabled={!confirmed || isSubmitting} onClick={handleSubmit} onMouseDown={spawnButtonRipple}>
           {isSubmitting ? 'Submitting...' : 'Submit Project'}
         </button>

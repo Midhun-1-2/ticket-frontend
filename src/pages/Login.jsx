@@ -22,6 +22,33 @@ function Login() {
   const [toastMessage, setToastMessage] = useState('')
   const [showForgotMpin, setShowForgotMpin] = useState(false)
 
+  // --- Captcha ---------------------------------------------------------
+  // Simple 4-digit numeric captcha, generated client-side. captchaNoise
+  // holds a small random rotation/vertical-offset per digit purely for
+  // display (rendered in auth-captcha-box) so the code isn't just flat,
+  // trivially-selectable text. This is a lightweight UX deterrent against
+  // casual bots, not a security boundary — real bot/abuse protection
+  // should still live server-side if that's ever a concern.
+  const [captchaCode, setCaptchaCode] = useState('')
+  const [captchaNoise, setCaptchaNoise] = useState([])
+  const [captchaInput, setCaptchaInput] = useState('')
+
+  function generateCaptcha() {
+    const code = Array.from({ length: 4 }, () => Math.floor(Math.random() * 10)).join('')
+    const noise = code.split('').map((d) => ({
+      d,
+      rot: (Math.random() * 16 - 8).toFixed(1),
+      ty: (Math.random() * 6 - 3).toFixed(1),
+    }))
+    setCaptchaCode(code)
+    setCaptchaNoise(noise)
+    setCaptchaInput('')
+  }
+
+  useEffect(() => {
+    generateCaptcha()
+  }, [])
+
   // 'idle' -> 'success' (checkmark shows in the button) -> 'exiting' (the
   // full-screen wipe plays) -> navigate. Purely a presentation layer over
   // the real login flow below; redirectByRole still does the actual
@@ -84,6 +111,11 @@ function Login() {
       setError(hasMpin ? 'Enter your M-PIN.' : 'Enter your password.')
       return
     }
+    if (captchaInput.length !== 4 || captchaInput !== captchaCode) {
+      setError('Captcha does not match. Please try again.')
+      generateCaptcha()
+      return
+    }
 
     setLoading(true)
     try {
@@ -133,11 +165,16 @@ function Login() {
 
       if (detail === 'pending_approval') {
         setPendingApproval(true)
+      } else if (detail === 'account_deactivated') {
+        setError('This account has been deactivated. Contact an admin for access.')
       } else if (err.response) {
         setError(detail || `Incorrect phone number or ${hasMpin ? 'M-PIN' : 'password'}.`)
       } else {
         setError('Could not reach the server. Please try again.')
       }
+      // A failed login attempt still consumes the captcha — regenerate so
+      // the same code can't be reused across repeated attempts.
+      generateCaptcha()
     } finally {
       setLoading(false)
     }
@@ -360,6 +397,53 @@ function Login() {
                       required
                     />
                   </label>
+                )}
+
+                {/* 4-digit numeric captcha — client-generated, regenerated
+                    on refresh click and on any failed attempt so a code
+                    can't be reused. Digits are rendered individually with
+                    a small random rotate/offset (captchaNoise) instead of
+                    as flat text. Only shown once the phone number has been
+                    entered/checked, same gating as the credential field. */}
+                {phoneChecked && (
+                  <div className="auth-field auth-captcha">
+                    <span className="auth-label">Verification Code</span>
+                    <div className="auth-captcha-row">
+                      <div className="auth-captcha-box" aria-label={`Captcha code`}>
+                        {captchaNoise.map((item, i) => (
+                          <span
+                            key={i}
+                            className="auth-captcha-digit"
+                            style={{ transform: `rotate(${item.rot}deg) translateY(${item.ty}px)` }}
+                          >
+                            {item.d}
+                          </span>
+                        ))}
+                      </div>
+                      <button
+                        type="button"
+                        className="auth-captcha-refresh"
+                        onClick={generateCaptcha}
+                        aria-label="Get a new code"
+                        title="Get a new code"
+                      >
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M21 12a9 9 0 1 1-2.64-6.36" />
+                          <path d="M21 3v6h-6" />
+                        </svg>
+                      </button>
+                    </div>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      placeholder="Enter the 4 digits above"
+                      value={captchaInput}
+                      onChange={(e) => setCaptchaInput(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                      maxLength={4}
+                      autoComplete="off"
+                      required
+                    />
+                  </div>
                 )}
 
                 {hasMpin && (

@@ -2,6 +2,12 @@ import React, { useEffect, useMemo, useState, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import api from '../api' // adjust this path to match where api.js actually lives
 
+// NOTE: assumes login stores { role } in localStorage, matching the shape
+// returned by the backend's issue_tokens() — same pattern as
+// TicketAssignment.jsx.
+const getRole = () => localStorage.getItem('role') || 'staff'
+const ROLE_EYEBROW = { admin: 'Admin · Manage', staff: 'Staff · Manage', customer: 'Customer · Manage' }
+
 // ---------------------------------------------------------------------------
 // Static option lists — mirrors RaiseTicket.jsx / ticketapp/models.py.
 // Product is still a hardcoded choice field on the Ticket model (see the
@@ -9,7 +15,7 @@ import api from '../api' // adjust this path to match where api.js actually live
 // until that's migrated to ProductMaster.
 // ---------------------------------------------------------------------------
 const PRIORITIES = ['Low', 'Medium', 'High', 'Urgent']
-const STATUSES = ['Open', 'In Progress', 'On Hold', 'Resolved', 'Closed']
+const STATUSES = ['In Progress', 'On Hold', 'Resolved', 'Closed']
 
 const PRIORITY_KEY = { Low: 'low', Medium: 'medium', High: 'high', Urgent: 'urgent' }
 
@@ -240,7 +246,7 @@ function AllTickets() {
 
         <div className="page-head">
           <div>
-            <div className="page-eyebrow">Admin · Manage</div>
+            <div className="page-eyebrow">{ROLE_EYEBROW[getRole()] || 'Manage'}</div>
             <h1 className="page-title">All Tickets</h1>
             <p className="page-desc">Every ticket raised across all customers.</p>
           </div>
@@ -439,7 +445,7 @@ function TicketModal({ ticket, onClose, onUpdated }) {
     setError('')
     setSaved(false)
     try {
-      const { data } = await api.patch(`tickets/${ticket.id}/`, { status })
+      const { data } = await api.patch(`tickets/${ticket.id}/status/`, { status })
       onUpdated(data)
       setSaved(true)
     } catch (err) {

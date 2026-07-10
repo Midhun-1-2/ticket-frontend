@@ -327,11 +327,11 @@
 }
 
 /* Staggered entrance for whatever the form currently renders (phone field,
-   role-detected chip, credential field, forgot-mpin row, error banner,
-   submit button, signup link). Using nth-child instead of per-element
-   inline delays means this keeps working correctly no matter which of
-   the conditional blocks (role chip / credential field / error) are
-   present at a given moment — no JSX changes required here. */
+   role-detected chip, credential field, captcha field, forgot-mpin row,
+   error banner, submit button, signup link). Using nth-child instead of
+   per-element inline delays means this keeps working correctly no matter
+   which of the conditional blocks (role chip / credential field / error)
+   are present at a given moment — no JSX changes required here. */
 .auth-form > *{
   opacity: 0;
   animation: auth-rise .5s cubic-bezier(.16,.8,.24,1) both;
@@ -343,6 +343,7 @@
 .auth-form > *:nth-child(5){ animation-delay: .60s; }
 .auth-form > *:nth-child(6){ animation-delay: .67s; }
 .auth-form > *:nth-child(7){ animation-delay: .74s; }
+.auth-form > *:nth-child(8){ animation-delay: .81s; }
 
 .auth-field{
   display: flex;
@@ -364,7 +365,7 @@
   color: var(--text);
   background: #fff;
   outline: 0;
-  transition: border-color .15s ease, box-shadow .15s ease;
+  transition: border-color .15s ease, box-shadow .15s ease, background-position .15s ease;
   width: 100%;
 }
 .auth-field input::placeholder{ color: var(--text-faint); }
@@ -376,6 +377,28 @@
 @keyframes auth-focus-ring{
   0%{ box-shadow: 0 0 0 0 rgba(15,110,99,0.28); }
   100%{ box-shadow: 0 0 0 3px rgba(15,110,99,0.12); }
+}
+
+/* Small left-aligned glyphs so the phone / password / captcha fields
+   read as distinct at a glance instead of three identical blank boxes.
+   Icons are inline SVG data-URIs (no extra markup needed), always
+   present regardless of value, and just sit quietly next to the text. */
+.auth-field input[type="tel"],
+.auth-field input[type="password"],
+.auth-captcha input[type="text"]{
+  padding-left: 38px;
+  background-repeat: no-repeat;
+  background-position: 12px center;
+  background-size: 16px 16px;
+}
+.auth-field input[type="tel"]{
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%239CA3AF' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z'/%3E%3C/svg%3E");
+}
+.auth-field input[type="password"]{
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%239CA3AF' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='11' width='18' height='11' rx='2' ry='2'/%3E%3Cpath d='M7 11V7a5 5 0 0 1 10 0v4'/%3E%3C/svg%3E");
+}
+.auth-captcha input[type="text"]{
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%239CA3AF' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z'/%3E%3C/svg%3E");
 }
 
 .auth-role-detected{
@@ -409,6 +432,95 @@
   color: var(--accent-ink);
   font-weight: 700;
   text-transform: capitalize;
+}
+
+/* =========================================================================
+   Captcha — 4-digit numeric code (see generateCaptcha() in Login.jsx).
+   Digits are rendered as individual spans, each with a small random
+   rotate/translateY applied inline via captchaNoise, so the code box
+   isn't just flat selectable text. Kept in the same paper/ink/mono
+   language as the rest of the form rather than looking bolted-on.
+   ========================================================================= */
+.auth-captcha-row{
+  display: flex;
+  align-items: stretch;
+  gap: 10px;
+}
+
+.auth-captcha-box{
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  height: 34px;
+  background: var(--ink, #14171F);
+  border: 1px solid var(--ink-line, #2B303D);
+  border-radius: 7px;
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  user-select: none;
+  -webkit-user-select: none;
+}
+/* Faint dotted texture + a couple of static "strike" lines behind the
+   digits — cheap visual noise so the code doesn't read as plain flat
+   text, without needing canvas/image generation. */
+.auth-captcha-box::before{
+  content: "";
+  position: absolute; inset: 0; z-index: 0;
+  background-image: radial-gradient(rgba(255,255,255,.06) 1px, transparent 1px);
+  background-size: 10px 10px;
+}
+.auth-captcha-box::after{
+  content: "";
+  position: absolute; inset: 0; z-index: 0;
+  background:
+    linear-gradient(100deg, transparent 42%, rgba(255,255,255,.07) 44%, transparent 46%),
+    linear-gradient(80deg, transparent 68%, rgba(255,255,255,.05) 70%, transparent 72%);
+}
+.auth-captcha-digit{
+  position: relative;
+  z-index: 1;
+  display: inline-block;
+  font-family: var(--font-mono);
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: .02em;
+  color: #EAF6F3;
+}
+
+.auth-captcha-refresh{
+  flex-shrink: 0;
+  width: 34px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--accent-soft, #E3F1EE);
+  color: var(--accent-ink, #0B4F47);
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  cursor: pointer;
+  transition: background-color .15s ease, transform .3s cubic-bezier(.2,.8,.2,1);
+}
+.auth-captcha-refresh svg{ width: 14px; height: 14px; }
+.auth-captcha-refresh:hover{
+  background: var(--accent);
+  color: #fff;
+}
+.auth-captcha-refresh:active svg{
+  transform: rotate(180deg);
+}
+.auth-captcha-refresh svg{
+  transition: transform .35s cubic-bezier(.2,.8,.2,1);
+}
+
+.auth-captcha input{
+  margin-top: 8px;
+  letter-spacing: .3em;
+  font-family: var(--font-mono);
+  text-align: left;
 }
 
 /* Fixed: was justify-content: flex-end with no gap, which crammed the
@@ -725,9 +837,11 @@
   .auth-shell{ grid-template-columns: 1fr; }
   .auth-visual{ display: none; }
   .auth-card-wrap{
+    display: block;
     min-height: auto;
-    align-items: flex-start;
-    padding-top: 18px;
+    padding: 0 16px 16px;
+    margin-top: 0;
+    position: relative;
   }
   .auth-brand-mobile{ display: none; }
 
@@ -742,6 +856,12 @@
     background-position: 0 0, 11px 11px;
   }
 
+  /* Hero + form card are now ONE ticket stub instead of two separate
+     stacked boxes: the dark hero is the "stub", chamfered at its bottom
+     corners like a torn perforation, and the form card butts directly
+     against it below with a dashed tear-line at the seam (via
+     .auth-card-wrap::before). Reads as "detach here" — a nod to the
+     product name rather than a generic dark-card-over-white-card stack. */
   .auth-mobile-hero{
     display: block;
     position: relative;
@@ -749,8 +869,9 @@
     isolation: isolate;
     background: var(--ink);
     color: #fff;
-    border-radius: 16px;
-    padding: 20px 20px 18px;
+    border-radius: 18px 18px 0 0;
+    clip-path: polygon(0 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 10px 100%, 0 calc(100% - 10px));
+    padding: 22px 20px 26px;
     margin: 16px 16px 0;
   }
   .auth-mobile-hero::before{
@@ -777,8 +898,9 @@
 
   .auth-mobile-hero-title{
     font-family: var(--font-display);
-    font-size: 19px; font-weight: 700; line-height: 1.28;
-    margin: 14px 0 0;
+    font-size: 24px; font-weight: 700; line-height: 1.2;
+    letter-spacing: -0.01em;
+    margin: 16px 0 0;
     color: #fff;
   }
   .auth-mobile-hero-title .word{
@@ -788,13 +910,15 @@
     animation-delay: calc(var(--i, 0) * 55ms + 90ms);
   }
 
+  /* Punch-style chip instead of a filled pill — dashed border reads like
+     a ticket stamp/perforation rather than a generic status badge. */
   .auth-mobile-hero-ticker{
     display: inline-flex; align-items: center; gap: 8px;
-    margin-top: 14px;
-    background: rgba(255,255,255,.06);
-    border: 1px solid rgba(255,255,255,.14);
+    margin-top: 16px;
+    background: transparent;
+    border: 1.5px dashed rgba(255,255,255,.28);
     color: #DADCE4;
-    font-family: var(--font-mono); font-size: 10px; font-weight: 600; letter-spacing: .02em;
+    font-family: var(--font-mono); font-size: 10px; font-weight: 600; letter-spacing: .04em;
     padding: 6px 12px; border-radius: 20px;
     opacity: 0;
     animation: auth-rise .55s .5s cubic-bezier(.16,.8,.24,1) both;
@@ -805,15 +929,34 @@
     animation: auth-pulse 1.8s ease-in-out infinite;
   }
   .auth-mobile-hero-ticker .sep{ opacity: .45; }
+
+  /* The seam — a dashed "tear here" line sitting exactly where the
+     chamfered hero corners meet the card, with the card itself squared
+     off at the top so the two pieces read as one perforated stub. */
+  .auth-card-wrap::before{
+    content: "";
+    position: absolute;
+    top: 0; left: 16px; right: 16px;
+    border-top: 2px dashed rgba(20,23,31,.16);
+    z-index: 3;
+  }
+  .auth-card{
+    width: 100%;
+    max-width: none;
+    margin: 0;
+    border-radius: 0 0 18px 18px;
+    border-top: none;
+    box-shadow: 0 14px 28px -18px rgba(20,23,31,0.28);
+  }
 }
 
 @media (max-width: 768px){
-  .auth-card-wrap{ padding: 20px; padding-top: 48px; }
+  .auth-card-wrap{ padding-top: 0; }
 }
+
 
 /* Large phones (landscape) / small tablets */
 @media (max-width: 576px){
-  .auth-card-wrap{ padding: 16px; padding-top: 40px; }
   .auth-card{
     padding: 26px 20px 22px;
   }
@@ -826,6 +969,7 @@
     left: 12px;
     max-width: none;
   }
+  .auth-captcha-digit{ font-size: 14px; }
 }
 
 /* Small phones — slightly reduce heading/field sizes so nothing wraps oddly */
@@ -840,6 +984,8 @@
   .modal-title{
     font-size: 16.5px;
   }
+  .auth-captcha-box{ gap: 5px; }
+  .auth-captcha-digit{ font-size: 13px; }
 }
 
 /* =========================================================================
@@ -877,4 +1023,5 @@
   .auth-transition-overlay{ transition: none; opacity: 0 !important; }
   .auth-transition-mark{ animation: none; transition: none; }
   .auth-submit .btn-check{ animation: none; }
+  .auth-captcha-refresh:active svg{ transform: none; }
 }

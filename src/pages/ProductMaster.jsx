@@ -142,7 +142,16 @@ function ProductMasterPage() {
   // product name — matched case/whitespace-insensitively so re-typing the
   // same name slightly differently still lands under the same product.
   // The most recently activated version is the "primary" one shown in
-  // the row; the rest are available via the versions dropdown.
+  // the row (its version number/date/status drive the main columns); the
+  // rest are available via the versions dropdown.
+  //
+  // The DISPLAY NAME, however, is intentionally taken from the
+  // first-ever-created version in the group (lowest id), not from
+  // whichever version happens to be "primary". Without this, adding a
+  // new version under the same name but with different
+  // casing/spacing (e.g. "excel upload" instead of "Excel Upload") would
+  // silently overwrite the original label whenever that new version
+  // ended up sorted first. The originally chosen name should stick.
   // ---------------------------------------------------------------------
   const grouped = useMemo(() => {
     const byKey = new Map()
@@ -159,7 +168,9 @@ function ProductMasterPage() {
         if (bTime !== aTime) return bTime - aTime
         return (b.id > a.id ? 1 : -1)
       })
-      return { name: sorted[0].name, versions: sorted }
+      // First-created version (lowest id) owns the display name.
+      const originalNameSource = [...versions].sort((a, b) => a.id - b.id)[0]
+      return { name: originalNameSource.name, versions: sorted }
     })
 
     groups.sort((a, b) => {
@@ -234,14 +245,15 @@ function ProductMasterPage() {
                   return (
                     <tr key={normalizeName(group.name)}>
                       <td className="subj">
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <span>{group.name}</span>
-                          {hasMultiple && (
-                            <VersionsDropdown group={group} />
-                          )}
-                        </div>
+                        <span>{group.name}</span>
                       </td>
-                      <td>{displayVersion(primary.version)}</td>
+                      <td>
+                        {hasMultiple ? (
+                          <VersionsDropdown group={group} />
+                        ) : (
+                          <span>{displayVersion(primary.version)}</span>
+                        )}
+                      </td>
                       <td className="sla ok">{formatDate(primary.activation_date)}</td>
                       <td>{renderStatusChip(primary)}</td>
                       <td>
@@ -508,7 +520,10 @@ function EditProductModal({ group, onClose, onSaved, onVersionRemoved }) {
     setSaving(true)
     setErrors({})
     try {
-      const nameChanged = name !== primary.name
+      // Compare against group.name (the preserved original display name),
+      // not primary.name — primary is whichever version is most recently
+      // activated, which may not be the one the display name comes from.
+      const nameChanged = name !== group.name
 
       const patchPromises = versions.map((v) => {
         const payload = {}

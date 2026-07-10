@@ -27,6 +27,7 @@ function StaffManagement() {
   const [staffLoading, setStaffLoading] = useState(true)
   const [staffLoadError, setStaffLoadError] = useState('')
   const [togglingId, setTogglingId] = useState(null)
+  const [staffToToggle, setStaffToToggle] = useState(null)
 
   const [roles, setRoles] = useState([]) // [{ id, name }]
   const [rolesLoading, setRolesLoading] = useState(true)
@@ -189,11 +190,23 @@ function StaffManagement() {
     }
   }
 
-  async function toggleStatus(id) {
-    setTogglingId(id)
+  function openToggleConfirm(member) {
+    setStaffToToggle(member)
+    setStaffLoadError('')
+  }
+
+  function closeToggleConfirm() {
+    if (togglingId !== null) return // don't allow closing mid-request
+    setStaffToToggle(null)
+  }
+
+  async function confirmToggleStatus() {
+    if (!staffToToggle) return
+    setTogglingId(staffToToggle.id)
     try {
-      const { data } = await api.post(`staff/${id}/toggle-status/`)
-      setStaff((prev) => prev.map((s) => (s.id === id ? data : s)))
+      const { data } = await api.post(`staff/${staffToToggle.id}/toggle-status/`)
+      setStaff((prev) => prev.map((s) => (s.id === staffToToggle.id ? data : s)))
+      setStaffToToggle(null)
     } catch (err) {
       setStaffLoadError('Could not update status. Please try again.')
     } finally {
@@ -451,7 +464,7 @@ function StaffManagement() {
                             type="button"
                             className={`icon-action ${member.status === 'active' ? 'deactivate' : 'activate'}`}
                             disabled={togglingId === member.id}
-                            onClick={() => toggleStatus(member.id)}
+                            onClick={() => openToggleConfirm(member)}
                             title={member.status === 'active' ? 'Deactivate' : 'Activate'}
                             aria-label={`${member.status === 'active' ? 'Deactivate' : 'Activate'} ${member.name}`}
                           >
@@ -787,6 +800,44 @@ function StaffManagement() {
       )}
 
       {/* ================= Delete Staff Confirmation ================= */}
+      {staffToToggle && (
+        <div className="sm-modal-overlay" onClick={closeToggleConfirm}>
+          <div className="sm-modal-card" onClick={(e) => e.stopPropagation()}>
+            <div className="sm-modal-head">
+              <div>
+                <h2 className="sm-modal-title">
+                  {staffToToggle.status === 'active' ? 'Deactivate' : 'Activate'} staff account?
+                </h2>
+                <p className="sm-modal-sub">
+                  {staffToToggle.status === 'active'
+                    ? <><strong>{staffToToggle.name}</strong> will lose access to their account until reactivated.</>
+                    : <><strong>{staffToToggle.name}</strong> will regain access to their account.</>}
+                </p>
+              </div>
+              <button type="button" className="sm-modal-close" onClick={closeToggleConfirm} aria-label="Close">
+                &times;
+              </button>
+            </div>
+
+            <div className="sm-modal-actions">
+              <button type="button" className="btn btn-ghost" onClick={closeToggleConfirm} disabled={togglingId !== null}>
+                Cancel
+              </button>
+              <button
+                type="button"
+                className={staffToToggle.status === 'active' ? 'btn btn-danger' : 'btn btn-primary'}
+                onClick={confirmToggleStatus}
+                disabled={togglingId !== null}
+              >
+                {togglingId !== null
+                  ? (staffToToggle.status === 'active' ? 'Deactivating…' : 'Activating…')
+                  : (staffToToggle.status === 'active' ? 'Deactivate' : 'Activate')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showDeleteModal && staffToDelete && (
         <div className="sm-modal-overlay" onClick={closeDeleteConfirm}>
           <div className="sm-modal-card" onClick={(e) => e.stopPropagation()}>

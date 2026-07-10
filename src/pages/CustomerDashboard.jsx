@@ -32,12 +32,6 @@ const PRIORITY_CLASS = { Low: 'low', Medium: 'medium', High: 'high', Urgent: 'ur
 
 const CAT_COLORS = ['var(--blue)', undefined, 'var(--amber)', 'var(--violet)', 'var(--red)']
 
-// Statuses a customer is allowed to revoke (i.e. reopen) once staff have
-// marked the ticket as finished. A ticket that's still Open / In Progress /
-// On Hold is actively being worked on, so revoke isn't offered for those —
-// only tickets staff have wrapped up (Resolved/Closed) can be reopened.
-const REVOCABLE_STATUSES = ['Resolved', 'Closed']
-
 // Linear progress steps used for the stepper in the detail view.
 // On Hold / Cancelled are treated as side-states and shown as a banner instead.
 const FLOW_STEPS = ['Open', 'In Progress', 'Resolved']
@@ -63,12 +57,11 @@ function formatDate(iso) {
   })
 }
 
-function TicketDetailModal({ ticket, onClose, onRevoke, revoking }) {
+function TicketDetailModal({ ticket, onClose }) {
   if (!ticket) return null
 
   const isSideState = ticket.status === 'On Hold' || ticket.status === 'Closed'
   const currentStepIndex = FLOW_STEPS.indexOf(ticket.status)
-  const canRevoke = REVOCABLE_STATUSES.includes(ticket.status)
 
   const history = ticket.status_history && ticket.status_history.length
     ? ticket.status_history
@@ -139,18 +132,6 @@ function TicketDetailModal({ ticket, onClose, onRevoke, revoking }) {
             <span className="v">{formatDate(ticket.created_at)}</span>
           </div>
         </div>
-
-        <div className="modal-foot">
-          {canRevoke ? (
-            <button className="btn btn-danger" disabled={revoking} onClick={() => onRevoke(ticket)}>
-              {revoking ? 'Reopening…' : 'Reopen Ticket'}
-            </button>
-          ) : (
-            <span className="panel-sub">
-              This ticket can't be reopened right now — it's still being worked on.
-            </span>
-          )}
-        </div>
       </div>
     </div>
   )
@@ -161,7 +142,6 @@ function CustomerDashboard() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [selectedTicket, setSelectedTicket] = useState(null)
-  const [revoking, setRevoking] = useState(false)
 
   const fullName = getFullName()
 
@@ -221,20 +201,6 @@ function CustomerDashboard() {
       initTrendChart(buildTrendData(tickets))
     }
   }, [loading, stats.total])
-
-  const handleRevoke = async (ticket) => {
-    if (!window.confirm(`Reopen ticket #${ticket.id.slice(0, 8).toUpperCase()}? It'll go back to the Open queue.`)) return
-    setRevoking(true)
-    try {
-      await api.post(`tickets/${ticket.id}/revoke/`)
-      setSelectedTicket(null)
-      fetchTickets()
-    } catch (err) {
-      setError('Could not reopen this ticket. Please try again.')
-    } finally {
-      setRevoking(false)
-    }
-  }
 
   return (
     <main className="main">
@@ -341,7 +307,7 @@ function CustomerDashboard() {
           <div className="panel-head">
             <div>
               <div className="panel-title">Your Tickets</div>
-              <div className="panel-sub">Click a row to see full status, timeline, and revoke option</div>
+              <div className="panel-sub">Click a row to see full status and timeline</div>
             </div>
           </div>
           <div className="panel-body table-wrap" style={{ maxHeight: 480, overflowY: 'auto' }}>
@@ -383,8 +349,6 @@ function CustomerDashboard() {
       <TicketDetailModal
         ticket={selectedTicket}
         onClose={() => setSelectedTicket(null)}
-        onRevoke={handleRevoke}
-        revoking={revoking}
       />
     </main>
   )
