@@ -428,7 +428,7 @@ function TicketAssignment() {
 
         {isAdmin ? (
           <>
-            <div className="stat-grid" style={{ gridTemplateColumns: 'repeat(4, 1fr)' }}>
+            <div className="stat-grid stat-grid-4">
               <div className="stat-card" data-tone="amber">
                 <div className="stat-label">Pending</div>
                 <div className="stat-value">{stats.pending}</div>

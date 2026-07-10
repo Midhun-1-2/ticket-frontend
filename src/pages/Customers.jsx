@@ -221,7 +221,7 @@ function Customers() {
         {error && <div className="raise-banner error" style={{ marginBottom: 16 }}>{error}</div>}
 
         {/* Summary cards */}
-        <div className="stat-grid" style={{ gridTemplateColumns: 'repeat(4, 1fr)' }}>
+        <div className="stat-grid stat-grid-4">
           <div className="stat-card" data-tone="accent">
             <div className="stat-label">Total Customers</div>
             <div className="stat-value mono">{stats.total}</div>
@@ -540,7 +540,7 @@ function ViewModal({ user, onClose }) {
                   </svg>
                   Ticket Activity
                 </div>
-                <div className="stat-grid" style={{ gridTemplateColumns: 'repeat(4, 1fr)', marginBottom: 20 }}>
+                <div className="stat-grid stat-grid-4" style={{ marginBottom: 20 }}>
                   <div className="stat-card" data-tone="accent">
                     <div className="stat-label">Total Tickets</div>
                     <div className="stat-value mono">{ticketStats?.total ?? 0}</div>

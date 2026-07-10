@@ -1,17 +1,25 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import api from '../api' // adjust this path to match where api.js actually lives
-import '/src/CategoryMaster.css'
 
-const PRIORITIES = ['Low', 'Medium', 'High', 'Urgent']
-
-const priorityClass = {
-  Low: 'priority-low',
-  Medium: 'priority-medium',
-  High: 'priority-high',
-  Urgent: 'priority-urgent',
+// Same fix as ProductMaster.jsx / AllTickets.jsx / the dashboards: forces
+// every status chip on this page onto a single line and sizes it to its
+// own content, matching the design used everywhere else in the app.
+const chipNoWrapStyle = {
+  whiteSpace: 'nowrap',
+  display: 'inline-flex',
+  alignItems: 'center',
+  width: 'fit-content',
+  maxWidth: 'none',
+  minWidth: 'max-content',
+  boxSizing: 'content-box',
+  overflow: 'visible',
+  padding: '4px 12px',
+  lineHeight: 1.4,
 }
 
-const AVATAR_PALETTE = ['avatar-violet', 'avatar-amber', 'avatar-rose', 'avatar-teal', 'avatar-sky']
+const PRIORITY_KEY = { Low: 'low', Medium: 'medium', High: 'high', Urgent: 'urgent' }
+
+const PRIORITIES = ['Low', 'Medium', 'High', 'Urgent']
 
 const emptyForm = {
   name: '',
@@ -26,60 +34,11 @@ function initialsOf(name) {
   return (words[0][0] + words[1][0]).toUpperCase()
 }
 
-function avatarClassFor(name) {
-  let hash = 0
-  for (let i = 0; i < name.length; i++) hash = (hash * 31 + name.charCodeAt(i)) >>> 0
-  return AVATAR_PALETTE[hash % AVATAR_PALETTE.length]
-}
-
-// Icons — kept as small inline SVGs so they render identically everywhere,
-// rather than relying on emoji glyphs.
-const PlusIcon = () => (
-  <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-    <path d="M7 1V13M1 7H13" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-  </svg>
-)
-const PencilIcon = () => (
-  <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
-    <path d="M11.05 2.55a1.5 1.5 0 0 1 2.12 0l.28.28a1.5 1.5 0 0 1 0 2.12l-7.6 7.6-3.1.78.78-3.1 7.52-7.68Z"
-      stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
-  </svg>
-)
-const TrashIcon = () => (
-  <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
-    <path d="M2.5 4.5h11M6 4.5V3a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v1.5M6.5 7.5v4M9.5 7.5v4M3.5 4.5l.6 8a1.5 1.5 0 0 0 1.5 1.4h4.8a1.5 1.5 0 0 0 1.5-1.4l.6-8"
-      stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
-  </svg>
-)
-// Locked/padlock icon — shown in place of the trash icon when a category
-// is in use, so the disabled state reads as "protected" rather than just
-// looking broken.
-const LockIcon = () => (
-  <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
-    <rect x="3.5" y="7" width="9" height="6.5" rx="1.3" stroke="currentColor" strokeWidth="1.3" />
-    <path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
-  </svg>
-)
-const TagIcon = () => (
-  <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
-    <path d="M12.6 2.6 21 11l-9 9-8.4-8.4V3.6a1 1 0 0 1 1-1H12.6Z" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" />
-    <circle cx="8" cy="8" r="1.4" fill="currentColor" />
-  </svg>
-)
-// Toggle/power icon — used for the activate/deactivate button.
-const PowerIcon = () => (
-  <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
-    <path d="M8 2v5.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
-    <path d="M4.5 4.2a5 5 0 1 0 7 0" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
-  </svg>
-)
-
 function CategoryMaster() {
   const [categories, setCategories] = useState([])
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState('')
   const [saving, setSaving] = useState(false)
-  const [lastSynced, setLastSynced] = useState(null)
   const [togglingId, setTogglingId] = useState(null)
 
   const [modalMode, setModalMode] = useState(null) // null | 'add' | 'edit'
@@ -99,7 +58,6 @@ function CategoryMaster() {
     try {
       const { data } = await api.get('categories/?include_inactive=true')
       setCategories(data)
-      setLastSynced(new Date())
     } catch (err) {
       setLoadError('Could not load categories. Please try again.')
     } finally {
@@ -154,7 +112,6 @@ function CategoryMaster() {
         const { data } = await api.post('categories/', form)
         setCategories((prev) => [...prev, data])
       }
-      setLastSynced(new Date())
       closeModal()
     } catch (err) {
       const apiErrors = err.response?.data
@@ -185,7 +142,6 @@ function CategoryMaster() {
       // Hard delete on the backend (categories not in use are removed
       // outright, not just deactivated) — drop it from the list entirely.
       setCategories((prev) => prev.filter((c) => c.id !== target.id))
-      setLastSynced(new Date())
       setDeleteTarget(null)
       setDeleteError('')
     } catch (err) {
@@ -210,7 +166,6 @@ function CategoryMaster() {
         is_active: !category.is_active,
       })
       setCategories((prev) => prev.map((c) => (c.id === category.id ? data : c)))
-      setLastSynced(new Date())
     } catch (err) {
       setLoadError('Could not update status. Please try again.')
     } finally {
@@ -231,104 +186,120 @@ function CategoryMaster() {
     return { total, activeCount, topPriority }
   }, [categories])
 
-  const syncedLabel = lastSynced
-    ? lastSynced.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-    : '—'
-
   return (
     <main className="main">
-    <div className="category-page">
-      <div className="category-shell">
-        <div className="category-eyebrow">MANAGE · CATEGORIES</div>
+      <div className="content">
 
-        <div className="category-header">
+        <div className="page-head">
           <div>
-            <div className="category-title">Categories</div>
-            <div className="category-subtitle">Manage the categories tickets get routed under.</div>
+            <div className="page-eyebrow">Manage · Categories</div>
+            <h1 className="page-title">Categories</h1>
+            <p className="page-desc">Manage the categories tickets get routed under.</p>
           </div>
-          <button className="btn btn-primary" onClick={openAddModal}>
-            <PlusIcon />
-            Add Category
-          </button>
+          <div className="page-head-actions">
+            <button className="btn btn-primary" onClick={openAddModal}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 5v14M5 12h14" /></svg>
+              Add Category
+            </button>
+          </div>
         </div>
 
-        <div className="stat-strip">
-          <span className="stat-strip-live">
-            <span className="stat-dot" />
-            {stats.total} {stats.total === 1 ? 'CATEGORY' : 'CATEGORIES'}
-          </span>
-          <span className="stat-strip-sep" />
-          <span>{stats.activeCount} active</span>
-          <span className="stat-strip-sep" />
-          <span>Most used priority <b>{stats.topPriority}</b></span>
-          <span className="stat-strip-sep" />
-          <span>Last synced <b>{syncedLabel}</b></span>
+        {loadError && (
+          <div className="alert-banner error">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><path d="M12 8v4M12 16h.01" /></svg>
+            {loadError}
+          </div>
+        )}
+
+        <div className="stat-grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
+          <div className="stat-card" data-tone="accent">
+            <div className="stat-label">Total Categories</div>
+            <div className="stat-value mono">{stats.total}</div>
+            <div className="stat-foot">All categories</div>
+          </div>
+          <div className="stat-card">
+            <div className="stat-label">Active</div>
+            <div className="stat-value mono">{stats.activeCount}</div>
+            <div className="stat-foot">Currently routing tickets</div>
+          </div>
+          <div className="stat-card" data-tone="amber">
+            <div className="stat-label">Most Used Priority</div>
+            <div className="stat-value mono">{stats.topPriority}</div>
+            <div className="stat-foot">Across all categories</div>
+          </div>
         </div>
 
-        <div className="category-card">
-          {loading ? (
-            <div className="empty-state">
-              <div className="empty-state-title">Loading categories…</div>
-            </div>
-          ) : loadError ? (
-            <div className="empty-state">
-              <div className="empty-icon empty-icon-error"><TagIcon /></div>
-              <div className="empty-state-title">Something went wrong</div>
-              <div className="empty-state-text">{loadError}</div>
-            </div>
-          ) : categories.length === 0 ? (
-            <div className="empty-state">
-              <div className="empty-icon"><TagIcon /></div>
-              <div className="empty-state-title">No categories yet</div>
-              <div className="empty-state-text">Add your first category to start routing tickets.</div>
-            </div>
-          ) : (
-            <table className="category-table">
+        <section className="panel">
+          <div className="panel-body table-wrap" style={{ paddingTop: 18 }}>
+            <table className="tickets">
               <thead>
                 <tr>
-                  <th style={{ width: '22%' }}>Category Name</th>
-                  <th style={{ width: '34%' }}>Description</th>
-                  <th style={{ width: '13%' }}>Default Priority</th>
-                  <th style={{ width: '12%' }}>Status</th>
-                  <th style={{ width: '19%' }}></th>
+                  <th>Category Name</th>
+                  <th>Description</th>
+                  <th>Default Priority</th>
+                  <th>Status</th>
+                  <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {categories.map((cat) => (
-                  <tr key={cat.id} className={cat.is_active ? '' : 'inactive-row'}>
+                {loading && (
+                  <tr><td colSpan={5}>Loading categories…</td></tr>
+                )}
+                {!loading && categories.length === 0 && (
+                  <tr><td colSpan={5}>No categories yet. Click "Add Category" to create one.</td></tr>
+                )}
+                {!loading && categories.map((cat) => (
+                  <tr key={cat.id}>
                     <td>
-                      <div className="cat-name-cell">
-                        <span className={`cat-avatar ${avatarClassFor(cat.name)}`}>{initialsOf(cat.name)}</span>
-                        <span className="cat-name">{cat.name}</span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <span className="cust-avatar">{initialsOf(cat.name)}</span>
+                        <span className="subj">{cat.name}</span>
                       </div>
                     </td>
-                    <td className="cat-desc">{cat.description || '—'}</td>
+                    <td>{cat.description || '—'}</td>
                     <td>
-                      <span className={`priority-pill ${priorityClass[cat.priority] || ''}`}>{cat.priority}</span>
+                      <span className={`priority ${PRIORITY_KEY[cat.priority] || ''}`}><span className="dot"></span>{cat.priority}</span>
                     </td>
                     <td>
-                      <span className={`status-pill ${cat.is_active ? 'status-active' : 'status-inactive'}`}>
+                      <span className={cat.is_active ? 'chip resolved' : 'chip closed'} style={chipNoWrapStyle}>
                         {cat.is_active ? 'Active' : 'Inactive'}
                       </span>
                     </td>
                     <td>
                       <div className="row-actions">
                         <button
-                          className={`icon-btn ${cat.is_active ? '' : 'toggle-off'}`}
+                          className="icon-action"
                           title={cat.is_active ? 'Deactivate' : 'Activate'}
                           disabled={togglingId === cat.id}
                           onClick={() => toggleActive(cat)}
                         >
-                          <PowerIcon />
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M18.36 6.64a9 9 0 1 1-12.73 0" /><path d="M12 2v10" />
+                          </svg>
                         </button>
-                        <button className="icon-btn" title="Edit" onClick={() => openEditModal(cat)}><PencilIcon /></button>
+                        <button className="icon-action" title="Edit" onClick={() => openEditModal(cat)}>
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M12 20h9" /><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+                          </svg>
+                        </button>
                         <button
-                          className={`icon-btn danger ${cat.in_use ? 'locked' : ''}`}
+                          className="icon-action danger"
                           title={cat.in_use ? 'Cannot delete: category is in use by existing tickets' : 'Delete'}
                           disabled={cat.in_use}
-                          onClick={() => openDeleteModal(cat)}
+                          style={cat.in_use ? { opacity: 0.4, cursor: 'not-allowed' } : undefined}
+                          onClick={() => !cat.in_use && openDeleteModal(cat)}
                         >
-                          {cat.in_use ? <LockIcon /> : <TrashIcon />}
+                          {cat.in_use ? (
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <rect x="4" y="10.5" width="16" height="10" rx="2" /><path d="M8 10.5V7a4 4 0 0 1 8 0v3.5" />
+                            </svg>
+                          ) : (
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M3 6h18" /><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                              <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+                              <path d="M10 11v6" /><path d="M14 11v6" />
+                            </svg>
+                          )}
                         </button>
                       </div>
                     </td>
@@ -336,48 +307,56 @@ function CategoryMaster() {
                 ))}
               </tbody>
             </table>
-          )}
-        </div>
+          </div>
+        </section>
+
       </div>
 
       {/* Add / Edit modal */}
       {modalMode && (
         <div className="modal-overlay" onClick={closeModal}>
-          <div className="modal-card" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-title">{modalMode === 'edit' ? 'Edit Category' : 'Add Category'}</div>
-            <div className="modal-subtitle">
-              {modalMode === 'edit' ? 'Update the details for this category.' : 'Define a new category for routing tickets.'}
+          <div className="modal-box narrow" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-head">
+              <div className="modal-title">{modalMode === 'edit' ? 'Edit Category' : 'Add Category'}</div>
+              <button className="modal-close" onClick={closeModal}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18M6 6l12 12" /></svg>
+              </button>
             </div>
+            <div className="modal-body">
+              <div className="form-field">
+                <label>Category name</label>
+                <input
+                  placeholder="e.g. Hardware Issue"
+                  value={form.name}
+                  onChange={(e) => updateForm('name', e.target.value)}
+                />
+                {errors.name && <div className="form-error">{errors.name}</div>}
+              </div>
 
-            <div className={`modal-field ${errors.name ? 'error' : ''}`}>
-              <label>Category Name<span className="required">*</span></label>
-              <input
-                placeholder="e.g. Hardware Issue"
-                value={form.name}
-                onChange={(e) => updateForm('name', e.target.value)}
-              />
-              {errors.name && <span className="modal-field-error">{errors.name}</span>}
+              <div className="form-field">
+                <label>Description</label>
+                <textarea
+                  rows={3}
+                  placeholder="Briefly describe what falls under this category"
+                  value={form.description}
+                  onChange={(e) => updateForm('description', e.target.value)}
+                  style={{
+                    width: '100%', border: '1px solid var(--line)', borderRadius: 8,
+                    padding: '8px 12px', fontSize: 13.5, fontFamily: 'var(--font-body)',
+                    color: 'var(--text)', outline: 'none', resize: 'vertical',
+                  }}
+                />
+              </div>
+
+              <div className="form-field">
+                <label>Default priority</label>
+                <select className="select" style={{ width: '100%' }} value={form.priority} onChange={(e) => updateForm('priority', e.target.value)}>
+                  {PRIORITIES.map((p) => <option key={p} value={p}>{p}</option>)}
+                </select>
+              </div>
             </div>
-
-            <div className="modal-field">
-              <label>Description</label>
-              <textarea
-                rows={3}
-                placeholder="Briefly describe what falls under this category"
-                value={form.description}
-                onChange={(e) => updateForm('description', e.target.value)}
-              />
-            </div>
-
-            <div className="modal-field">
-              <label>Default Priority</label>
-              <select value={form.priority} onChange={(e) => updateForm('priority', e.target.value)}>
-                {PRIORITIES.map((p) => <option key={p} value={p}>{p}</option>)}
-              </select>
-            </div>
-
-            <div className="modal-actions">
-              <button className="btn btn-secondary" onClick={closeModal} disabled={saving}>Cancel</button>
+            <div className="modal-foot">
+              <button className="btn btn-ghost" onClick={closeModal} disabled={saving}>Cancel</button>
               <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
                 {saving ? 'Saving…' : modalMode === 'edit' ? 'Save Changes' : 'Add Category'}
               </button>
@@ -389,20 +368,23 @@ function CategoryMaster() {
       {/* Delete confirmation modal */}
       {deleteTarget && (
         <div className="modal-overlay" onClick={closeDeleteModal}>
-          <div className="modal-card" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-title">Delete "{deleteTarget.name}"?</div>
-            <p className="delete-modal-text">
-              This will permanently delete the category. This action cannot be undone.
-            </p>
-            {deleteError && <p className="delete-modal-error">{deleteError}</p>}
-            <div className="modal-actions">
-              <button className="btn btn-secondary" onClick={closeDeleteModal}>Cancel</button>
+          <div className="modal-box narrow" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-head">
+              <div className="modal-title">Delete category?</div>
+            </div>
+            <div className="modal-body">
+              <p className="confirm-text">
+                This will permanently delete <strong>{deleteTarget.name}</strong>. This can't be undone.
+              </p>
+              {deleteError && <div className="form-error" style={{ marginTop: 8 }}>{deleteError}</div>}
+            </div>
+            <div className="modal-foot">
+              <button className="btn btn-ghost" onClick={closeDeleteModal}>Cancel</button>
               <button className="btn btn-danger" onClick={confirmDelete}>Delete</button>
             </div>
           </div>
         </div>
       )}
-    </div>
     </main>
   )
 }

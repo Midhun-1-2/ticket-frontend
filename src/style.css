@@ -76,7 +76,7 @@ p{ margin:0; }
   display:grid;
   grid-template-columns: var(--sidebar-w) 1fr;
   grid-template-rows: var(--topbar-h) 1fr;
-  min-height:100vh;
+  height:100vh;
 }
 .app-shell .sidebar{
   grid-column: 1;
@@ -412,6 +412,13 @@ p{ margin:0; }
   gap: 14px;
   margin-bottom: 22px;
 }
+/* Pages with 4 stat cards (Customers, All Tickets, Ticket Assignment) used
+   to force this via an inline style={{gridTemplateColumns:...}} — inline
+   styles win over every CSS rule including @media ones, so the responsive
+   breakpoints below could never kick in and mobile got stuck with 4
+   cramped columns. A plain class has normal specificity, so the same
+   breakpoints now apply correctly as the viewport narrows. */
+.stat-grid-4{ grid-template-columns: repeat(4, 1fr); }
 .stat-card{
   background: var(--surface);
   border: 1px solid var(--line);
@@ -450,6 +457,12 @@ p{ margin:0; }
   align-items:start;
   margin-bottom:16px;
 }
+
+/* Pages stack multiple top-level <section className="panel"> directly as
+   siblings of .content (e.g. AdminDashboard's Staff Performance / Now
+   Working / History, StaffDashboard's own two below its .grid-2) — .panel
+   itself has no margin, so consecutive ones had zero gap between them. */
+.content > .panel + .panel{ margin-top: 16px; }
 .panel{
   background: var(--surface);
   border: 1px solid var(--line);
@@ -643,6 +656,22 @@ table.tickets tbody tr:hover{ background: var(--paper); }
   .ticker{ font-size:11.5px; }
   .topbar-profile .role-info{ display:none; }
   .panel-head{ flex-direction:column; align-items:flex-start; }
+
+  /* Segmented tabs (All / Active / Pending Approval / Blocked, etc.) wrap
+     onto a ragged second line at narrow widths — a lone last tab floating
+     under a shorter row above it. A horizontally swipeable strip reads as
+     intentional; wrapped text doesn't. Scrollbar hidden since the pill
+     shape + slight peek of a cut-off next tab already signals "more here." */
+  .tabs{
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    max-width: 100%;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    -webkit-overflow-scrolling: touch;
+  }
+  .tabs::-webkit-scrollbar{ display: none; }
+  .tab{ flex-shrink: 0; }
 }
 
 @media (max-width: 420px){
@@ -867,6 +896,237 @@ table.tickets tbody tr:hover{ background: var(--paper); }
 .perf-seg.resolved{ background: var(--accent); }
 .perf-seg.other{ background: var(--amber); }
 
+
+/* =========================================================================
+   Global premium theme — app-wide
+   The Customers page (below) got a full "frosted glass" treatment early
+   on: gradient buttons, lifted stat cards, blurred glass panels/modals.
+   Everywhere else in the app shell was left on the plain base styles
+   above, so it read as noticeably flatter/plainer by comparison. This
+   section generalizes that same proven visual language to every
+   authenticated page via .main (the shared layout wrapper every page
+   renders into — see AdminDashboard.jsx, AllTickets.jsx, etc.), so the
+   whole app now reads as one consistent, polished product instead of
+   "one nice page + a bunch of plain ones."
+
+   Deliberately placed BEFORE .customers-page in the cascade: every rule
+   here and the matching .customers-page rule later in this file target
+   the same selectors at equal specificity (two classes), and CSS ties
+   resolve to source order — so .customers-page's versions (declared
+   after this block) still win there unchanged. Nothing on that page
+   moves; every other page now matches it.
+   ========================================================================= */
+.main{
+  --glass-border: rgba(255,255,255,0.65);
+  --glass-shine: rgba(255,255,255,0.9);
+}
+
+.main .page-title{ text-shadow: 0 1px 0 rgba(255,255,255,0.6); }
+
+/* --- Stat cards: frosted glass + hover lift --- */
+.main .stat-card{
+  background: linear-gradient(160deg, rgba(255,255,255,0.86) 0%, rgba(255,255,255,0.58) 100%);
+  backdrop-filter: blur(16px) saturate(180%);
+  -webkit-backdrop-filter: blur(16px) saturate(180%);
+  border: 1px solid var(--glass-border);
+  box-shadow:
+    0 14px 32px -14px rgba(20,23,31,0.22),
+    0 2px 8px rgba(20,23,31,0.06),
+    inset 0 1px 0 var(--glass-shine);
+  transition: transform .25s cubic-bezier(.2,.8,.2,1), box-shadow .25s ease;
+}
+.main .stat-card::before{ box-shadow: 0 0 10px var(--bar, var(--accent)); }
+.main .stat-card:hover{
+  transform: translateY(-4px);
+  box-shadow:
+    0 22px 44px -16px rgba(20,23,31,0.28),
+    0 6px 14px rgba(20,23,31,0.08),
+    inset 0 1px 0 var(--glass-shine);
+}
+
+/* --- Filter bar / search: glass tray --- */
+.main .filter-bar{
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: rgba(255,255,255,0.30);
+  backdrop-filter: blur(10px) saturate(160%);
+  -webkit-backdrop-filter: blur(10px) saturate(160%);
+  border: 1px solid rgba(255,255,255,0.5);
+  box-shadow: 0 6px 18px -8px rgba(20,23,31,0.10), inset 0 1px 0 rgba(255,255,255,0.6);
+}
+.main .filter-bar .search-field,
+.main .search-field{
+  background: rgba(255,255,255,0.7);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(255,255,255,0.7);
+  box-shadow: inset 0 2px 5px rgba(20,23,31,0.06);
+  transition: box-shadow .2s ease, border-color .2s ease;
+}
+.main .search-field:focus-within{
+  border-color: var(--accent);
+  box-shadow: inset 0 2px 5px rgba(20,23,31,0.06), 0 0 0 3px rgba(15,110,99,0.14);
+}
+
+/* --- Segmented tabs: glass pill control --- */
+.main .tabs{
+  background: rgba(255,255,255,0.35);
+  backdrop-filter: blur(12px) saturate(160%);
+  -webkit-backdrop-filter: blur(12px) saturate(160%);
+  border: 1px solid rgba(255,255,255,0.6);
+  border-radius: 12px;
+  padding: 4px;
+  box-shadow:
+    inset 0 1px 3px rgba(20,23,31,0.08),
+    inset 0 -1px 0 rgba(255,255,255,0.4),
+    0 4px 14px -6px rgba(20,23,31,0.10);
+}
+.main .tab{
+  color: var(--text-muted);
+  border-radius: 8px;
+  transition: transform .15s ease, box-shadow .15s ease, background .15s ease, color .15s ease;
+}
+.main .tab:hover:not(.active){ background: rgba(255,255,255,0.45); color: var(--text); }
+.main .tab.active{
+  background: linear-gradient(180deg, #ffffff 0%, #F7F6F3 100%);
+  color: var(--text);
+  transform: translateY(-1px);
+  box-shadow:
+    0 3px 8px rgba(20,23,31,0.14),
+    0 1px 2px rgba(20,23,31,0.08),
+    inset 0 1px 0 rgba(255,255,255,0.95);
+}
+
+/* --- Panels (charts, category breakdown, staff list, etc): glass card --- */
+.main .panel{
+  background: rgba(255,255,255,0.62);
+  backdrop-filter: blur(18px) saturate(180%);
+  -webkit-backdrop-filter: blur(18px) saturate(180%);
+  border: 1px solid var(--glass-border);
+  box-shadow:
+    0 24px 60px -24px rgba(20,23,31,0.22),
+    0 6px 16px rgba(20,23,31,0.06),
+    inset 0 1px 0 var(--glass-shine);
+}
+.main table.tickets tbody tr{ transition: background-color .12s ease; }
+.main table.tickets tbody tr:hover{ background: rgba(15,110,99,0.06); }
+
+/* --- Avatars: soft 3D sphere, wherever they show up --- */
+.main .avatar,
+.main .cust-avatar,
+.main .staff-avatar,
+.main .staff-table-avatar{
+  background: linear-gradient(160deg, #ffffff 0%, var(--accent-soft) 55%, #CFE9E3 100%);
+  color: var(--accent-ink);
+  box-shadow:
+    inset 0 1px 1px rgba(255,255,255,0.9),
+    inset 0 -3px 5px rgba(15,110,99,0.18),
+    0 3px 6px rgba(20,23,31,0.10);
+}
+.topbar .topbar-profile .avatar{
+  background: linear-gradient(160deg, #1CBBA8 0%, var(--accent) 55%, var(--accent-ink) 100%);
+  color: #fff;
+}
+
+/* --- Row action buttons: raised glass buttons with press feedback --- */
+.main .icon-action,
+.main .icon-btn{
+  background: linear-gradient(180deg, #ffffff 0%, #F6F5F1 100%);
+  border-color: rgba(229,226,218,0.9);
+  box-shadow: 0 1px 3px rgba(20,23,31,0.07), inset 0 1px 0 rgba(255,255,255,0.9);
+  transition: transform .15s ease, box-shadow .15s ease, background-color .15s ease, color .15s ease;
+}
+.main .icon-action:hover,
+.main .icon-btn:hover{
+  transform: translateY(-2px);
+  box-shadow: 0 6px 14px rgba(20,23,31,0.12), inset 0 1px 0 rgba(255,255,255,0.9);
+}
+.main .icon-action:active,
+.main .icon-btn:active{ transform: translateY(0); box-shadow: inset 0 2px 4px rgba(20,23,31,0.18); }
+.main .icon-action.danger:hover{ box-shadow: 0 6px 14px rgba(196,67,46,0.18), inset 0 1px 0 rgba(255,255,255,0.9); }
+
+/* --- Primary / ghost buttons: gradient 3D press --- */
+.main .btn-primary{
+  background: linear-gradient(180deg, #12897c 0%, var(--accent) 55%, var(--accent-ink) 100%);
+  box-shadow: 0 4px 12px rgba(15,110,99,0.32), inset 0 1px 0 rgba(255,255,255,0.28);
+  transition: transform .15s ease, box-shadow .15s ease, background .15s ease;
+}
+.main .btn-primary:hover{ transform: translateY(-1px); box-shadow: 0 8px 18px rgba(15,110,99,0.38), inset 0 1px 0 rgba(255,255,255,0.32); }
+.main .btn-primary:active{ transform: translateY(0); }
+.main .btn-ghost{
+  background: rgba(255,255,255,0.65);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  border-color: rgba(255,255,255,0.8);
+  transition: background-color .15s ease, transform .15s ease;
+}
+.main .btn-ghost:hover{ background: rgba(255,255,255,0.9); }
+
+/* --- Sidebar nav: smoother hover/active transitions --- */
+.sidebar .nav-link{ transition: background-color .15s ease, color .15s ease; }
+.sidebar .nav-link.active::before{ transition: opacity .15s ease; }
+.sidebar .role-card{ transition: background-color .15s ease; }
+
+/* --- Status chips: tiny lift on hover where they're interactive --- */
+.main .row-clickable .chip{ transition: transform .15s ease; }
+
+/* --- Modals: frosted glass overlay + panel with deep, layered shadow ---
+   No portal in this codebase carries these outside .main — every modal
+   is rendered as a plain sibling within the same page component, so a
+   descendant selector reaches it. */
+.main .modal-overlay{
+  background: rgba(20,23,31,0.38);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+.main .modal-box{
+  background: rgba(255,255,255,0.86);
+  backdrop-filter: blur(26px) saturate(180%);
+  -webkit-backdrop-filter: blur(26px) saturate(180%);
+  border: 1px solid rgba(255,255,255,0.65);
+  border-radius: 16px;
+  box-shadow:
+    0 36px 90px -24px rgba(20,23,31,0.38),
+    0 12px 32px rgba(20,23,31,0.14),
+    inset 0 1px 0 rgba(255,255,255,0.9);
+  animation: modal-box-in .22s cubic-bezier(.16,.8,.24,1) both;
+}
+@keyframes modal-box-in{
+  from{ opacity: 0; transform: translateY(10px) scale(.98); }
+  to{ opacity: 1; transform: translateY(0) scale(1); }
+}
+.main .modal-head,
+.main .modal-foot{ border-color: rgba(229,226,218,0.6); }
+.main .form-field input{
+  background: rgba(255,255,255,0.75);
+  transition: border-color .15s ease, box-shadow .15s ease;
+}
+.main .form-field input:focus{ box-shadow: 0 0 0 3px rgba(15,110,99,0.12); }
+
+@media (prefers-reduced-motion: reduce){
+  .main .stat-card, .main .tab, .main .icon-action, .main .icon-btn, .main .btn-primary,
+  .main table.tickets tbody tr, .main .row-clickable .chip{
+    transition: none;
+  }
+  .modal-box{ animation: none; }
+}
+
+/* Backdrop blur is comparatively expensive on low-end/mobile GPUs and the
+   frosted look has less room to read as "glass" once cards stack to a
+   single narrow column anyway — drop it below the point where the
+   stat-grid itself collapses to one column, trading the blur for a
+   plain translucent fill so scrolling stays smooth. */
+@media (max-width: 640px){
+  .main .stat-card,
+  .main .panel,
+  .main .tabs,
+  .main .filter-bar,
+  .main .modal-box{
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    background: #fff;
+  }
+}
 
 .customers-page{
   --glass-border: rgba(255,255,255,0.65);
