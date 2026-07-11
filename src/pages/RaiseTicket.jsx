@@ -6,12 +6,7 @@ import '/src/RaiseTicket.css'
 const PRIORITIES = ['Low', 'Medium', 'High', 'Urgent']
 const priorityKey = { Low: 'p-low', Medium: 'p-medium', High: 'p-high', Urgent: 'p-urgent' }
 
-// The dropdown only ever shows THIS customer's own company's products
-// that an admin has verified (from /my-products/) — never the full
-// Product Master catalog, and no "Not Applicable" fallback. That's what
-// stops a customer from raising a ticket against a product they were
-// never registered for (e.g. "Projo"), and makes Product a genuinely
-// required, meaningful choice rather than a default anyone can skip.
+// Dropdown shows only this customer's verified products (from /my-products/).
 
 const MAX_FILE_SIZE_MB = 10
 const MAX_TOTAL_FILES = 5
@@ -65,12 +60,7 @@ function RaiseTicket() {
   const [categoriesLoading, setCategoriesLoading] = useState(true)
   const [categoriesError, setCategoriesError] = useState('')
 
-  // Product catalog — scoped to THIS customer's own approved/verified
-  // products (see /my-products/ on the backend), not the full Product
-  // Master catalog. Staff/admin accounts get an empty list from that
-  // endpoint (see MyProductsView), so they'll only ever see
-  // "Not Applicable" here — which matches how this page is meant to be
-  // used (customers raising their own tickets).
+  // Customer's verified product options, from /my-products/.
   const [productOptions, setProductOptions] = useState([])
   const [productsLoading, setProductsLoading] = useState(true)
   const [productsError, setProductsError] = useState('')
@@ -117,12 +107,7 @@ function RaiseTicket() {
     if (errors[field]) setErrors((prev) => ({ ...prev, [field]: undefined }))
   }
 
-  // Category has its own handler (rather than going through updateField)
-  // because picking one auto-selects that category's own default
-  // priority (see Category.priority on the backend) instead of just
-  // clearing whatever was there before. The customer can still override
-  // the auto-picked priority afterward — this only sets the starting
-  // point.
+  // Selecting a category also auto-fills its default priority.
   const updateCategory = (name) => {
     const matched = categories.find((c) => c.name === name)
     setForm((prev) => ({ ...prev, category: name, priority: matched?.priority || '' }))
@@ -195,18 +180,10 @@ function RaiseTicket() {
       })
 
       setBanner({ type: 'success', text: 'Ticket raised. Redirecting to your dashboard…' })
-      // submitting intentionally stays true here (no finally re-enabling
-      // it) so Cancel/Submit can't be clicked again during the 1200ms
-      // redirect window below — previously `finally` reset it to false
-      // immediately, leaving both buttons clickable right up until the
-      // navigate() actually fired.
+      // Keep submitting=true so buttons stay disabled during the redirect delay.
       setTimeout(() => navigate('/dashboard/'), 1200)
     } catch (err) {
-      // Surface DRF field errors if present (e.g. { product: ["You can
-      // only raise tickets for products verified on your account..."] }),
-      // otherwise fall back to a generic message. This is what shows the
-      // rejection message if product validation ever fails server-side —
-      // e.g. a stale dropdown selection, or a bypassed/tampered request.
+      // Surface DRF field errors if present, otherwise show a generic message.
       const data = err.response?.data
       const serverMsg =
         data && typeof data === 'object' ? Object.values(data).flat().join(' ') : null

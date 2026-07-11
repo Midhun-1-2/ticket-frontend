@@ -1,17 +1,6 @@
 /* =========================================================================
-   Login / Auth screen — reuses design tokens defined in style.css
-   (--ink, --accent, --paper, --font-display, --font-mono, etc.)
-
-   Layout: split screen. Left = dark "ink" brand panel (mirrors the app
-   shell's sidebar). Right = paper-toned form panel. On narrow viewports
-   the brand panel collapses away and only the form card remains,
-   centered — same pattern the app shell uses for its own sidebar.
-
-   ANIMATION NOTE: this page borrows its motion language from
-   landing.css — the reveal/rise easing, the staggered word-in headline,
-   the pulse dot, and the button shine sweep are all the same curves and
-   timings used there, just triggered on mount instead of on scroll
-   (there's nothing to scroll on a login screen — it's all above the fold).
+   Login / Auth screen — split layout (dark brand panel + form card),
+   reuses style.css tokens and landing.css's motion language.
    ========================================================================= */
 
 .auth-screen{
@@ -25,14 +14,7 @@
   opacity: 0;
 }
 
-/* Crossfade played on successful login, right before the actual route
-   change — the login screen fades out while this overlay fades in at
-   the exact same rate, so it reads as one continuous dissolve rather
-   than a wipe or jump cut. The centered brand mark + ring-pulse reuses
-   the same language as the landing page's boot sequence, so it reads as
-   "loading into the app" rather than an arbitrary color flash.
-   Navigation (redirectByRole in Login.jsx) fires once this has fully
-   faded in. */
+/* Crossfade played on successful login, right before the route change */
 .auth-transition-overlay{
   position: fixed;
   inset: 0;
@@ -59,10 +41,7 @@
 .auth-transition-mark{
   width: 46px; height: 46px;
   border-radius: 11px;
-  background: linear-gradient(155deg, var(--accent, #0F6E63) 0%, var(--accent-ink, #0B4F47) 100%);
-  display: flex; align-items: center; justify-content: center;
-  color: #EAF6F3;
-  font-family: var(--font-display); font-weight: 700; font-size: 16px;
+  object-fit: cover;
   position: relative; z-index: 1;
   transform: scale(.75);
   opacity: 0;
@@ -141,10 +120,7 @@
 .auth-visual .brand-mark{
   width: 38px; height: 38px; flex-shrink: 0;
   border-radius: 9px;
-  background: linear-gradient(155deg, var(--accent) 0%, #133C36 100%);
-  display: flex; align-items: center; justify-content: center;
-  color: #EAF6F3;
-  font-family: var(--font-display); font-weight: 700; font-size: 15px;
+  object-fit: cover;
   box-shadow: 0 6px 16px rgba(15,110,99,0.35);
 }
 .auth-visual .brand-name{
@@ -165,9 +141,7 @@
   letter-spacing: -0.01em;
   margin: 0 0 14px;
 }
-/* Headline is split into <span className="word"> pieces in the JSX so
-   each word can animate in on its own, staggered via --i — same trick
-   as landing.css's .landing-h1 .word. */
+/* Headline split into <span className="word"> pieces, staggered via --i */
 .auth-visual-title .word{
   display: inline-block;
   opacity: 0;
@@ -247,9 +221,7 @@
   .auth-visual-ticker .ticker-dot{ animation: none; }
 }
 
-/* Hidden by default — only shown below 860px (see media query further
-   down), where it replaces the dark .auth-visual panel that gets
-   display:none at that breakpoint. */
+/* Hidden by default — shown below 860px in place of .auth-visual */
 .auth-mobile-hero{ display: none; }
 
 /* =========================================================================
@@ -326,12 +298,7 @@
   gap: 16px;
 }
 
-/* Staggered entrance for whatever the form currently renders (phone field,
-   role-detected chip, credential field, captcha field, forgot-mpin row,
-   error banner, submit button, signup link). Using nth-child instead of
-   per-element inline delays means this keeps working correctly no matter
-   which of the conditional blocks (role chip / credential field / error)
-   are present at a given moment — no JSX changes required here. */
+/* Staggered entrance for whichever form fields are currently rendered */
 .auth-form > *{
   opacity: 0;
   animation: auth-rise .5s cubic-bezier(.16,.8,.24,1) both;
@@ -379,10 +346,7 @@
   100%{ box-shadow: 0 0 0 3px rgba(15,110,99,0.12); }
 }
 
-/* Small left-aligned glyphs so the phone / password / captcha fields
-   read as distinct at a glance instead of three identical blank boxes.
-   Icons are inline SVG data-URIs (no extra markup needed), always
-   present regardless of value, and just sit quietly next to the text. */
+/* Left-aligned glyph icons (inline SVG data-URIs) for phone/password/captcha */
 .auth-field input[type="tel"],
 .auth-field input[type="password"],
 .auth-captcha input[type="text"]{
@@ -435,11 +399,7 @@
 }
 
 /* =========================================================================
-   Captcha — 4-digit numeric code (see generateCaptcha() in Login.jsx).
-   Digits are rendered as individual spans, each with a small random
-   rotate/translateY applied inline via captchaNoise, so the code box
-   isn't just flat selectable text. Kept in the same paper/ink/mono
-   language as the rest of the form rather than looking bolted-on.
+   Captcha — 4-digit numeric code (see generateCaptcha() in Login.jsx)
    ========================================================================= */
 .auth-captcha-row{
   display: flex;
@@ -463,9 +423,7 @@
   user-select: none;
   -webkit-user-select: none;
 }
-/* Faint dotted texture + a couple of static "strike" lines behind the
-   digits — cheap visual noise so the code doesn't read as plain flat
-   text, without needing canvas/image generation. */
+/* Faint dotted texture + static "strike" lines behind the digits */
 .auth-captcha-box::before{
   content: "";
   position: absolute; inset: 0; z-index: 0;
@@ -523,10 +481,7 @@
   text-align: left;
 }
 
-/* Fixed: was justify-content: flex-end with no gap, which crammed the
-   toggle button and "Forgot Password?" together with zero space between
-   them. Now spaced apart, with a graceful fallback to right-alignment
-   when only one item (Forgot Password) is present. */
+/* Toggle button + "Forgot Password?" row, spaced apart */
 .auth-row{
   display: flex;
   align-items: center;
@@ -566,12 +521,7 @@
   padding: 10px 12px;
 }
 
-/* Self-contained (background/color/border defined directly here) instead
-   of relying on .btn / .btn-primary from style.css cascading in — kept,
-   but now uses the same gradient-press treatment as the dashboard's
-   primary buttons (see .customers-page .btn-primary in style.css) so the
-   two screens feel like one product. Shine sweep on hover matches
-   .landing-btn-primary in landing.css. */
+/* Self-contained submit button styling (not relying on .btn/.btn-primary) */
 .auth-submit.auth-submit,
 .auth-submit.auth-submit:hover,
 .auth-submit.auth-submit:focus,
@@ -617,10 +567,7 @@
 .auth-submit:active:not(:disabled){ box-shadow: inset 0 2px 6px rgba(11,79,71,.35); }
 .auth-submit:disabled{ opacity: .55 !important; cursor: not-allowed; box-shadow: none; }
 
-/* Sonar-style ring ping instead of a soft breathing glow — a ring
-   expands outward and fades, repeating while hovered. Same idea as the
-   ring pulse on the landing page's boot mark, reused here so the two
-   pages share a motion "signature." */
+/* Sonar-style ring ping — expands outward and fades, repeating on hover */
 @keyframes auth-submit-ping{
   0%{ box-shadow: 0 4px 12px rgba(15,110,99,0.32), inset 0 1px 0 rgba(255,255,255,0.28), 0 0 0 0 rgba(95,203,187,.55); }
   70%{ box-shadow: 0 4px 12px rgba(15,110,99,0.32), inset 0 1px 0 rgba(255,255,255,0.28), 0 0 0 13px rgba(95,203,187,0); }
@@ -642,9 +589,7 @@
   to{ transform: scale(1); opacity: 0; }
 }
 
-/* Label + arrow — arrow is collapsed to zero width at rest so the label
-   sits dead-center. On hover it grows in and does a small elastic
-   rotate+pop instead of just sliding, which reads as more "alive." */
+/* Label + arrow — arrow collapsed at rest, grows in with a pop on hover */
 .auth-submit .btn-label{
   transition: transform .3s cubic-bezier(.2,.8,.2,1);
   position: relative; z-index: 1;
@@ -671,9 +616,7 @@
   transform: rotate(0deg) scale(1);
 }
 
-/* Checkmark shown in place of the label during transitionPhase
-   'success'/'exiting' — pops in with a slight overshoot rather than
-   just appearing. */
+/* Checkmark shown in place of the label during transitionPhase success/exiting */
 .auth-submit .btn-check{
   animation: auth-check-in .25s ease-out both;
 }
@@ -721,13 +664,8 @@
 }
 
 /* =========================================================================
-   Create M-PIN modal — dedicated, uniquely-scoped classes (mpin-*), NOT
-   the shared .modal-overlay/.modal-card used by every other modal in the
-   app (delete confirmations, add-staff, etc). Keeping this fully separate
-   means restyling it can't leak into any of those. Reuses the same brand
-   language as the auth screen itself: the teal ink gradient badge
-   (matches .brand-mark / .auth-transition-mark), and a segmented digit-box
-   PIN entry that mirrors the captcha's digit-box treatment above.
+   Create M-PIN modal — dedicated mpin-* classes, separate from the
+   shared .modal-overlay/.modal-card used elsewhere in the app
    ========================================================================= */
 .mpin-overlay{
   position: fixed;
@@ -1016,8 +954,7 @@
 .toast-close:hover{ opacity: 1; }
 
 /* =========================================================================
-   Responsive — Bootstrap's own breakpoint scale (576 / 768), so behavior
-   here lines up with the rest of a Bootstrap-based app if you add one.
+   Responsive — follows Bootstrap's breakpoint scale (576 / 768)
    ========================================================================= */
 
 /* Tablets and small laptops — visual panel narrows before disappearing */
@@ -1027,9 +964,7 @@
   .auth-visual-title{ font-size: 27px; }
 }
 
-/* Below this the brand panel adds more noise than value on a small
-   screen — collapse to a single centered card, same as how the app
-   shell's own sidebar goes off-canvas below 880px. */
+/* Below this width, collapse to a single centered card */
 @media (max-width: 860px){
   .auth-shell{ grid-template-columns: 1fr; }
   .auth-visual{ display: none; }
@@ -1042,9 +977,7 @@
   }
   .auth-brand-mobile{ display: none; }
 
-  /* Subtle dot texture so the mobile background isn't just flat paper —
-     echoes the same dotted-radial trick used on the landing/onboarding
-     pages, just much fainter since there's no dark panel to mask it. */
+  /* Subtle dot texture so the mobile background isn't flat paper */
   .auth-screen{
     background-image:
       radial-gradient(rgba(20,23,31,.07) 1px, transparent 1px),
@@ -1053,12 +986,7 @@
     background-position: 0 0, 11px 11px;
   }
 
-  /* Hero + form card are now ONE ticket stub instead of two separate
-     stacked boxes: the dark hero is the "stub", chamfered at its bottom
-     corners like a torn perforation, and the form card butts directly
-     against it below with a dashed tear-line at the seam (via
-     .auth-card-wrap::before). Reads as "detach here" — a nod to the
-     product name rather than a generic dark-card-over-white-card stack. */
+  /* Hero + form card read as one "ticket stub" with a chamfered/perforated edge */
   .auth-mobile-hero{
     display: block;
     position: relative;
@@ -1086,9 +1014,7 @@
   .auth-mobile-hero .brand-mark{
     width: 32px; height: 32px; flex-shrink: 0;
     border-radius: 8px;
-    background: linear-gradient(155deg, var(--accent) 0%, #133C36 100%);
-    display: flex; align-items: center; justify-content: center;
-    color: #EAF6F3; font-family: var(--font-display); font-weight: 700; font-size: 13px;
+    object-fit: cover;
   }
   .auth-mobile-hero .brand-name{ color: #fff; font-family: var(--font-display); font-weight: 700; font-size: 14px; }
   .auth-mobile-hero .brand-sub{ font-size: 10.5px; color: #7C8092; margin-top: 1px; }
@@ -1127,9 +1053,7 @@
   }
   .auth-mobile-hero-ticker .sep{ opacity: .45; }
 
-  /* The seam — a dashed "tear here" line sitting exactly where the
-     chamfered hero corners meet the card, with the card itself squared
-     off at the top so the two pieces read as one perforated stub. */
+  /* The seam — dashed "tear here" line where the hero meets the card */
   .auth-card-wrap::before{
     content: "";
     position: absolute;

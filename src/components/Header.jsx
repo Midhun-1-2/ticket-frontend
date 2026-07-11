@@ -3,10 +3,7 @@ import { useLocation, Link } from "react-router-dom";
 import api, { logout } from "../api"; // adjust this path if Header.jsx lives somewhere else relative to api.js
 import GlobalSearch from "./GlobalSearch"; // adjust path to match where you place GlobalSearch.jsx
 
-// Same assumption as GlobalSearch.jsx / TicketAssignment.jsx: login stores
-// { role, full_name } in localStorage under these exact keys (matching the
-// backend's issue_tokens() response shape). Adjust here if your AuthContext
-// stores it differently.
+// Reads the logged-in user's name/role from localStorage.
 const getFullName = () => localStorage.getItem('full_name') || 'User';
 const getRole = () => localStorage.getItem('role') || '';
 
@@ -33,19 +30,13 @@ function Header() {
   const isActive = (path) =>
     location.pathname === path ? "nav-link active" : "nav-link";
 
-  // full_name / role live in state (not plain consts) so the sidebar and
-  // topbar can react immediately when ProfilePage.jsx updates them —
-  // otherwise a name change on the Profile page would only show up here
-  // after the next full login, since localStorage reads alone don't
-  // trigger a re-render.
+  // Kept in state (not plain consts) so the header re-renders when ProfilePage.jsx updates them.
   const [fullName, setFullName] = useState(getFullName());
   const [role, setRole] = useState(getRole());
   const roleLabel = formatRole(role);
   const initials = getInitials(fullName);
 
-  // ProfilePage.jsx writes the new name to localStorage on save and fires
-  // this event so every mounted Header re-reads it right away. 'storage'
-  // covers the same account being open in another tab.
+  // Re-syncs name/role when ProfilePage.jsx updates them, or on cross-tab storage changes.
   useEffect(() => {
     function syncFromStorage() {
       setFullName(getFullName());
@@ -59,17 +50,7 @@ function Header() {
     };
   }, []);
 
-  // ---------------------------------------------------------------------
-  // Per-link role visibility — mirrors App.jsx's RequireRole allow-lists
-  // exactly (including Raise Ticket, which is customer-only — staff/admin
-  // work tickets via All Tickets / Ticket Assignment instead of raising
-  // their own). Keeping these in sync matters: a link that shows here but
-  // is blocked in App.jsx sends the person to a Permission Denied page;
-  // a link hidden here but allowed in App.jsx just makes a page
-  // unreachable via the sidebar (still fine via direct URL, but worth
-  // avoiding). If you change access for a route in App.jsx, update the
-  // matching flag here too.
-  // ---------------------------------------------------------------------
+  // Per-link role visibility — mirrors App.jsx's RequireRole allow-lists.
   const canRaiseTicket = role === 'customer';
   const canTicketAssignment = role === 'admin' || role === 'staff';
   const canAccountApproval = role === 'admin';
@@ -78,9 +59,7 @@ function Header() {
   const canStaffManagement = role === 'admin';
   const canCategories = role === 'admin';
 
-  // Hide an entire group's label when nothing under it is visible to
-  // this role, rather than showing "Triage" or "Manage" over an empty
-  // list.
+  // Hide a group's label entirely when nothing under it is visible to this role.
   const showTriageGroup = canTicketAssignment || canAccountApproval;
   const showManageGroup = canProductMaster || canCustomers || canStaffManagement || canCategories;
 
@@ -93,14 +72,7 @@ function Header() {
   // Prevents a double-click from firing two logout requests at once.
   const [loggingOut, setLoggingOut] = useState(false);
 
-  // ---------------------------------------------------------------------
-  // Mobile off-canvas sidebar. On desktop (>880px) the sidebar is always
-  // visible and expands on hover via pure CSS (see style.css) — there's
-  // no button for that, hovering the sidebar itself is the trigger.
-  // The hamburger only exists for the mobile off-canvas case, and is only
-  // rendered at all (not just hidden) when isMobile is true, so it can
-  // never show up on a desktop-width screen even if CSS is out of sync.
-  // ---------------------------------------------------------------------
+  // Mobile off-canvas sidebar state; desktop sidebar expands on hover via CSS instead.
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(
     typeof window !== 'undefined' ? window.matchMedia('(max-width: 880px)').matches : false
@@ -127,9 +99,7 @@ function Header() {
   }, [location.pathname]);
 
   useEffect(() => {
-    // Only staff/admin can even see Account Approvals — skip the poll
-    // entirely for customers rather than firing a request that would
-    // just 403 every 30s.
+    // Only staff/admin see Account Approvals — skip the poll for other roles.
     if (!canAccountApproval) {
       setPendingApprovals(null);
       return;
@@ -208,9 +178,9 @@ function Header() {
       {/* ================= SIDEBAR ================= */}
       <aside className="sidebar">
         <div className="brand">
-          <div className="brand-mark">TD</div>
+          <img className="brand-mark" src="/logo.png" alt="TIXA" />
           <div className="brand-text">
-            <div className="brand-name">Ticket Desk</div>
+            <div className="brand-name">TIXA</div>
             <div className="brand-sub">Admin Console</div>
           </div>
         </div>
@@ -309,13 +279,7 @@ function Header() {
           </>
         )}
 
-        {/* Pinned to the bottom of the sidebar as ONE block — regardless
-            of how many groups above (Triage/Manage) are hidden for the
-            current role. Without this wrapper, "System" just followed
-            whatever content happened to be above it, so a role with
-            fewer visible groups (staff, customer) would see Log Out
-            float up the sidebar instead of staying anchored near the
-            profile card at the bottom. */}
+        {/* Pinned to the bottom of the sidebar regardless of which groups above are hidden. */}
         <div className="sidebar-bottom" style={{ marginTop: 'auto' }}>
           <div className="nav-group-label">System</div>
           <ul className="nav">

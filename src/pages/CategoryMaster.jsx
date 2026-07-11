@@ -1,9 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import api from '../api' // adjust this path to match where api.js actually lives
 
-// Same fix as ProductMaster.jsx / AllTickets.jsx / the dashboards: forces
-// every status chip on this page onto a single line and sizes it to its
-// own content, matching the design used everywhere else in the app.
+// Keeps every status chip on this page on a single line.
 const chipNoWrapStyle = {
   whiteSpace: 'nowrap',
   display: 'inline-flex',
@@ -146,9 +144,7 @@ function CategoryMaster() {
       setDeleteError('')
     } catch (err) {
       if (err.response?.status === 409) {
-        // Category became in-use between render and click (e.g. a ticket
-        // was just filed against it) — surface that instead of a generic
-        // failure, and refresh so its row locks correctly.
+        // Category became in-use between render and click — surface that and refresh.
         setDeleteError(err.response?.data?.detail || 'This category is in use and cannot be deleted.')
         fetchCategories()
       } else {

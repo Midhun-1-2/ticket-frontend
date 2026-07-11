@@ -5,16 +5,7 @@ import '../global-search.css'
 // Same localStorage key Header.jsx / App.jsx already read from.
 const getRole = () => localStorage.getItem('role') || ''
 
-// Every destination reachable from the sidebar (+ a couple of aliases/
-// keywords per item so "assign" finds Ticket Assignment, "approve" finds
-// Account Approvals, etc). Add a line here any time a new page/tab is
-// added to Header.jsx and it'll show up in search automatically.
-//
-// `roles` mirrors App.jsx's <RequireRole allow={[...]}> for the matching
-// route exactly (and Header.jsx's can* flags) — search should never
-// surface a page the current role would just get Permission Denied on.
-// If access for a route changes in App.jsx, update the matching entry
-// here too.
+// Every destination reachable from the sidebar, with search keywords and per-role visibility.
 const DESTINATIONS = [
   {
     label: 'Dashboard', path: '/dashboard/', group: 'Overview',

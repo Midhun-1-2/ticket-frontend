@@ -4,9 +4,7 @@ import '/src/ticket-assignment.css'
 import api from '/src/api.js'
 import TicketDetailModal from '/src/TicketDetailModal.jsx'
 
-// NOTE: assumes login stores { role, full_name } in localStorage, matching
-// the shape returned by the backend's issue_tokens(). Adjust these two
-// lines if your AuthContext / api.js stores it differently.
+// Reads role/full_name as stored in localStorage at login.
 const getRole = () => localStorage.getItem('role') || 'staff'
 const getFullName = () => localStorage.getItem('full_name') || ''
 
@@ -18,9 +16,7 @@ const STATUS_META = {
   transferred: { label: 'Transferred',       chip: 'hold' },
 }
 
-// Same fix as AllTickets.jsx / the three dashboards: forces every status
-// chip on this page onto a single line and sizes it to its own content,
-// matching the design used everywhere else in the app.
+// Keeps every status chip on this page on a single line, sized to its content.
 const chipNoWrapStyle = {
   whiteSpace: 'nowrap',
   display: 'inline-flex',
@@ -73,27 +69,8 @@ function eventLabel(e) {
   }
 }
 
-// Shows who currently holds a ticket as a single chip. Hovering (or
-// focusing, so it works for keyboard/touch too) reveals the ticket's full,
-// permanent assignment history — every offer/accept/decline/transfer/
-// escalate event, fetched from GET tickets/<id>/assignment-history/. This
-// is deliberately NOT derived from the `offers` prop (the flat
-// TicketAssignment rows for this ticket): that table only tracks the
-// CURRENT status per (ticket, staff) pair and gets overwritten each time
-// the same staff member is offered the ticket again, so a ticket that
-// bounces back to someone it was with before would show fewer hops than
-// actually happened. The new endpoint is append-only, so nothing is ever
-// lost no matter how many times the ticket changes hands. The tooltip
-// renders through a portal straight onto <body>, so it isn't clipped by
-// any ancestor's overflow:hidden (the panel it lives in has that for its
-// own rounded corners) and never needs an internal scrollbar to be seen.
-//
-// Positioning: it first anchors directly below the chip, then — once it's
-// actually in the DOM and its real height is known — checks whether it
-// would run past the bottom (or right edge) of the viewport and flips
-// upward / shifts left as needed. This has to happen in a second pass
-// because the popover's height depends on how many history rows it has,
-// which isn't known until the fetch resolves and it's rendered.
+// Chip showing who currently holds a ticket; hover/focus reveals its full
+// assignment history in a portal tooltip that auto-repositions to stay on screen.
 function HolderChip({ ticket }) {
   const [open, setOpen] = useState(false)
   const [coords, setCoords] = useState({ top: 0, left: 0, ready: false })
@@ -102,10 +79,7 @@ function HolderChip({ ticket }) {
   const chipRef = useRef(null)
   const portalRef = useRef(null)
 
-  // First pass: anchor directly under the chip. Not final — just enough
-  // to get the portal into the DOM so its real size can be measured.
-  // Also lazily fetches the full history the first time it's opened —
-  // no point loading it for every chip on the page up front.
+  // Anchors under the chip and lazily fetches history on first open.
   const show = () => {
     if (chipRef.current) {
       const rect = chipRef.current.getBoundingClientRect()
@@ -127,9 +101,7 @@ function HolderChip({ ticket }) {
   }
   const hide = () => setOpen(false)
 
-  // Second pass: now that the popover has real dimensions, flip it above
-  // the chip if it would overflow the bottom of the viewport, and clamp
-  // it horizontally so it can't run off the right edge either.
+  // Re-flips/clamps the popover position once its real size is known.
   useLayoutEffect(() => {
     if (!open || !portalRef.current || !chipRef.current) return
 
@@ -156,8 +128,7 @@ function HolderChip({ ticket }) {
     }
 
     setCoords({ top, left, ready: true })
-    // Re-measure once events finish loading too (the popover's height
-    // jumps from "Loading…" to however many rows it actually has).
+    // Re-measure once events finish loading (popover height changes).
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, events?.length, loadingEvents])
 
@@ -180,9 +151,7 @@ function HolderChip({ ticket }) {
         <div
           ref={portalRef}
           className="transfer-history-portal"
-          // Hidden via opacity (not display:none) until the second pass has
-          // measured and repositioned it, so it never flashes at the wrong
-          // spot before flipping.
+          // Hidden via opacity until positioning is finalized, to avoid a flash.
           style={{ top: coords.top, left: coords.left, opacity: coords.ready ? 1 : 0 }}
           onMouseEnter={show}
           onMouseLeave={hide}
@@ -190,11 +159,7 @@ function HolderChip({ ticket }) {
           <div className="transfer-history-title">Assignment history</div>
           {loadingEvents && <div className="transfer-history-row">Loading…</div>}
           {!loadingEvents && (() => {
-            // 'unavailable' rows are just "lost the race to someone else"
-            // noise from the original multi-staff offer round — not
-            // useful in this trail, so they're filtered out here rather
-            // than removed from the API response (the data still exists
-            // for anywhere else that might want it).
+            // Filters out 'unavailable' noise rows from the displayed history.
             const visibleEvents = (events || []).filter((e) => e.action !== 'unavailable')
             if (visibleEvents.length === 0) {
               return <div className="transfer-history-row">No history yet.</div>
@@ -258,14 +223,7 @@ function TicketAssignment() {
     if (!silent) setLoading(true)
     try {
       if (isAdmin) {
-        // Always fetch the FULL history (no ?status= filter) — filtering
-        // server-side meant a ticket's other rows (e.g. an outgoing
-        // staff's 'transferred' row) were never even fetched when a tab
-        // like "Accepted" was selected, so HolderChip's tooltip had no
-        // way to show the full chain. The Pending/Accepted/Unavailable
-        // tabs now just decide which tickets to DISPLAY (client-side,
-        // see `grouped` below); every ticket's tooltip always has its
-        // complete history regardless of which tab is active.
+        // Fetches full unfiltered history; tab filtering happens client-side in `grouped`.
         const [fullRes, escRes] = await Promise.all([
           api.get('/ticket-assignments/'),
           api.get('/ticket-assignments/?escalated=true'),
@@ -321,11 +279,7 @@ function TicketAssignment() {
     : allPastOffers.filter((o) => o.status === pastFilter)
 
   const groupedAll = groupByTicket(allAssignments)
-  // "Unavailable" is meant to mean "nobody has this right now" — a ticket
-  // that picked up an unavailable offer along the way but was later
-  // accepted by someone else shouldn't still show up here just because
-  // one of its historical offers has that status. Every other tab keeps
-  // the simple "any offer matches" behavior.
+  // "Unavailable" tab excludes tickets that were later accepted by someone else.
   const grouped = adminFilter === 'unavailable'
     ? groupedAll.filter((g) => !g.ticket.assigned_staff && g.offers.some((o) => o.status === 'unavailable'))
     : adminFilter
@@ -344,10 +298,7 @@ function TicketAssignment() {
   const renderOfferRow = (offer, actionable) => {
     const meta = STATUS_META[offer.status] || {}
     const isActing = actingId === offer.id
-    // The ticket's own assigned_staff (already present on offer.ticket via
-    // TicketAssignmentTicketSerializer) is whoever currently holds it — for
-    // an 'unavailable' offer that's the staff member who won the race, so
-    // no extra API call is needed to name them.
+    // offer.ticket.assigned_staff is whoever currently holds the ticket.
     const label = offer.status === 'transferred' && offer.transferred_to
       ? `Transferred to ${displayName(offer.transferred_to)}`
       : offer.status === 'unavailable' && offer.ticket.assigned_staff

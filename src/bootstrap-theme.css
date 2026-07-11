@@ -1,10 +1,6 @@
 /* =========================================================================
-   Bootstrap theme override — retunes Bootstrap's own CSS variables to
-   match the app's existing design tokens (defined in style.css).
-   Import AFTER bootstrap.min.css and BEFORE style.css:
-     1. bootstrap.min.css   (base framework)
-     2. bootstrap-theme.css (this file — recolors bootstrap-only pieces)
-     3. style.css           (your custom classes — wins any name clashes)
+   Bootstrap theme override — retunes Bootstrap variables to match
+   the app's design tokens. Import after bootstrap.min.css, before style.css.
    ========================================================================= */
 
 :root{
@@ -41,9 +37,7 @@
   --bs-focus-ring-color: rgba(15,110,99,.25);
 }
 
-/* --- Buttons (only matters where you use Bootstrap variants your
-   custom .btn/.btn-primary classes don't already cover, e.g.
-   btn-outline-secondary, btn-success, btn-danger) --- */
+/* --- Buttons (Bootstrap variants not covered by custom .btn classes) --- */
 .btn{
   --bs-btn-border-radius: 8px;
   font-family: var(--font-body);
@@ -93,8 +87,7 @@
   box-shadow: 0 0 0 .2rem rgba(15,110,99,.15);
 }
 
-/* --- Modals / toasts (only if you use Bootstrap's own, not your
-   custom .modal-card/.toast classes) --- */
+/* --- Modals / toasts (Bootstrap's own, not custom .modal-card/.toast) --- */
 .modal-content{
   border-radius: var(--radius, 10px);
   border-color: var(--line, #E5E2DA);

@@ -2,13 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import api from '../api'
 
-// Same fix as AllTickets.jsx / the dashboards / TicketAssignment.jsx /
-// StaffManagement.jsx / Customers.jsx: forces every status chip on this
-// page onto a single line and sizes it to its own content, matching the
-// design used everywhere else in the app. Merged into each chip's own
-// inline style (e.g. { ...chipNoWrapStyle, fontSize: 10.5 }) rather than
-// replacing it outright, since several chips here already set a smaller
-// fontSize for compact contexts like the versions dropdown.
+// Shared style forcing status chips onto a single line, sized to content.
 const chipNoWrapStyle = {
   whiteSpace: 'nowrap',
   display: 'inline-flex',
@@ -27,29 +21,19 @@ function formatDate(iso) {
   return new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
 }
 
-// Case- and whitespace-insensitive key so "ExcelUpload", "excel upload",
-// "Excel Upload " (extra space), etc. are all treated as the exact same
-// product when grouping versions together — ALL whitespace is stripped
-// (not just collapsed), since "Excel Upload" and "ExcelUpload" should
-// match too.
+// Case- and whitespace-insensitive key used to group versions by product name.
 function normalizeName(name) {
   return (name || '').replace(/\s+/g, '').toLowerCase()
 }
 
-// Strips any leading "v"/"V" the user may have typed (so re-displaying it
-// with our own "v" prefix never doubles up as "vv4.2"), then adds exactly
-// one "v" back for display. Storage itself should hold the clean number
-// (see stripVersionPrefix used on save), but this also self-heals any
-// already-saved rows that still have a "v" baked into the stored value.
+// Formats a stored version number for display, e.g. "4.2" -> "v4.2".
 function displayVersion(version) {
   if (!version) return '—'
   const cleaned = String(version).trim().replace(/^v/i, '')
   return cleaned ? `v${cleaned}` : '—'
 }
 
-// Used when saving from the Add Product form so we never store a
-// redundant "v" the user typed themselves — the "v" is purely a display
-// concern, handled by displayVersion above.
+// Strips a user-typed "v" prefix before storing the version number.
 function stripVersionPrefix(version) {
   return String(version || '').trim().replace(/^v/i, '')
 }
@@ -112,9 +96,7 @@ function ProductMasterPage() {
       setProducts((prev) => prev.filter((p) => p.id !== deleteProduct.id))
       setSuccessMsg(`"${deleteProduct.name}"${deleteProduct.version ? ` ${displayVersion(deleteProduct.version)}` : ''} was deleted.`)
     } catch (err) {
-      // 409 from the backend if it's actually in use (in_use should have
-      // already locked the button, but this covers a race where it
-      // became "in use" between page load and the click).
+      // Handles a 409 if the product became in-use after page load.
       setError(err.response?.data?.detail || 'Could not delete this product.')
     } finally {
       setDeleteProduct(null)
@@ -137,22 +119,8 @@ function ProductMasterPage() {
     setSuccessMsg(`${removedLabel} was removed.`)
   }
 
-  // ---------------------------------------------------------------------
-  // Group flat product rows (one row per version) into one entry per
-  // product name — matched case/whitespace-insensitively so re-typing the
-  // same name slightly differently still lands under the same product.
-  // The most recently activated version is the "primary" one shown in
-  // the row (its version number/date/status drive the main columns); the
-  // rest are available via the versions dropdown.
-  //
-  // The DISPLAY NAME, however, is intentionally taken from the
-  // first-ever-created version in the group (lowest id), not from
-  // whichever version happens to be "primary". Without this, adding a
-  // new version under the same name but with different
-  // casing/spacing (e.g. "excel upload" instead of "Excel Upload") would
-  // silently overwrite the original label whenever that new version
-  // ended up sorted first. The originally chosen name should stick.
-  // ---------------------------------------------------------------------
+  // Groups flat product rows into one entry per product name, with the
+  // most recently activated version as "primary" and the original name kept.
   const grouped = useMemo(() => {
     const byKey = new Map()
     products.forEach((p) => {
@@ -322,12 +290,7 @@ function ProductMasterPage() {
   )
 }
 
-// ---------------------------------------------------------------------------
-// Versions dropdown — click the "N versions" chip to see a floating list
-// of every version under this product (read-only). Rendered through a
-// portal on <body> so it's never clipped by the table's own overflow, and
-// closes on outside click or Escape.
-// ---------------------------------------------------------------------------
+// Versions dropdown — floating read-only list of all versions for a product.
 function VersionsDropdown({ group }) {
   const [open, setOpen] = useState(false)
   const [coords, setCoords] = useState({ top: 0, left: 0 })
@@ -415,11 +378,7 @@ function VersionsDropdown({ group }) {
   )
 }
 
-// ---------------------------------------------------------------------------
-// Add Product modal — creates a brand-new version row. If the name
-// (ignoring case/extra spaces) matches an existing product, it will
-// automatically appear grouped under that product on the table.
-// ---------------------------------------------------------------------------
+// Add Product modal — creates a new version row, grouped under matching names.
 function AddProductModal({ onClose, onSaved }) {
   const [form, setForm] = useState({ name: '', version: '', activation_date: '' })
   const [errors, setErrors] = useState({})
@@ -490,14 +449,7 @@ function AddProductModal({ onClose, onSaved }) {
   )
 }
 
-// ---------------------------------------------------------------------------
-// Edit Product modal — edits the product's name (applied to every version
-// in the group), and each version's own activation date individually.
-// Click a version row to expand an inline date editor for that specific
-// version; "Save Changes" persists the name and only the dates that were
-// actually touched. Versions aren't renamed/retyped here — use "Add
-// Product" with the same name to add another version; use ✕ to remove one.
-// ---------------------------------------------------------------------------
+// Edit Product modal — edits the product name and each version's activation date.
 function EditProductModal({ group, onClose, onSaved, onVersionRemoved }) {
   const primary = group.versions[0]
   const [name, setName] = useState(group.name)
@@ -512,6 +464,46 @@ function EditProductModal({ group, onClose, onSaved, onVersionRemoved }) {
   const [saving, setSaving] = useState(false)
   const [removingId, setRemovingId] = useState(null)
 
+  // Staff assigned to handle this product, used for ticket routing.
+  const [staffList, setStaffList] = useState([])
+  const [staffIds, setStaffIds] = useState([])
+  const [staffSaving, setStaffSaving] = useState(false)
+  const [staffSaved, setStaffSaved] = useState(false)
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const [{ data: staff }, { data: map }] = await Promise.all([
+          api.get('staff/'),
+          api.get('products/staff-map/'),
+        ])
+        setStaffList(staff)
+        setStaffIds(map[group.name] || [])
+      } catch (err) {
+        // Non-fatal — the staff picker just shows empty.
+      }
+    })()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  const toggleStaff = (id) => {
+    setStaffSaved(false)
+    setStaffIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]))
+  }
+
+  const saveStaff = async () => {
+    setStaffSaving(true)
+    try {
+      await api.post('products/staff-map/', { product_name: group.name, staff_ids: staffIds })
+      setStaffSaved(true)
+    } catch (err) {
+      // Kept silent/minimal here — the main modal already has a broader
+      // error surface for name/version saves.
+    } finally {
+      setStaffSaving(false)
+    }
+  }
+
   const toggleExpand = (id) => {
     setExpandedId((prev) => (prev === id ? null : id))
   }
@@ -520,9 +512,7 @@ function EditProductModal({ group, onClose, onSaved, onVersionRemoved }) {
     setSaving(true)
     setErrors({})
     try {
-      // Compare against group.name (the preserved original display name),
-      // not primary.name — primary is whichever version is most recently
-      // activated, which may not be the one the display name comes from.
+      // Compare against the preserved original display name, not primary.name.
       const nameChanged = name !== group.name
 
       const patchPromises = versions.map((v) => {
@@ -699,6 +689,34 @@ function EditProductModal({ group, onClose, onSaved, onVersionRemoved }) {
               To add another version, use "Add Product" with the same name — it'll be grouped in
               here automatically.
             </p>
+          </div>
+
+          <div className="form-field">
+            <label>Staff who handle this product</label>
+            <p style={{ fontSize: 11.5, color: '#6b7280', margin: '0 0 8px' }}>
+              Used to route new tickets — combined with which customers each staff member is assigned to.
+            </p>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+              {staffList.length === 0 && (
+                <span style={{ fontSize: 12.5, color: '#6b7280' }}>No staff accounts yet.</span>
+              )}
+              {staffList.map((s) => {
+                const active = staffIds.includes(s.id)
+                return (
+                  <span
+                    key={s.id}
+                    onClick={() => toggleStaff(s.id)}
+                    className={active ? 'chip resolved' : 'chip closed'}
+                    style={{ cursor: 'pointer', userSelect: 'none' }}
+                  >
+                    {s.name}
+                  </span>
+                )
+              })}
+            </div>
+            <button type="button" className="btn btn-ghost" onClick={saveStaff} disabled={staffSaving}>
+              {staffSaving ? 'Saving…' : staffSaved ? 'Saved ✓' : 'Save Staff'}
+            </button>
           </div>
         </div>
         <div className="modal-foot">

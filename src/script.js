@@ -111,17 +111,7 @@ function startOfMonth(d) {
 // how Dashboard.jsx / the role dashboards already group Resolved + Closed.
 var RESOLVED_STATUSES = ["Resolved", "Closed"];
 
-/**
- * Turns a flat list of tickets (the same shape returned by GET tickets/ —
- * needs created_at, and ideally updated_at + status) into the
- * { daily, weekly, monthly } shape drawChart() expects, computed from real
- * data instead of the hardcoded TREND_DATA above.
- *
- * Assumption: there's no dedicated `resolved_at` field on the ticket, so a
- * ticket counts as "resolved" on the day/week/month of its `updated_at`
- * timestamp, provided its current status is Resolved or Closed. If the
- * backend adds a real resolved_at field later, swap the reference below.
- */
+// Converts a flat list of tickets into the { daily, weekly, monthly } shape drawChart() expects.
 function buildTrendData(tickets) {
   tickets = tickets || [];
 
@@ -292,12 +282,7 @@ function drawChart(canvas, dataset) {
   });
 }
 
-/**
- * @param {Object} [customDataset] - Optional { daily, weekly, monthly } shape,
- *   normally the output of buildTrendData(tickets). If omitted, falls back to
- *   the hardcoded TREND_DATA mock (only still used by pages that haven't been
- *   wired up to real ticket data).
- */
+// Renders the ticket trend chart; uses customDataset if given, else falls back to mock TREND_DATA.
 function initTrendChart(customDataset) {
   var canvas = document.getElementById("trendChart");
   if (!canvas) return;

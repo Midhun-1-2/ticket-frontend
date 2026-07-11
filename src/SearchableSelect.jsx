@@ -1,18 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react'
 
-// A lightweight searchable dropdown — used for Country and State fields,
-// which need to filter long lists (250 countries, and states that can run
-// into the dozens) rather than making people scroll a giant native <select>.
-//
-// Accessible-ish basics: closes on outside click and Escape, keeps the
-// native-select-like keyboard tabbing via a real <button> trigger.
-//
-// VIEWPORT FIX: the panel used to always open downward from the trigger
-// with no check for available space, so on fields lower on the page
-// (State/Province, Pincode) it ran past the bottom of the screen. It now
-// measures actual remaining space above/below the trigger on open and
-// flips upward (adds the `panel-up` class, styled in onboarding.css)
-// whenever there isn't enough room below but there is above.
+// A lightweight searchable dropdown (e.g. for Country/State fields), with panel
+// flip-up when there isn't enough room below the trigger.
 function SearchableSelect({
   value,
   onChange,
@@ -52,9 +41,7 @@ function SearchableSelect({
     }
   }, [])
 
-  // Decide open-up vs open-down based on real remaining viewport space —
-  // recomputed every time the panel opens, since scroll position can
-  // have changed since the last time it was opened.
+  // Decides whether the panel opens up or down based on viewport space.
   useEffect(() => {
     if (!open || !triggerRef.current) return
     const rect = triggerRef.current.getBoundingClientRect()

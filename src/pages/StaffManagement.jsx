@@ -1,14 +1,26 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import api from '../api' // adjust this path to match where api.js actually lives
 import '/src/staff-management.css'
 
-const EMPTY_FORM = {
-  name: '', email: '', phone: '', department: '', role: '', password: '',
+// Case/whitespace-insensitive key for grouping product name variants.
+function normalizeName(name) {
+  return (name || '').replace(/\s+/g, '').toLowerCase()
 }
 
-// Same fix as AllTickets.jsx / the dashboards / TicketAssignment.jsx:
-// forces the status chip onto a single line and sizes it to its own
-// content, matching the design used everywhere else in the app.
+// Strips any leading "v"/"V" so display never doubles it up, then adds
+// exactly one back. '' stays '' (versionless products have nothing to show).
+function displayVersion(version) {
+  if (!version) return ''
+  const cleaned = String(version).trim().replace(/^v/i, '')
+  return cleaned ? `v${cleaned}` : ''
+}
+
+const EMPTY_FORM = {
+  name: '', email: '', phone: '', department: '', role: '', password: '', products: [],
+}
+
+// Keeps the status chip on a single line, sized to its content.
 const chipNoWrapStyle = {
   whiteSpace: 'nowrap',
   display: 'inline-flex',
@@ -32,11 +44,12 @@ function StaffManagement() {
   const [roles, setRoles] = useState([]) // [{ id, name }]
   const [rolesLoading, setRolesLoading] = useState(true)
 
-  // Department is now a managed list too, same pattern as roles — see
-  // ASSUMPTION note in fetchDepartments() below re: the staff-departments/
-  // endpoint this expects on the backend.
+  // Managed department list, same pattern as roles.
   const [departments, setDepartments] = useState([]) // [{ id, name }]
   const [departmentsLoading, setDepartmentsLoading] = useState(true)
+
+  // Products grouped by name with their versions, for the "products handled" picker.
+  const [productGroups, setProductGroups] = useState([]) // [{ name, versions: [version, ...] }]
 
   const [showStaffModal, setShowStaffModal] = useState(false)
   const [editingId, setEditingId] = useState(null) // null = adding new, otherwise editing this id
@@ -74,7 +87,26 @@ function StaffManagement() {
     fetchStaff()
     fetchRoles()
     fetchDepartments()
+    fetchProductOptions()
   }, [])
+
+  const fetchProductOptions = async () => {
+    try {
+      const { data } = await api.get('products/?include_inactive=true')
+      const byKey = new Map()
+      data.forEach((p) => {
+        const key = normalizeName(p.name)
+        if (!byKey.has(key)) byKey.set(key, { name: p.name, versions: [] })
+        byKey.get(key).versions.push(p.version || '')
+      })
+      const groups = Array.from(byKey.values())
+        .map((g) => ({ ...g, versions: [...new Set(g.versions)] }))
+        .sort((a, b) => a.name.localeCompare(b.name))
+      setProductGroups(groups)
+    } catch (err) {
+      // Non-fatal — the products picker will just show as empty.
+    }
+  }
 
   const fetchStaff = async () => {
     setStaffLoading(true)
@@ -102,11 +134,7 @@ function StaffManagement() {
     }
   }
 
-  // ASSUMPTION: mirrors staff-roles/ exactly — GET/POST staff-departments/
-  // returning [{ id, name }], DELETE staff-departments/{id}/. This endpoint
-  // doesn't exist in what I've seen of the backend yet; it needs adding
-  // (model + serializer + view + URL) alongside whatever already backs
-  // staff-roles/, since that's the pattern this mirrors.
+  // Fetches managed departments, mirroring the staff-roles/ endpoint shape.
   const fetchDepartments = async () => {
     setDepartmentsLoading(true)
     try {
@@ -136,6 +164,7 @@ function StaffManagement() {
       department: member.department || departments[0]?.name || '',
       role: member.role || roles[0]?.name || '',
       password: '', // left blank on edit — only sent if changed
+      products: member.products || [],
     })
     setFormError('')
     setShowStaffModal(true)
@@ -143,6 +172,19 @@ function StaffManagement() {
 
   function handleFormChange(field, value) {
     setForm((prev) => ({ ...prev, [field]: value }))
+  }
+
+  // Toggles one { name, version } product entry in the form.
+  function toggleFormProduct(name, version) {
+    setForm((prev) => {
+      const exists = prev.products.some((p) => p.name === name && p.version === version)
+      return {
+        ...prev,
+        products: exists
+          ? prev.products.filter((p) => !(p.name === name && p.version === version))
+          : [...prev.products, { name, version }],
+      }
+    })
   }
 
   // Flattens DRF's { field: ["error msg"] } into one readable string.
@@ -176,6 +218,7 @@ function StaffManagement() {
           phone: form.phone,
           department: form.department,
           role: form.role,
+          products: form.products,
         })
         setStaff((prev) => prev.map((s) => (s.id === editingId ? data : s)))
       } else {
@@ -590,6 +633,23 @@ function StaffManagement() {
                   </select>
                 </div>
 
+                <div className="sm-field-full">
+                  <label className="sm-field-label">Products handled</label>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                    {productGroups.length === 0 && (
+                      <span style={{ fontSize: 12.5, color: 'var(--text-muted)' }}>No products in Product Master yet.</span>
+                    )}
+                    {productGroups.map((group) => (
+                      <ProductHandledChip
+                        key={normalizeName(group.name)}
+                        group={group}
+                        selected={form.products}
+                        onToggle={toggleFormProduct}
+                      />
+                    ))}
+                  </div>
+                </div>
+
                 {editingId === null && (
                   <div className="sm-field-full">
                     <label className="sm-field-label">Password</label>
@@ -661,9 +721,7 @@ function StaffManagement() {
         </div>
       )}
 
-      {/* ================= Add / Manage Department Modal =================
-          Identical structure to the Role modal above — same CSS classes
-          on purpose, so it looks and behaves consistently. */}
+      {/* ================= Add / Manage Department Modal ================= */}
       {showDepartmentModal && (
         <div className="sm-modal-overlay" onClick={() => setShowDepartmentModal(false)}>
           <div className="sm-modal-card" onClick={(e) => e.stopPropagation()}>
@@ -870,6 +928,114 @@ function StaffManagement() {
 
     </div>
     </main>
+  )
+}
+
+// One product's chip in the "Products handled" picker — single version
+// toggles directly, multiple versions open a checklist popover.
+function ProductHandledChip({ group, selected, onToggle }) {
+  const [open, setOpen] = useState(false)
+  const [coords, setCoords] = useState({ top: 0, left: 0 })
+  const triggerRef = useRef(null)
+  const panelRef = useRef(null)
+
+  const isSelected = (version) => selected.some((p) => p.name === group.name && p.version === version)
+  const selectedCount = group.versions.filter((v) => isSelected(v)).length
+
+  if (group.versions.length <= 1) {
+    const version = group.versions[0] || ''
+    const active = isSelected(version)
+    return (
+      <span
+        onClick={() => onToggle(group.name, version)}
+        className={active ? 'chip resolved' : 'chip closed'}
+        style={{ cursor: 'pointer', userSelect: 'none' }}
+      >
+        {group.name}
+      </span>
+    )
+  }
+
+  const openPanel = () => {
+    if (triggerRef.current) {
+      const rect = triggerRef.current.getBoundingClientRect()
+      setCoords({ top: rect.bottom + window.scrollY + 6, left: rect.left + window.scrollX })
+    }
+    setOpen(true)
+  }
+
+  useEffect(() => {
+    if (!open) return
+    const handleClick = (e) => {
+      if (triggerRef.current?.contains(e.target)) return
+      if (panelRef.current?.contains(e.target)) return
+      setOpen(false)
+    }
+    const handleKey = (e) => { if (e.key === 'Escape') setOpen(false) }
+    document.addEventListener('mousedown', handleClick)
+    document.addEventListener('keydown', handleKey)
+    return () => {
+      document.removeEventListener('mousedown', handleClick)
+      document.removeEventListener('keydown', handleKey)
+    }
+  }, [open])
+
+  return (
+    <span ref={triggerRef} style={{ position: 'relative', display: 'inline-block' }}>
+      <span
+        onClick={() => (open ? setOpen(false) : openPanel())}
+        className={selectedCount > 0 ? 'chip resolved' : 'chip closed'}
+        style={{ cursor: 'pointer', userSelect: 'none', gap: 4 }}
+      >
+        {group.name}{selectedCount > 0 ? ` (${selectedCount})` : ''}
+        <svg
+          viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+          strokeLinecap="round" strokeLinejoin="round" width="12" height="12"
+          style={{ transform: open ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.15s ease' }}
+        >
+          <path d="m6 9 6 6 6-6" />
+        </svg>
+      </span>
+      {open && createPortal(
+        <div
+          ref={panelRef}
+          style={{
+            position: 'absolute',
+            top: coords.top,
+            left: coords.left,
+            zIndex: 1300,
+            minWidth: 200,
+            background: '#fff',
+            border: '1px solid var(--line, #e5e7eb)',
+            borderRadius: 10,
+            boxShadow: '0 12px 30px -8px rgba(20,23,31,0.25)',
+            overflow: 'hidden',
+            padding: 6,
+          }}
+        >
+          <div style={{ fontSize: 10.5, textTransform: 'uppercase', letterSpacing: '.05em', color: '#8A8FA3', fontWeight: 600, padding: '4px 8px 6px' }}>
+            Select version(s)
+          </div>
+          {group.versions.map((v) => {
+            const checked = isSelected(v)
+            return (
+              <label
+                key={v || '—'}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 8,
+                  padding: '7px 8px', borderRadius: 8, cursor: 'pointer', fontSize: 13,
+                  background: checked ? 'rgba(20,150,120,0.08)' : 'transparent',
+                }}
+              >
+                <input type="checkbox" checked={checked} onChange={() => onToggle(group.name, v)} />
+                {displayVersion(v) || 'No version'}
+              </label>
+            )
+          })}
+        </div>,
+        document.body
+      )}
+    </span>
   )
 }
 

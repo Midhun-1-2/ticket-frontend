@@ -1,19 +1,14 @@
 import React, { useEffect, useMemo, useState, useRef } from 'react'
 import { createPortal } from 'react-dom'
+import ExcelJS from 'exceljs'
 import api from '../api' // adjust this path to match where api.js actually lives
 
-// NOTE: assumes login stores { role } in localStorage, matching the shape
-// returned by the backend's issue_tokens() — same pattern as
-// TicketAssignment.jsx.
+// Reads the logged-in user's role from localStorage.
 const getRole = () => localStorage.getItem('role') || 'staff'
+const getFullName = () => localStorage.getItem('full_name') || ''
 const ROLE_EYEBROW = { admin: 'Admin · Manage', staff: 'Staff · Manage', customer: 'Customer · Manage' }
 
-// ---------------------------------------------------------------------------
 // Static option lists — mirrors RaiseTicket.jsx / ticketapp/models.py.
-// Product is still a hardcoded choice field on the Ticket model (see the
-// comment there), so this list must stay in sync with PRODUCT_CHOICES
-// until that's migrated to ProductMaster.
-// ---------------------------------------------------------------------------
 const PRIORITIES = ['Low', 'Medium', 'High', 'Urgent']
 const STATUSES = ['In Progress', 'On Hold', 'Resolved', 'Closed']
 
@@ -27,10 +22,7 @@ const STATUS_CHIP = {
   Closed: 'chip closed',
 }
 
-// Fix: some status labels ("In Progress", "On Hold") were wrapping onto two
-// lines inside the fixed-height chip pill and getting visually clipped
-// (see screenshot). Forcing nowrap + a little horizontal padding/min-width
-// keeps every status chip on a single line regardless of label length.
+// Keeps status chips on a single line regardless of label length.
 const chipNoWrapStyle = {
   whiteSpace: 'nowrap',
   display: 'inline-flex',
@@ -70,34 +62,27 @@ function shortId(id) {
   return id ? id.slice(0, 8).toUpperCase() : '—'
 }
 
-// The Ticket API returns attachment.file as a relative media path (e.g.
-// "/media/ticket_attachments/2026/07/screenshot.png"). Prefix it with the
-// backend's origin (derived from api.js's baseURL) so links resolve
-// correctly regardless of which host the frontend is served from.
+// Prefixes a relative attachment path with the backend's origin.
 const BACKEND_ORIGIN = api.defaults.baseURL.replace(/\/+$/, '')
 function attachmentUrl(path) {
   if (!path) return '#'
   return path.startsWith('http') ? path : `${BACKEND_ORIGIN}${path}`
 }
 
-// Reflects Ticket.closed_at — set server-side the first time a ticket's
-// status flips to 'Closed', cleared if it's ever reopened. See
-// TicketStatusUpdateView / TicketDetailView.perform_update on the backend.
+// Formats Ticket.closed_at, if the ticket has been closed.
 function closedOn(ticket) {
   return ticket.closed_at ? formatDateTime(ticket.closed_at) : '—'
 }
 
-// Shows a small "Note" chip when a ticket has a staff remark (currently
-// sourced from Ticket.escalation_note — the only staff-authored note
-// field on the ticket today). Hovering/focusing reveals the full text via
-// a fixed-position portal on <body>, so it's never clipped by the modal's
-// own overflow-y:auto.
-function RemarkTooltip({ text }) {
+// Truncated remark preview with the full text shown on hover via a portal.
+function RemarkTooltip({ text, maxLen = 36 }) {
   const [open, setOpen] = useState(false)
   const [coords, setCoords] = useState({ top: 0, left: 0 })
   const chipRef = useRef(null)
 
   if (!text) return <span style={{ color: 'var(--text-faint)' }}>—</span>
+
+  const truncated = text.length > maxLen ? `${text.slice(0, maxLen)}…` : text
 
   const updatePosition = () => {
     if (chipRef.current) {
@@ -111,15 +96,23 @@ function RemarkTooltip({ text }) {
   return (
     <span
       ref={chipRef}
-      className="chip hold"
-      style={{ cursor: 'help', ...chipNoWrapStyle }}
+      style={{
+        cursor: 'help',
+        display: 'inline-block',
+        maxWidth: 200,
+        overflow: 'hidden',
+        textOverflow: 'ellipsis',
+        whiteSpace: 'nowrap',
+        fontSize: 12.5,
+        verticalAlign: 'bottom',
+      }}
       tabIndex={0}
       onMouseEnter={show}
       onMouseLeave={hide}
       onFocus={show}
       onBlur={hide}
     >
-      Note
+      {truncated}
       {open && createPortal(
         <div
           onMouseEnter={show}
@@ -130,17 +123,18 @@ function RemarkTooltip({ text }) {
             left: coords.left,
             zIndex: 1000,
             maxWidth: 260,
-            background: 'var(--ink)',
-            color: '#DADCE4',
-            borderRadius: 8,
+            background: '#fff',
+            color: 'var(--text)',
+            border: '1px solid var(--line, #e5e7eb)',
+            borderRadius: 10,
             padding: '10px 12px',
             fontSize: 12.5,
             lineHeight: 1.5,
-            boxShadow: '0 12px 30px -8px rgba(20,23,31,0.45)',
+            boxShadow: '0 12px 30px -8px rgba(20,23,31,0.25)',
           }}
         >
-          <div style={{ fontSize: 10.5, textTransform: 'uppercase', letterSpacing: '.05em', color: '#8A8FA3', marginBottom: 4, fontWeight: 600 }}>
-            Staff Remark
+          <div style={{ fontSize: 10.5, textTransform: 'uppercase', letterSpacing: '.05em', color: 'var(--text-muted, #6b7280)', marginBottom: 4, fontWeight: 600 }}>
+            Remark
           </div>
           {text}
         </div>,
@@ -163,8 +157,11 @@ function AllTickets() {
   const [priorityFilter, setPriorityFilter] = useState('all')
   const [categoryFilter, setCategoryFilter] = useState('all')
   const [productFilter, setProductFilter] = useState('all')
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
 
   const [viewTicket, setViewTicket] = useState(null)
+  const [generatingReport, setGeneratingReport] = useState(false)
 
   useEffect(() => {
     fetchTickets()
@@ -196,10 +193,7 @@ function AllTickets() {
 
   const fetchProducts = async () => {
     try {
-      // Admin-only Product Master catalog — this page is already
-      // admin-authenticated, so the same endpoint ProductMaster.jsx uses
-      // works here too. include_inactive so older tickets tagged with a
-      // since-deactivated product can still be filtered by name.
+      // include_inactive so tickets tagged with a deactivated product still filter correctly.
       const { data } = await api.get('products/?include_inactive=true')
       setProductOptions(data.map((p) => p.name))
     } catch (err) {
@@ -227,6 +221,17 @@ function AllTickets() {
     if (categoryFilter !== 'all') rows = rows.filter((t) => t.category === categoryFilter)
     if (productFilter !== 'all') rows = rows.filter((t) => t.product === productFilter)
 
+    // Date range filter, inclusive on both ends.
+    if (dateFrom) {
+      const from = new Date(dateFrom)
+      rows = rows.filter((t) => new Date(t.created_at) >= from)
+    }
+    if (dateTo) {
+      const to = new Date(dateTo)
+      to.setHours(23, 59, 59, 999)
+      rows = rows.filter((t) => new Date(t.created_at) <= to)
+    }
+
     const q = search.trim().toLowerCase()
     if (q) {
       rows = rows.filter(
@@ -238,7 +243,107 @@ function AllTickets() {
       )
     }
     return rows
-  }, [tickets, search, statusTab, priorityFilter, categoryFilter, productFilter])
+  }, [tickets, search, statusTab, priorityFilter, categoryFilter, productFilter, dateFrom, dateTo])
+
+  // Builds a branded .xlsx report of the currently filtered tickets.
+  const handleCreateReport = async () => {
+    setGeneratingReport(true)
+    setError('')
+    try {
+      const workbook = new ExcelJS.Workbook()
+      workbook.creator = 'TIXA'
+      workbook.created = new Date()
+
+      const sheet = workbook.addWorksheet('Tickets Report')
+
+      const columns = [
+        'Ticket ID', 'Subject', 'Raised By', 'Phone', 'Category', 'Product',
+        'Priority', 'Status', 'Assigned Staff', 'Remark', 'Raised On', 'Closed On',
+      ]
+
+      // Solid banner behind the logo/title/meta block.
+      for (let r = 1; r <= 4; r += 1) {
+        for (let c = 1; c <= columns.length; c += 1) {
+          sheet.getRow(r).getCell(c).fill = {
+            type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0F6E63' },
+          }
+        }
+      }
+
+      try {
+        const logoBuffer = await fetch('/logo.png').then((r) => r.arrayBuffer())
+        const logoImageId = workbook.addImage({ buffer: logoBuffer, extension: 'png' })
+        sheet.addImage(logoImageId, { tl: { col: 0.15, row: 0.15 }, ext: { width: 48, height: 48 } })
+      } catch (err) {
+        // Logo is cosmetic — a failed fetch shouldn't block the report itself.
+      }
+
+      sheet.mergeCells('B1:E1')
+      sheet.getCell('B1').value = 'TIXA — Ticket Report'
+      sheet.getCell('B1').font = { size: 16, bold: true, color: { argb: 'FFFFFFFF' } }
+
+      sheet.mergeCells('B2:E2')
+      sheet.getCell('B2').value = `Report created: ${formatDateTime(new Date().toISOString())}`
+      sheet.getCell('B2').font = { size: 10.5, color: { argb: 'FFDCEFEC' } }
+
+      const creatorName = getFullName() || 'Unknown'
+      const creatorRole = getRole()
+      sheet.mergeCells('B3:E3')
+      sheet.getCell('B3').value = `Created by: ${creatorName} (${creatorRole.charAt(0).toUpperCase()}${creatorRole.slice(1)})`
+      sheet.getCell('B3').font = { size: 10.5, color: { argb: 'FFDCEFEC' } }
+
+      sheet.getRow(1).height = 22
+      sheet.getRow(2).height = 16
+      sheet.getRow(3).height = 16
+      sheet.getRow(4).height = 8 // spacer row before the table
+
+      const headerRowIndex = 5
+      const headerRow = sheet.getRow(headerRowIndex)
+      headerRow.values = columns
+      headerRow.font = { bold: true, color: { argb: 'FFFFFFFF' } }
+      headerRow.eachCell((cell) => {
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF14171F' } }
+        cell.alignment = { vertical: 'middle' }
+      })
+
+      filtered.forEach((t, i) => {
+        sheet.getRow(headerRowIndex + 1 + i).values = [
+          shortId(t.id),
+          t.subject,
+          t.raised_by?.full_name || '—',
+          t.raised_by?.phone_number || '—',
+          t.category,
+          t.product || '—',
+          t.priority,
+          t.status,
+          t.assigned_staff?.full_name || 'Unassigned',
+          t.current_remark || t.escalation_note || '',
+          formatDateTime(t.created_at),
+          closedOn(t),
+        ]
+      })
+
+      const widths = [12, 28, 18, 13, 14, 16, 10, 12, 16, 34, 18, 18]
+      widths.forEach((w, i) => { sheet.getColumn(i + 1).width = w })
+
+      const buffer = await workbook.xlsx.writeBuffer()
+      const blob = new Blob([buffer], {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      })
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `tixa-tickets-report-${new Date().toISOString().slice(0, 10)}.xlsx`
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      URL.revokeObjectURL(url)
+    } catch (err) {
+      setError('Could not generate the report. Please try again.')
+    } finally {
+      setGeneratingReport(false)
+    }
+  }
 
   return (
     <main className="main">
@@ -249,6 +354,20 @@ function AllTickets() {
             <div className="page-eyebrow">{ROLE_EYEBROW[getRole()] || 'Manage'}</div>
             <h1 className="page-title">All Tickets</h1>
             <p className="page-desc">Every ticket raised across all customers.</p>
+          </div>
+          <div className="page-head-actions">
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={handleCreateReport}
+              disabled={generatingReport || filtered.length === 0}
+              title={filtered.length === 0 ? 'No tickets match the current filters' : 'Export the filtered tickets to Excel'}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 3v12" /><path d="m7 10 5 5 5-5" /><path d="M5 21h14" />
+              </svg>
+              {generatingReport ? 'Generating…' : 'Create Report'}
+            </button>
           </div>
         </div>
 
@@ -327,6 +446,34 @@ function AllTickets() {
             <option value="all">All Products</option>
             {productOptions.map((p) => <option key={p} value={p}>{p}</option>)}
           </select>
+          <input
+            type="date"
+            className="filter-select"
+            value={dateFrom}
+            max={dateTo || undefined}
+            onChange={(e) => setDateFrom(e.target.value)}
+            style={selectStyle}
+            title="From date"
+          />
+          <input
+            type="date"
+            className="filter-select"
+            value={dateTo}
+            min={dateFrom || undefined}
+            onChange={(e) => setDateTo(e.target.value)}
+            style={selectStyle}
+            title="To date"
+          />
+          {(dateFrom || dateTo) && (
+            <button
+              type="button"
+              className="btn btn-ghost"
+              onClick={() => { setDateFrom(''); setDateTo('') }}
+              style={{ height: 38 }}
+            >
+              Clear dates
+            </button>
+          )}
         </div>
 
         {/* Table */}
@@ -383,7 +530,7 @@ function AllTickets() {
                       </span>
                     </td>
                     <td>{t.assigned_staff?.full_name || <span style={{ color: 'var(--text-faint)' }}>Unassigned</span>}</td>
-                    <td><RemarkTooltip text={t.escalation_note} /></td>
+                    <td><RemarkTooltip text={t.current_remark || t.escalation_note} /></td>
                     <td className="sla ok">{formatDateTime(t.created_at)}</td>
                     <td className="sla ok">{closedOn(t)}</td>
                     <td>
@@ -429,27 +576,47 @@ const selectStyle = {
   fontFamily: 'var(--font-body)',
 }
 
-// ---------------------------------------------------------------------------
-// Ticket detail modal — full description, attachments, assigned staff,
-// remarks, closed date/time, and a status updater (PATCH tickets/<id>/).
-// ---------------------------------------------------------------------------
+// Ticket detail modal — full details plus a status updater (PATCH tickets/<id>/).
 function TicketModal({ ticket, onClose, onUpdated }) {
   const [status, setStatus] = useState(ticket.status)
+  const [remark, setRemark] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [saved, setSaved] = useState(false)
 
+  // Status history is admin-only; fetched lazily only for admins.
+  const isAdmin = getRole() === 'admin'
+  const [statusHistory, setStatusHistory] = useState([])
+  const [historyLoading, setHistoryLoading] = useState(false)
+
+  useEffect(() => {
+    if (!isAdmin) return
+    let cancelled = false
+    setHistoryLoading(true)
+    api.get(`tickets/${ticket.id}/status-history/`)
+      .then(({ data }) => { if (!cancelled) setStatusHistory(data) })
+      .catch(() => { if (!cancelled) setStatusHistory([]) })
+      .finally(() => { if (!cancelled) setHistoryLoading(false) })
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ticket.id, isAdmin])
+
   const handleUpdateStatus = async () => {
-    if (status === ticket.status) return
+    if (status === ticket.status || !remark.trim()) return
     setSaving(true)
     setError('')
     setSaved(false)
     try {
-      const { data } = await api.patch(`tickets/${ticket.id}/status/`, { status })
+      const { data } = await api.patch(`tickets/${ticket.id}/status/`, { status, remark: remark.trim() })
       onUpdated(data)
+      setRemark('')
       setSaved(true)
     } catch (err) {
-      setError('Could not update status. Please try again.')
+      setError(
+        err.response?.data?.detail
+        || err.response?.data?.remark?.[0]
+        || 'Could not update status. Please try again.'
+      )
     } finally {
       setSaving(false)
     }
@@ -508,10 +675,45 @@ function TicketModal({ ticket, onClose, onUpdated }) {
           <div className="detail-section-title">Description</div>
           <div className="remarks-box">{ticket.description}</div>
 
-          {ticket.escalation_note && (
+          {(ticket.current_remark || ticket.escalation_note) && (
             <>
-              <div className="detail-section-title">Remarks</div>
-              <div className="remarks-box">{ticket.escalation_note}</div>
+              <div className="detail-section-title">Current Remark</div>
+              <div className="remarks-box">{ticket.current_remark || ticket.escalation_note}</div>
+            </>
+          )}
+
+          {isAdmin && (
+            <>
+              <div className="detail-section-title">Status History</div>
+              {historyLoading ? (
+                <div className="ticket-modal-status" style={{ fontSize: 12.5, color: 'var(--text-muted)' }}>Loading history…</div>
+              ) : statusHistory.length === 0 ? (
+                <div className="ticket-modal-status" style={{ fontSize: 12.5, color: 'var(--text-muted)' }}>No status changes yet.</div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {statusHistory.map((h) => (
+                    <div
+                      key={h.id}
+                      style={{
+                        border: '1px solid var(--line, #e5e7eb)',
+                        borderRadius: 10,
+                        padding: '10px 12px',
+                        fontSize: 12.5,
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', fontWeight: 600 }}>
+                        <span className={STATUS_CHIP[h.from_status] || 'chip open'} style={{ ...chipNoWrapStyle, fontSize: 11 }}>{h.from_status}</span>
+                        <span style={{ color: 'var(--text-muted)' }}>→</span>
+                        <span className={STATUS_CHIP[h.to_status] || 'chip open'} style={{ ...chipNoWrapStyle, fontSize: 11 }}>{h.to_status}</span>
+                      </div>
+                      {h.remark && <div style={{ marginTop: 6 }}>{h.remark}</div>}
+                      <div style={{ marginTop: 6, color: 'var(--text-muted)' }}>
+                        {h.changed_by?.full_name || h.changed_by?.phone_number || 'Unknown'} · {formatDateTime(h.created_at)}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </>
           )}
 
@@ -564,11 +766,20 @@ function TicketModal({ ticket, onClose, onUpdated }) {
                 </span>
               ))}
             </div>
+            {status !== ticket.status && (
+              <textarea
+                placeholder={`Add a remark for moving this ticket to "${status}" (required)`}
+                value={remark}
+                onChange={(e) => { setRemark(e.target.value); setSaved(false) }}
+                rows={3}
+                style={{ width: '100%', resize: 'vertical', marginBottom: 12 }}
+              />
+            )}
             <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
               <button
                 className="btn btn-primary"
                 onClick={handleUpdateStatus}
-                disabled={saving || status === ticket.status}
+                disabled={saving || status === ticket.status || !remark.trim()}
               >
                 {saving ? 'Saving…' : 'Update Status'}
               </button>

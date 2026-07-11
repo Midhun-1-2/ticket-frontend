@@ -65,9 +65,7 @@
   cursor: not-allowed;
 }
 
-/* --- Row action buttons (Edit / Activate / Deactivate / Delete) ---
-   Compact icon-only buttons with tooltips — keeps the Actions column
-   narrow so it never crowds into Status, however many actions exist. */
+/* --- Row action buttons (Edit / Activate / Deactivate / Delete) --- */
 .row-actions{
   display:flex;
   align-items:center;
@@ -120,11 +118,7 @@
 .btn-danger:hover{ background: #A63524; }
 .btn-danger:disabled{ background: var(--red); opacity: .55; }
 
-/* --- Staff table column widths ---
-   .tickets (in style.css) has no fixed widths, which is fine for the
-   ticket list (long "Subject" column absorbs the slack) but leaves this
-   table's short-content columns spread out unevenly. Scoped to
-   .staff-table only, so the ticket list pages are unaffected. */
+/* --- Staff table column widths (scoped to .staff-table only) --- */
 table.tickets.staff-table{
   table-layout: fixed;
 }

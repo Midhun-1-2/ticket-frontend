@@ -4,20 +4,9 @@ import axios from 'axios'
 const API_BASE = 'http://localhost:8000/'
 
 // Endpoints that don't need — and shouldn't send — an auth token.
-// NOTE: 'onboarding' is intentionally NOT a plain substring here anymore.
-// Only the public self-registration submission route is public; everything
-// else under onboarding/ (pending list, detail, approve, reject) is admin-only
-// and must carry the JWT.
 const PUBLIC_ENDPOINTS = ['login', 'detect-role', 'signup', 'register']
 
-// Matches ONLY the public onboarding submission route, e.g.:
-//   POST onboarding/            -> public
-//   POST onboarding/register/   -> public (if that's the path you use)
-// Does NOT match:
-//   onboarding/pending/         -> admin
-//   onboarding/123/             -> admin
-//   onboarding/123/approve/     -> admin
-//   onboarding/123/reject/      -> admin
+// Matches only the public onboarding submission route, not the admin-only onboarding/* routes.
 const PUBLIC_ONBOARDING_PATTERN = /^\/?onboarding\/?(register\/?)?$/
 
 function isPublicEndpoint(url) {
@@ -40,9 +29,7 @@ const api = axios.create({
   headers: { 'Content-Type': 'application/json' },
 })
 
-// Attach the JWT access token to every outgoing request, if we have one —
-// but skip public endpoints, since an expired/stale token would otherwise
-// get validated (and rejected) before the view's own logic even runs.
+// Attaches the JWT access token to every outgoing request, except public endpoints.
 api.interceptors.request.use((config) => {
   if (!isPublicEndpoint(config.url)) {
     const token = localStorage.getItem('access')
@@ -115,9 +102,6 @@ api.interceptors.response.use(
 )
 
 // Clears all locally-stored session data and redirects to the landing page.
-// Exported so components (e.g. the sidebar's Log Out button) can trigger
-// this directly, and so it can be reused as the "clean up locally, no
-// matter what" step inside logout() below.
 export function clearSession() {
   localStorage.removeItem('access')
   localStorage.removeItem('refresh')
@@ -125,11 +109,7 @@ export function clearSession() {
   window.location.href = '/'
 }
 
-// Full logout: blacklists the refresh token server-side (so it can't be
-// reused even if someone has a copy of it), then clears local session and
-// redirects. Falls back to just clearing locally if the API call fails for
-// any reason (token already expired, network hiccup, etc.) — logout should
-// never leave the user stuck on the current screen.
+// Full logout: blacklists the refresh token server-side, then clears local session.
 export async function logout() {
   const refresh = localStorage.getItem('refresh')
   try {

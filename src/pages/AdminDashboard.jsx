@@ -10,9 +10,7 @@ const STATUS_CHIP = {
   Closed: 'chip resolved',
 }
 
-// Same fix as AllTickets.jsx: forces the status pill onto a single line
-// and sizes it to its own content, matching that page's status design
-// exactly.
+// Keeps the status pill on a single line, sized to its content.
 const chipNoWrapStyle = {
   whiteSpace: 'nowrap',
   display: 'inline-flex',
@@ -31,10 +29,7 @@ const PRIORITY_CLASS = { Low: 'low', Medium: 'medium', High: 'high', Urgent: 'ur
 const ALL_STATUSES = ['Open', 'In Progress', 'On Hold', 'Resolved', 'Closed']
 const CAT_COLORS = ['var(--blue)', undefined, 'var(--amber)', 'var(--violet)', 'var(--red)']
 
-// A ticket only drops out of "Now Working" once it's actually finished.
-// Getting transferred also removes it from view here (the assigned_staff
-// changes once the new staff member accepts), but that's a side effect of
-// the offer/accept flow, not a status value itself.
+// Statuses that remove a ticket from "Now Working".
 const DONE_STATUSES = ['Resolved', 'Closed']
 
 function timeAgo(iso) {
@@ -63,12 +58,7 @@ function getInitials(name) {
   return (parts[0][0] + parts[1][0]).toUpperCase()
 }
 
-// The staff/ endpoint's exact response shape isn't confirmed yet — this
-// normalizes a few common possibilities (a bare array, a paginated DRF
-// response with { results: [...] }, or a differently-named list key) and
-// a few common field-name variants for id/name/phone, so the dashboard
-// doesn't silently end up with an empty list if the shape differs
-// slightly from what was assumed here.
+// Normalizes the staff/ endpoint's response shape into a consistent list.
 function normalizeStaff(raw) {
   const list = Array.isArray(raw) ? raw : (raw?.results || raw?.staff || raw?.data || [])
   return list
@@ -80,37 +70,41 @@ function normalizeStaff(raw) {
     .filter((s) => s.id !== undefined && s.id !== null)
 }
 
-// One modal, two modes:
-// - readOnly=false (opened from "Now Working"): shows the transfer control.
-// - readOnly=true (opened from History): details only, no footer actions.
+// Ticket detail modal — read-only from History, with transfer control from Now Working.
 function TicketDetailModal({ ticket, staffList, readOnly, onClose, onTransfer, transferring }) {
   const [selectedStaffId, setSelectedStaffId] = useState('')
-  // Staff ids tied to this ticket's raising company (via StaffAssignment),
-  // from GET tickets/{id}/eligible-staff/ — used purely to group the
-  // dropdown into "Assigned to this customer" vs "Other staff", per that
-  // endpoint's own docstring. null = still loading.
+  // Staff ids eligible for this ticket's company, from eligible-staff/. null = loading.
   const [eligibleIds, setEligibleIds] = useState(null)
+
+  // Status history for this ticket (admin-only view).
+  const [statusHistory, setStatusHistory] = useState([])
+  const [historyLoading, setHistoryLoading] = useState(false)
 
   useEffect(() => {
     setSelectedStaffId('')
     setEligibleIds(null)
-    if (!ticket || readOnly) return
+    setStatusHistory([])
+    if (!ticket) return
     let cancelled = false
-    api.get(`tickets/${ticket.id}/eligible-staff/`)
-      .then(({ data }) => { if (!cancelled) setEligibleIds(new Set(data.staff_ids || [])) })
-      .catch(() => { if (!cancelled) setEligibleIds(new Set()) })
+
+    if (!readOnly) {
+      api.get(`tickets/${ticket.id}/eligible-staff/`)
+        .then(({ data }) => { if (!cancelled) setEligibleIds(new Set(data.staff_ids || [])) })
+        .catch(() => { if (!cancelled) setEligibleIds(new Set()) })
+    }
+
+    setHistoryLoading(true)
+    api.get(`tickets/${ticket.id}/status-history/`)
+      .then(({ data }) => { if (!cancelled) setStatusHistory(data) })
+      .catch(() => { if (!cancelled) setStatusHistory([]) })
+      .finally(() => { if (!cancelled) setHistoryLoading(false) })
+
     return () => { cancelled = true }
   }, [ticket, readOnly])
 
   if (!ticket) return null
 
-  // The person who currently holds the ticket is shown separately above,
-  // not as a selectable option — you can't transfer a ticket to whoever
-  // already has it. Matched by full_name, not phone_number — phone_number
-  // comparisons between staffList (from staff/) and each ticket's embedded
-  // assigned_staff kept silently failing to match (likely a formatting
-  // difference between the two independently-fetched endpoints), which is
-  // why the current holder was still showing up as a transfer option.
+  // Excludes the current holder from the transfer options (matched by full_name).
   const transferOptions = staffList.filter((s) => s.full_name !== ticket.assigned_staff?.full_name)
   const assignedGroup = transferOptions.filter((s) => eligibleIds?.has(s.id))
   const otherGroup = transferOptions.filter((s) => !eligibleIds?.has(s.id))
@@ -159,6 +153,32 @@ function TicketDetailModal({ ticket, staffList, readOnly, onClose, onTransfer, t
           <div className="detail-row">
             <span className="v">{ticket.assigned_staff?.full_name || 'Unassigned'}</span>
           </div>
+
+          <div className="detail-section-title">Status History</div>
+          {historyLoading ? (
+            <div className="panel-sub">Loading history…</div>
+          ) : statusHistory.length === 0 ? (
+            <div className="panel-sub">No status changes yet.</div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {statusHistory.map((h) => (
+                <div
+                  key={h.id}
+                  style={{ border: '1px solid var(--line, #e5e7eb)', borderRadius: 10, padding: '10px 12px', fontSize: 12.5 }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', fontWeight: 600 }}>
+                    <span className={STATUS_CHIP[h.from_status] || 'chip open'} style={{ ...chipNoWrapStyle, fontSize: 11 }}>{h.from_status}</span>
+                    <span style={{ color: 'var(--text-muted)' }}>→</span>
+                    <span className={STATUS_CHIP[h.to_status] || 'chip open'} style={{ ...chipNoWrapStyle, fontSize: 11 }}>{h.to_status}</span>
+                  </div>
+                  {h.remark && <div style={{ marginTop: 6 }}>{h.remark}</div>}
+                  <div style={{ marginTop: 6, color: 'var(--text-muted)' }}>
+                    {h.changed_by?.full_name || h.changed_by?.phone_number || 'Unknown'} · {formatDate(h.created_at)}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         {!readOnly && (
@@ -257,26 +277,16 @@ function AdminDashboard() {
   }, [tickets])
 
   const staffPerformance = useMemo(() => {
-    // Keyed by full_name rather than phone_number: the modal proves
-    // ticket.assigned_staff.full_name is reliably populated and matches
-    // what staffList shows for the same person, whereas phone_number
-    // comparisons across the two independently-fetched endpoints kept
-    // coming up empty (0 everywhere) — likely a formatting/shape
-    // difference between staff/ and the tickets/ endpoint's embedded
-    // assigned_staff that isn't visible from the frontend alone.
+    // Aggregates ticket counts per staff member, keyed by full_name.
     const byName = new Map()
 
-    // Seed every known staff member first, so someone with zero tickets
-    // right now still shows up in the list at 0 rather than being
-    // silently absent.
+    // Seed every known staff member so zero-ticket staff still show up.
     staffList.forEach((s) => {
       if (!s.full_name) return
       byName.set(s.full_name, { key: s.full_name, name: s.full_name, working: 0, resolved: 0, total: 0 })
     })
 
-    // Then aggregate straight from each ticket's own assigned_staff —
-    // this is the actual source of truth for who holds what, and it's
-    // guaranteed consistent with what the ticket detail modal displays.
+    // Aggregate from each ticket's own assigned_staff.
     tickets.forEach((t) => {
       const name = t.assigned_staff?.full_name
       if (!name) return
@@ -314,9 +324,7 @@ function AdminDashboard() {
     }))
   }, [tickets])
 
-  // Re-run counter animation + trend chart draw once real stats are ready,
-  // and again whenever this page mounts (matches how the original admin
-  // Dashboard.jsx wired these up).
+  // Re-run counter animation + trend chart draw once real stats are ready.
   useEffect(() => {
     if (!loading) {
       initCounters()
@@ -324,12 +332,7 @@ function AdminDashboard() {
     }
   }, [loading, stats.total])
 
-  // Broadened from "status === In Progress" — a ticket stays here through
-  // Open / In Progress / On Hold, and only drops off once it's Resolved,
-  // Closed, or transferred away — a transfer clears assigned_staff to
-  // None immediately (not on acceptance), so the ticket shows as
-  // "Unassigned" here right after a transfer is sent, until someone
-  // accepts the new pending offer via Ticket Assignment.
+  // Tickets not yet Resolved/Closed, including ones mid-transfer (shown as Unassigned).
   const workingTickets = useMemo(
     () => tickets.filter((t) => !DONE_STATUSES.includes(t.status))
       .sort((a, b) => new Date(b.created_at) - new Date(a.created_at)),
@@ -349,12 +352,7 @@ function AdminDashboard() {
       .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
   }, [tickets, historyStatus, historySearch])
 
-  // Per TransferTicketView on the backend: this clears assigned_staff to
-  // None on the ticket immediately (not left with the outgoing/current
-  // staff member) and creates a fresh 'pending' TicketAssignment for the
-  // target staff — they must accept it from Ticket Assignment before it's
-  // actually theirs. Until then the ticket shows as Unassigned and only
-  // an admin can act on it further (see _can_manage_ticket on the backend).
+  // Sends a transfer offer; ticket is Unassigned until the target staff accepts it.
   const handleTransfer = async (ticket, staffId) => {
     setTransferring(true)
     setNotice('')
@@ -500,11 +498,7 @@ function AdminDashboard() {
             )}
 
             {staffPerformance.length > 0 && (
-              // Horizontal rows scale to any staff count without getting
-              // cramped — a fixed max-height + scroll (same pattern as the
-              // History tables below) rather than a vertical bar chart,
-              // which gets unreadable fast once there are more than a
-              // handful of columns.
+              // Scrollable horizontal rows, scales to any staff count.
               <div className="staff-list" style={{ maxHeight: 420, overflowY: 'auto', overflowX: 'visible' }}>
                 {staffPerformance.map((s) => {
                   const other = Math.max(s.total - s.working - s.resolved, 0)
@@ -516,10 +510,7 @@ function AdminDashboard() {
                         <div className="staff-dept">
                           {s.working} working · {s.resolved} resolved{other ? ` · ${other} open/on hold` : ''}
                         </div>
-                        {/* Bar's overall length = this staff's share of the
-                            busiest staff member's total (s.pct); the color
-                            segments inside it = the composition of their
-                            own workload (working/resolved/other). */}
+                        {/* Bar length = share of busiest staff's total; segments = workload mix. */}
                         <div className="perf-track">
                           <div className="perf-fill" style={{ width: `${Math.max(s.pct, s.total ? 3 : 0)}%` }}>
                             <div className="perf-seg working" style={{ flexBasis: `${s.total ? (s.working / s.total) * 100 : 0}%` }}></div>
@@ -586,9 +577,7 @@ function AdminDashboard() {
           </div>
         </section>
 
-        {/* History = every ticket the company has ever received. Clicking
-            a row opens the same modal in read-only mode — no transfer
-            control, since that only happens from "Now Working" above. */}
+        {/* History: every ticket ever raised; opens the modal read-only. */}
         <section className="panel">
           <div className="panel-head">
             <div>

@@ -1,10 +1,5 @@
 /* =========================================================================
-   Profile page — everything reusable (.panel, .panel-head, .panel-title,
-   .panel-body, .chip, .form-field, .alert-banner, .btn, .btn-primary,
-   .btn-ghost, .page-head, .page-eyebrow, .page-title, .page-desc) already
-   lives in style.css and is used as-is. This file only adds the small
-   set of layout classes specific to this page's two-column field grid
-   and the M-PIN OTP inputs.
+   Profile page — layout for the two-column field grid and M-PIN OTP inputs
    ========================================================================= */
 
 .profile-stack{
@@ -66,9 +61,7 @@
   max-width: 300px;
 }
 
-/* OTP / M-PIN digit input — a variant of .form-field input for this one
-   case (bigger, centered, monospaced), not a redefinition of the shared
-   input style. */
+/* OTP / M-PIN digit input — larger, centered, monospaced variant */
 .profile-otp-input{
   width: 100%;
   height: 48px;

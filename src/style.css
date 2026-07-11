@@ -1,7 +1,5 @@
 /* =========================================================================
-   Ticket Management System — Design Tokens
-   Concept: "Ops Desk" — a dispatch-board feel for a real-time ticket queue.
-   Ink sidebar, warm paper workspace, mono face for IDs/timers/counters.
+   Ticket Management System — Design Tokens ("Ops Desk" theme)
    ========================================================================= */
 
 @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
@@ -92,11 +90,8 @@ p{ margin:0; }
   overflow-y: auto;
 }
 
-/* --- Scrim (mobile nav overlay) ---
-   Must default to display:none OUTSIDE any media query, otherwise at
-   desktop widths this becomes an unstyled block-level element with no
-   explicit grid placement, and CSS Grid auto-places it into the open
-   .main cell — stretching it to fill/cover the page content. --- */
+/* --- Scrim (mobile nav overlay) — must default to display:none outside
+   any media query to avoid being grid-auto-placed over .main --- */
 .scrim{ display:none; }
 
 /* =========================================================================
@@ -129,10 +124,7 @@ p{ margin:0; }
 .brand-mark{
   width:34px; height:34px; flex-shrink:0;
   border-radius: 8px;
-  background: linear-gradient(155deg, var(--accent) 0%, #133C36 100%);
-  display:flex; align-items:center; justify-content:center;
-  color:#EAF6F3;
-  font-family: var(--font-display); font-weight:700; font-size:15px;
+  object-fit: cover;
 }
 .brand-text{ min-width:0; overflow:hidden; }
 .brand-name{ color:#fff; font-family:var(--font-display); font-weight:700; font-size:15px; white-space:nowrap; }
@@ -208,15 +200,7 @@ p{ margin:0; }
 .role-title{ font-size:11px; color:#7C8092; white-space:nowrap; }
 
 /* =========================================================================
-   Sidebar — mid-range widths only: icon-only, expands on hover.
-   On a genuinely full-screen desktop (>=1200px) the sidebar stays fully
-   expanded at all times (base .sidebar styles above already do this — no
-   override needed here). Between 881px and 1199px — enough room to be
-   off-canvas-free, not enough to comfortably show a full labeled sidebar
-   — it collapses to icon-only and widens on hover instead. No manual
-   toggle button; the sidebar itself is the trigger, and it doesn't
-   reflow the page since it overflows on top of the content via width +
-   z-index rather than pushing the grid track.
+   Sidebar — mid-range widths (881-1199px): icon-only, expands on hover
    ========================================================================= */
 @media (min-width: 881px) and (max-width: 1199px){
   .app-shell{ grid-template-columns: var(--sidebar-w-collapsed) 1fr; }
@@ -254,10 +238,7 @@ p{ margin:0; }
   .sidebar:focus-within .role-card{ justify-content:flex-start; }
 }
 
-/* Hamburger has no job at or above 881px either way (full sidebar at
-   >=1200px, hover-expand collapsed sidebar at 881-1199px) — it only
-   exists for the off-canvas mobile case below 880px. Header.jsx also
-   only renders it when isMobile is true; this is the CSS-level backup. */
+/* Hamburger only exists for the off-canvas mobile case below 880px */
 @media (min-width: 881px){
   .menu-btn{ display:none !important; }
 }
@@ -283,9 +264,7 @@ p{ margin:0; }
 .icon-btn:hover{ background: var(--paper); color:var(--text); }
 .icon-btn svg{ width:18px; height:18px; }
 
-/* Hamburger (mobile off-canvas toggle only) — hidden by default; shown
-   below 880px via the media query further down, and Header.jsx also
-   only renders it when isMobile is true. */
+/* Hamburger (mobile off-canvas toggle only) — hidden by default */
 .menu-btn{ display:none; }
 
 .search-field{
@@ -458,10 +437,7 @@ p{ margin:0; }
   margin-bottom:16px;
 }
 
-/* Pages stack multiple top-level <section className="panel"> directly as
-   siblings of .content (e.g. AdminDashboard's Staff Performance / Now
-   Working / History, StaffDashboard's own two below its .grid-2) — .panel
-   itself has no margin, so consecutive ones had zero gap between them. */
+/* Vertical gap between stacked sibling .panel sections */
 .content > .panel + .panel{ margin-top: 16px; }
 .panel{
   background: var(--surface);
@@ -556,22 +532,10 @@ table.tickets tbody tr:hover{ background: var(--paper); }
 .priority.high .dot{ background:#D9631E; }
 .priority.urgent .dot{ background: var(--red); }
 
-/* --- Status column: capped width so it doesn't stretch to absorb
-   leftover table space — without this, the browser's table layout gives
-   this column whatever horizontal room is left over after the other
-   columns, ballooning it far past what the pill actually needs.
-   Left-aligned to match every other column (Ticket, Subject, Priority,
-   Raised), same as the All Tickets page. --- */
+/* --- Status column: capped width so it doesn't absorb leftover table space --- */
 .status-col{ width: 130px; max-width: 130px; }
 
-/* --- Status pill ---
-   Soft fill + colored dot + text, sized to its own content (padding
-   only, no forced width) so there's never empty space inside the
-   capsule — a short label like "Open" and a longer one like "Progress"
-   each get exactly the padding they need, nothing more. Same shape,
-   dot, radius, and font for every status; only the color changes.
-   Shared by AdminDashboard, CustomerDashboard, and StaffDashboard —
-   fixing it here fixes all three at once. */
+/* --- Status pill — soft fill + colored dot + text, shared across dashboards --- */
 .chip{
   display:inline-flex;
   align-items:center;
@@ -616,10 +580,7 @@ table.tickets tbody tr:hover{ background: var(--paper); }
 
 @media (max-width: 880px){
   .app-shell{ grid-template-columns: 1fr; }
-  /* Sidebar becomes off-canvas below this breakpoint, so it's removed
-     from the grid's normal flow — topbar/main must collapse to the same
-     single column, or they stay pinned to a column that no longer
-     exists and get squeezed into a narrow implicit track. */
+  /* Sidebar goes off-canvas below this breakpoint; topbar/main collapse to 1 column */
   .app-shell .topbar,
   .app-shell .main{ grid-column: 1; }
 
@@ -647,9 +608,7 @@ table.tickets tbody tr:hover{ background: var(--paper); }
 @media (max-width: 640px){
   .content{ padding: 16px 14px 40px; }
   .topbar{ padding: 0 14px; gap:10px; }
-  /* Search no longer just disappears here — GlobalSearch swaps the inline
-     field for an icon button + full overlay below 640px (see
-     global-search.css), so no display:none is needed on .search-field. */
+  /* Search swaps to icon button + overlay below 640px (see global-search.css) */
   .stat-grid{ grid-template-columns: 1fr 1fr; gap:10px; }
   .stat-value{ font-size:22px; }
   .page-title{ font-size:20px; }
@@ -657,11 +616,7 @@ table.tickets tbody tr:hover{ background: var(--paper); }
   .topbar-profile .role-info{ display:none; }
   .panel-head{ flex-direction:column; align-items:flex-start; }
 
-  /* Segmented tabs (All / Active / Pending Approval / Blocked, etc.) wrap
-     onto a ragged second line at narrow widths — a lone last tab floating
-     under a shorter row above it. A horizontally swipeable strip reads as
-     intentional; wrapped text doesn't. Scrollbar hidden since the pill
-     shape + slight peek of a cut-off next tab already signals "more here." */
+  /* Segmented tabs become a horizontally swipeable strip instead of wrapping */
   .tabs{
     flex-wrap: nowrap;
     overflow-x: auto;
@@ -806,16 +761,10 @@ table.tickets tbody tr:hover{ background: var(--paper); }
 .page-head-actions{ display:flex; gap:10px; }
 
 /* =========================================================================
-   Dashboard extras — Customer/Staff/Admin dashboards
-   Everything else these pages use (.modal-box, .modal-head, .modal-foot,
-   .detail-row, .detail-section-title, .remarks-box, .chip, .priority,
-   table.tickets, .panel, .stat-card, .staff-list, etc.) already exists
-   above — this section only covers what's genuinely new for them.
+   Dashboard extras — Customer/Staff/Admin dashboards (new pieces only)
    ========================================================================= */
 
-/* Clickable ticket rows (customer ticket list, staff/admin working tables —
-   note History tables are intentionally plain/non-clickable, so this class
-   isn't applied there) */
+/* Clickable ticket rows (customer ticket list, staff/admin working tables) */
 .row-clickable{ cursor: pointer; }
 .row-clickable:hover{ background: var(--paper); }
 
@@ -853,9 +802,7 @@ table.tickets tbody tr:hover{ background: var(--paper); }
 }
 .timeline-list li:last-child{ border-bottom:0; }
 
-/* Standalone form controls used in the History filter bars and
-   status-update/transfer dropdowns (form-field input above is for
-   full-width labeled fields — these are compact, unlabeled, inline ones) */
+/* Compact, unlabeled, inline form controls (filter bars, status/transfer dropdowns) */
 .select, .input{
   height:36px; border:1px solid var(--line); border-radius:8px;
   padding:0 10px; font-size:13px; font-family:var(--font-body); color:var(--text);
@@ -864,13 +811,7 @@ table.tickets tbody tr:hover{ background: var(--paper); }
 .select:focus, .input:focus{ border-color: var(--accent); }
 .select{ cursor:pointer; }
 
-/* Staff Performance (AdminDashboard.jsx) — horizontal rows inside the
-   existing .staff-list, each with a segmented bar: the bar's overall
-   length shows that staff member's share of the busiest staff member's
-   workload, and the color segments inside it show the composition
-   (working / resolved / everything else). Scales to any staff count via
-   the scrollable .staff-list wrapper (max-height set inline in the JSX),
-   unlike a vertical bar-per-column chart which gets cramped fast. */
+/* Staff Performance (AdminDashboard.jsx) — segmented workload bars per staff row */
 .perf-legend{
   display:flex; gap:16px; flex-wrap:wrap;
 }
@@ -898,23 +839,9 @@ table.tickets tbody tr:hover{ background: var(--paper); }
 
 
 /* =========================================================================
-   Global premium theme — app-wide
-   The Customers page (below) got a full "frosted glass" treatment early
-   on: gradient buttons, lifted stat cards, blurred glass panels/modals.
-   Everywhere else in the app shell was left on the plain base styles
-   above, so it read as noticeably flatter/plainer by comparison. This
-   section generalizes that same proven visual language to every
-   authenticated page via .main (the shared layout wrapper every page
-   renders into — see AdminDashboard.jsx, AllTickets.jsx, etc.), so the
-   whole app now reads as one consistent, polished product instead of
-   "one nice page + a bunch of plain ones."
-
-   Deliberately placed BEFORE .customers-page in the cascade: every rule
-   here and the matching .customers-page rule later in this file target
-   the same selectors at equal specificity (two classes), and CSS ties
-   resolve to source order — so .customers-page's versions (declared
-   after this block) still win there unchanged. Nothing on that page
-   moves; every other page now matches it.
+   Global premium theme — app-wide "frosted glass" treatment via .main,
+   generalizing the look originally built for the Customers page.
+   Placed before .customers-page so its own rules still win there.
    ========================================================================= */
 .main{
   --glass-border: rgba(255,255,255,0.65);
@@ -1070,10 +997,7 @@ table.tickets tbody tr:hover{ background: var(--paper); }
 /* --- Status chips: tiny lift on hover where they're interactive --- */
 .main .row-clickable .chip{ transition: transform .15s ease; }
 
-/* --- Modals: frosted glass overlay + panel with deep, layered shadow ---
-   No portal in this codebase carries these outside .main — every modal
-   is rendered as a plain sibling within the same page component, so a
-   descendant selector reaches it. */
+/* --- Modals: frosted glass overlay + panel with deep, layered shadow --- */
 .main .modal-overlay{
   background: rgba(20,23,31,0.38);
   backdrop-filter: blur(6px);
@@ -1111,11 +1035,7 @@ table.tickets tbody tr:hover{ background: var(--paper); }
   .modal-box{ animation: none; }
 }
 
-/* Backdrop blur is comparatively expensive on low-end/mobile GPUs and the
-   frosted look has less room to read as "glass" once cards stack to a
-   single narrow column anyway — drop it below the point where the
-   stat-grid itself collapses to one column, trading the blur for a
-   plain translucent fill so scrolling stays smooth. */
+/* Drop backdrop blur below this width — expensive on low-end/mobile GPUs */
 @media (max-width: 640px){
   .main .stat-card,
   .main .panel,
@@ -1133,9 +1053,7 @@ table.tickets tbody tr:hover{ background: var(--paper); }
   --glass-shine: rgba(255,255,255,0.9);
 }
 
-/* Soft ambient color washes behind the content give the frosted panels
-   something translucent to actually show through — pure flat paper
-   behind a "glass" card reads flat no matter how much blur you add. */
+/* Soft ambient color washes behind the content for the glass panels to show through */
 .customers-page .content{
   position: relative;
   isolation: isolate;

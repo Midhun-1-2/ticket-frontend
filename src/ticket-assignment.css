@@ -1,7 +1,5 @@
 /* =========================================================================
-   Ticket Assignment — page-specific styles
-   Follows style.css tokens. Do NOT redefine .btn / .btn-primary / .chip /
-   .panel / table.tickets here — only variants not already in style.css.
+   Ticket Assignment — page-specific styles (variants not in style.css)
    ========================================================================= */
 
 .assign-error{
@@ -93,13 +91,8 @@
   outline-offset: 2px;
 }
 
-/* --- Assignment history tooltip ---
-   Rendered through a React portal straight onto <body> (see HolderChip
-   in TicketAssignment.jsx), NOT nested inside .panel/.offer-row. .panel
-   has overflow:hidden for its own rounded corners, which was clipping
-   this when it lived inside the table cell — a portal sidesteps that
-   entirely. Position is computed in JS (getBoundingClientRect) and
-   passed in as inline top/left, so this just needs to look right. */
+/* --- Assignment history tooltip — rendered via React portal onto <body>
+   (see HolderChip in TicketAssignment.jsx); position set inline via JS --- */
 .transfer-history-portal{
   position: absolute;
   z-index: 200;

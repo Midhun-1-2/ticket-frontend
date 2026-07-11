@@ -1,20 +1,6 @@
 /* =========================================================================
-   Onboarding — Company sign-up
-   Reuses design tokens defined in style.css (--ink, --accent, --paper,
-   --font-display, --font-mono, --shadow-card, etc.) so this screen reads
-   as the same product as the dashboard and login page.
-
-   Layout: a persistent dark sidebar (mirrors the admin dashboard sidebar)
-   for step + sub-section navigation, and a light content pane on the
-   right. Step 1 is split into four sub-sections so the person only ever
-   sees one focused set of fields at a time instead of one long scroll.
-
-   MOTION NOTE: this page now shares the same motion language as
-   login.css / landing.css — reveal-on-mount for the sidebar/header/card,
-   staggered field entrance, pop-in feedback on chips and step circles,
-   and the same flowing-gradient + ring-ping + click-ripple treatment on
-   .btn-primary (no translateY hover lift — that was found to jitter on
-   the login page, so it's left out here from the start).
+   Onboarding — Company sign-up. Dark sidebar for step navigation +
+   light content pane, sharing motion language with login.css/landing.css.
    ========================================================================= */
 
 .onboarding-layout {
@@ -71,14 +57,7 @@
   height: 36px;
   flex-shrink: 0;
   border-radius: 9px;
-  background: linear-gradient(155deg, var(--accent, #0F6E63) 0%, #133C36 100%);
-  color: #EAF6F3;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-family: var(--font-display, 'Space Grotesk', sans-serif);
-  font-weight: 700;
-  font-size: 14px;
+  object-fit: cover;
   box-shadow: 0 6px 16px rgba(15,110,99,0.32);
 }
 
@@ -150,9 +129,7 @@
   transition: border-color .15s ease, background-color .15s ease, color .15s ease;
 }
 
-/* Pops when a step newly becomes active/done — since CSS animations only
-   (re)start when the rule newly matches the element, this fires exactly
-   once per transition into that state, not on every re-render. */
+/* Pops when a step newly becomes active/done */
 .sidebar-step.active .sidebar-step-circle {
   border-color: var(--accent, #0F6E63);
   color: #7FDCC9;
@@ -286,9 +263,7 @@
   50% { transform: translateX(3px); }
 }
 
-/* Hidden on desktop — see the max-width: 900px override below, which is
-   where the sidebar becomes a horizontal bar and .sidebar-footer (and
-   the Log in link nested inside it) gets hidden entirely. */
+/* Hidden on desktop — shown once the sidebar collapses to a horizontal bar */
 .sidebar-login-link-mobile {
   display: none;
 }
@@ -346,9 +321,7 @@
   animation: ob-fade-scale .4s cubic-bezier(.16,.8,.24,1) both;
   overflow: hidden;
 }
-/* Thin brand-gradient accent along the top edge — the same small touch
-   that ties every card/panel in the main app back to the teal identity,
-   so this form doesn't read as a plain generic box. */
+/* Thin brand-gradient accent along the card's top edge */
 .onboarding-card::before {
   content: "";
   position: absolute; top: 0; left: 0; right: 0; height: 3px;
@@ -383,10 +356,7 @@
   gap: 16px 20px;
 }
 
-/* Staggered entrance for whichever fields the current section renders —
-   since each section is a separate conditionally-mounted subtree (see
-   Onboarding.jsx), this replays automatically every time the person
-   moves between sub-sections, without any extra JS. */
+/* Staggered entrance for whichever fields the current section renders */
 .form-grid > *{
   opacity: 0;
   animation: ob-rise .4s cubic-bezier(.16,.8,.24,1) both;
@@ -554,9 +524,7 @@ textarea {
   border-color: var(--accent, #0F6E63);
 }
 
-/* Pops when a chip is newly selected — replays only on the transition
-   into .selected, not on every re-render, same mechanism as the sidebar
-   step circle above. */
+/* Pops when a chip is newly selected */
 .chip.selected {
   background: var(--accent-soft, #E3F1EE);
   border-color: var(--accent, #0F6E63);
@@ -633,10 +601,7 @@ textarea {
   transform-origin: top center;
 }
 
-/* Flip-up variant — applied by SearchableSelect.jsx when there isn't
-   enough room below the trigger (e.g. State/Province, Pincode fields
-   near the bottom of the viewport). Opens upward from the trigger
-   instead of running off the bottom of the screen. */
+/* Flip-up variant — opens upward when there isn't room below the trigger */
 .searchable-select-panel.panel-up {
   top: auto;
   bottom: calc(100% + 6px);
@@ -720,10 +685,7 @@ textarea {
   color: var(--text, #1C1E22);
 }
 
-/* Segmented control — replaces the oversized native radio buttons for
-   "Current Support Type". The real <input type="radio"> stays in the DOM
-   (visually hidden) for accessibility and keyboard support; the visible
-   pill is a styled <span> sibling. */
+/* Segmented control — visually-hidden radio input + styled pill sibling */
 
 .segmented {
   display: flex;
@@ -906,11 +868,7 @@ textarea {
   box-shadow: inset 0 2px 5px rgba(20,23,31,.12);
 }
 
-/* Arrow nudges left in a small loop while hovered — same restrained
-   "alive" touch as the arrow on the login/landing primary buttons,
-   just pointing the opposite direction since this button goes back.
-   color: inherit keeps it matching the forced text color above rather
-   than picking up any stray color from a shared .btn rule. */
+/* Arrow nudges left in a small loop while hovered */
 .btn-back-arrow {
   display: inline-block;
   color: inherit;
@@ -924,12 +882,7 @@ textarea {
   50% { transform: translateX(-3px); }
 }
 
-/* Primary action — same treatment as the login submit button: a flowing
-   diagonal gradient instead of a flat fill, a sonar-style ring ping on
-   hover instead of a translateY lift (deliberately left out here — that
-   lift was found to make the button visibly jitter on mouse-leave on the
-   login page), and a click ripple spawned in JS (see spawnButtonRipple
-   in Onboarding.jsx). */
+/* Primary action — gradient sweep + ring-ping hover + JS click ripple */
 .btn-primary {
   position: relative;
   overflow: hidden;
@@ -964,11 +917,7 @@ textarea {
   cursor: not-allowed;
 }
 
-/* Click ripple — spawned via JS (onMouseDown) on each .btn-primary /
-   .btn-secondary, sized/positioned inline. Color is scoped per button
-   variant below since a white ripple (right for the primary button's
-   colored gradient) would be invisible on the secondary button's white
-   background. */
+/* Click ripple — spawned via JS, color scoped per button variant below */
 .btn-ripple {
   position: absolute;
   border-radius: 50%;
@@ -1059,6 +1008,8 @@ textarea {
     flex-wrap: wrap;
     padding: 16px 18px;
     gap: 16px;
+    /* Allows .sidebar-substeps to float below as a dropdown, unclipped */
+    overflow: visible;
   }
 
   .sidebar-brand {
@@ -1105,12 +1056,7 @@ textarea {
     display: none;
   }
 
-  /* Sits on the same top row as the brand (order: 2, pushed to the right
-     via margin-left: auto), instead of floating alone below the step
-     indicators in its own empty strip — reads as a proper header action
-     now, not an orphaned pill. Styled as a real filled button (teal
-     gradient, white text) rather than a muted ghost outline, so it
-     doesn't get lost against the dark bar. */
+  /* Sits on the same top row as the brand, styled as a filled button */
   .sidebar-login-link-mobile {
     order: 2;
     display: inline-flex;
@@ -1141,6 +1087,11 @@ textarea {
 
   .onboarding-main {
     padding: 28px 16px 60px;
+  }
+
+  /* Reserves clearance for .sidebar-substeps' floating overlay (step 1 only) */
+  .onboarding-main.has-substeps {
+    padding-top: 100px;
   }
 }
 

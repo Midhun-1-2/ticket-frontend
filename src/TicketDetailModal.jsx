@@ -16,13 +16,7 @@ function displayName(person) {
   return person.full_name || person.phone_number
 }
 
-/**
- * Props:
- *   ticketId  — required, the ticket to load
- *   onClose   — called to dismiss the modal
- *   onChanged — called after a successful status/transfer/escalate action,
- *               so the parent list (TicketAssignment.jsx) can refetch
- */
+// Props: ticketId, onClose, onChanged (called after status/transfer/escalate actions).
 function TicketDetailModal({ ticketId, onClose, onChanged }) {
   const myPhone = getPhoneNumber()
   const isAdmin = getRole() === 'admin'
@@ -33,6 +27,8 @@ function TicketDetailModal({ ticketId, onClose, onChanged }) {
 
   const [actionError, setActionError] = useState('')
   const [statusSaving, setStatusSaving] = useState(false)
+  const [pendingStatus, setPendingStatus] = useState(null)
+  const [statusRemark, setStatusRemark] = useState('')
 
   const [showTransfer, setShowTransfer] = useState(false)
   const [staffOptions, setStaffOptions] = useState([])
@@ -66,10 +62,7 @@ function TicketDetailModal({ ticketId, onClose, onChanged }) {
     return () => window.removeEventListener('keydown', handler)
   }, [onClose])
 
-  // Mirrors the backend's _can_manage_ticket: once a ticket is handed to
-  // a real staff member, only they can manage it — admin becomes
-  // read-only unless the ticket is unassigned or still sitting with
-  // another admin (e.g. mid-escalation).
+  // Whether the current user is allowed to manage this ticket.
   const canManage = ticket && (
     !ticket.assigned_staff
       ? isAdmin
@@ -83,14 +76,34 @@ function TicketDetailModal({ ticketId, onClose, onChanged }) {
     onChanged?.()
   }
 
-  const handleStatusChange = async (status) => {
+  // Stages a status change; actual PATCH happens in confirmStatusChange.
+  const stageStatusChange = (status) => {
+    if (status === ticket.status) return
+    setPendingStatus(status)
+    setStatusRemark('')
+    setActionError('')
+  }
+
+  const cancelStatusChange = () => {
+    setPendingStatus(null)
+    setStatusRemark('')
+  }
+
+  const confirmStatusChange = async () => {
+    if (!pendingStatus || !statusRemark.trim()) return
     setStatusSaving(true)
     setActionError('')
     try {
-      await api.patch(`tickets/${ticketId}/status/`, { status })
+      await api.patch(`tickets/${ticketId}/status/`, { status: pendingStatus, remark: statusRemark.trim() })
+      setPendingStatus(null)
+      setStatusRemark('')
       await refreshAfterAction()
     } catch (err) {
-      setActionError(err.response?.data?.detail || 'Could not update status.')
+      setActionError(
+        err.response?.data?.detail
+        || err.response?.data?.remark?.[0]
+        || 'Could not update status.'
+      )
     } finally {
       setStatusSaving(false)
     }
@@ -195,16 +208,7 @@ function TicketDetailModal({ ticketId, onClose, onChanged }) {
                 <span className={`chip ${statusChipClass[ticket.status] || ''}`}>{ticket.status}</span>
               </div>
 
-              {/* ticket.escalated is permanent history on the backend — it's
-                  never cleared even after the ticket is later transferred
-                  away from admin to a staff member (see TransferTicketView's
-                  own comment: "What changes is just who currently holds it").
-                  So checking escalated alone would keep showing this banner
-                  forever, even long after the ticket moved on. Also
-                  requiring assigned_staff.role === 'admin' means it only
-                  shows while the ticket is actually still sitting with
-                  admin right now. Combined with !isAdmin, it's staff-only
-                  and only while genuinely true. */}
+              {/* Escalation banner, shown to staff while the ticket still sits with admin. */}
               {ticket.escalated && ticket.assigned_staff?.role === 'admin' && !isAdmin && (
                 <div className="escalated-banner">
                   <strong>Escalated to admin</strong>
@@ -252,14 +256,35 @@ function TicketDetailModal({ ticketId, onClose, onChanged }) {
                       {STATUS_OPTIONS.map((s) => (
                         <button
                           key={s}
-                          className={`status-btn${ticket.status === s ? ' active' : ''}`}
+                          className={`status-btn${ticket.status === s ? ' active' : ''}${pendingStatus === s ? ' active' : ''}`}
                           disabled={statusSaving || ticket.status === s}
-                          onClick={() => handleStatusChange(s)}
+                          onClick={() => stageStatusChange(s)}
                         >
                           {s}
                         </button>
                       ))}
                     </div>
+                    {pendingStatus && (
+                      <div style={{ marginTop: 10 }}>
+                        <textarea
+                          placeholder={`Add a remark for moving this ticket to "${pendingStatus}" (required)`}
+                          value={statusRemark}
+                          onChange={(e) => setStatusRemark(e.target.value)}
+                          rows={3}
+                          style={{ width: '100%', resize: 'vertical' }}
+                        />
+                        <div className="action-row">
+                          <button className="btn btn-ghost" onClick={cancelStatusChange} disabled={statusSaving}>Cancel</button>
+                          <button
+                            className="btn btn-primary"
+                            disabled={!statusRemark.trim() || statusSaving}
+                            onClick={confirmStatusChange}
+                          >
+                            {statusSaving ? 'Saving…' : 'Confirm Status Change'}
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   <div className="action-row">

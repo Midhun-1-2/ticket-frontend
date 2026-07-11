@@ -11,9 +11,7 @@ const STATUS_CHIP = {
   Closed: 'chip resolved',
 }
 
-// Same fix as AllTickets.jsx: forces the status pill onto a single line
-// and sizes it to its own content, matching that page's status design
-// exactly.
+// Forces the status pill onto a single line, sized to its own content.
 const chipNoWrapStyle = {
   whiteSpace: 'nowrap',
   display: 'inline-flex',
@@ -192,9 +190,7 @@ function CustomerDashboard() {
     }))
   }, [tickets])
 
-  // Re-run counter animation + trend chart draw once real stats are ready,
-  // and again whenever this page mounts (matches how the original admin
-  // Dashboard.jsx wired these up).
+  // Re-run counter animation + trend chart draw once real stats are ready.
   useEffect(() => {
     if (!loading) {
       initCounters()

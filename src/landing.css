@@ -1,35 +1,11 @@
 /* =========================================================================
    Ticket Desk — Landing Page (Premium Edition)
-   Reuses the design tokens already defined in style.css (--ink, --paper,
-   --accent, --font-display, etc.) — style.css must be imported globally
-   (e.g. in main.jsx) before this file for colors/fonts to resolve.
-
-   Every token below is redeclared as `var(--x, fallback)` inside `.landing`
-   — this means if style.css defines --accent, that value wins everywhere
-   (brand stays consistent with the rest of the app). If it doesn't, the
-   page still renders a fully art-directed palette on its own. Same trick
-   is used for the display/mono font stacks.
-
-   Everything is scoped under ".landing" so it never touches the
-   app-shell / dashboard styles.
-
-   BUTTON MOTION NOTE: .landing-btn-primary's hover treatment now matches
-   the login page's submit button — a flowing diagonal gradient instead of
-   a static shine sweep, a sonar-style ring ping instead of a translateY
-   lift (so it never visibly shifts position), and a click ripple. See
-   the "Shared button language" section below.
+   Scoped under ".landing"; reuses style.css design tokens where available.
    ========================================================================= */
 
 @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,380..760&family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap');
 
-/* ---------------------------------------------------------------------
-   Self-contained palette. These are namespaced (--ld-*), never reusing
-   the host app's token names, so this page can never silently inherit
-   an unexpected value (e.g. a light "ink") from style.css and wash out.
-   If you want this page back on your app's exact brand tokens, that's a
-   one-line swap per variable below once you share style.css's values —
-   safer to hardcode now than to guess and get low-contrast text again.
-   --------------------------------------------------------------------- */
+/* --- Self-contained palette (--ld-* namespaced, independent of style.css) --- */
 .landing{
   --ld-ink:          #0B0E15;
   --ld-ink-line:     rgba(255,255,255,.09);
@@ -103,10 +79,7 @@
 }
 
 /* =========================================================================
-   Boot sequence — the page's unique entrance.
-   A full-viewport console boot overlay types out an init line, fills a
-   progress rule, then iris-wipes closed toward the nav's logo mark,
-   uncovering the hero exactly as its own staggered reveal kicks in.
+   Boot sequence — full-viewport intro overlay before the hero reveals
    ========================================================================= */
 .landing-boot{
   position: fixed; inset: 0; z-index: 999;
@@ -129,9 +102,7 @@
 }
 .landing-boot-mark{
   width: 46px; height: 46px; border-radius: 11px;
-  background: linear-gradient(155deg, var(--ld-accent) 0%, var(--ld-accent-ink) 100%);
-  display: flex; align-items: center; justify-content: center;
-  color: #EAF6F3; font-family: var(--ld-font-num); font-weight: 700; font-size: 16px;
+  object-fit: cover;
   position: relative; z-index: 1;
   animation: landing-boot-ring 1.7s ease-out infinite;
 }
@@ -194,10 +165,7 @@
 }
 .landing-btn-lg{ padding: 13px 22px; font-size: 14.5px; }
 
-/* Primary CTA — flowing diagonal gradient that shifts on hover, a sonar
-   ring-ping instead of a lift (so it never shifts position — matches the
-   login submit button after that was found to be jittery), a small
-   nudge on any arrow icon inside, and a click ripple spawned in JS. */
+/* Primary CTA — gradient sweep + ring-ping hover, arrow nudge, click ripple */
 .landing-btn-primary{
   background: linear-gradient(120deg, var(--ld-accent-ink) 0%, var(--ld-accent) 22%, #1CBBA8 50%, var(--ld-accent) 78%, var(--ld-accent-ink) 100%);
   background-size: 250% 100%;
@@ -220,9 +188,7 @@
   100%{ box-shadow: 0 1px 0 rgba(255,255,255,.3) inset, 0 8px 20px -6px rgba(11,79,71,.45), 0 0 0 0 rgba(18,165,148,0); }
 }
 
-/* Arrow inside a primary button (e.g. the hero "Get started free" CTA) —
-   a small continuous nudge to the right while hovered, rather than
-   sitting static. */
+/* Arrow inside a primary button — nudges right while hovered. */
 .landing-btn-primary .btn-arrow{
   transition: transform .3s cubic-bezier(.34,1.56,.64,1);
 }
@@ -299,10 +265,7 @@
 .landing-brand{ display: flex; align-items: center; gap: 10px; margin-right: auto; }
 .landing-brand-mark{
   width: 34px; height: 34px; flex-shrink: 0; border-radius: 8px;
-  background: linear-gradient(155deg, var(--ld-accent) 0%, var(--ld-accent-ink) 100%);
-  color: #EAF6F3;
-  display: flex; align-items: center; justify-content: center;
-  font-family: var(--ld-font-num); font-weight: 700; font-size: 14px;
+  object-fit: cover;
   box-shadow: 0 3px 8px rgba(11,79,71,.28);
 }
 .landing-brand-mark--sm{ width: 28px; height: 28px; font-size: 12px; }

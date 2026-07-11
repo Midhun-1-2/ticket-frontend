@@ -22,9 +22,7 @@ const SUPPORT_TYPES = ['AMC', 'NON-AMC', 'SAS']
 
 const STEP_LABELS = ['Company & Contact Details', 'Product Details', 'Review & Submit']
 
-// Step 1 is broken into sub-sections so the page is never one long scroll —
-// only one section's fields are shown at a time, navigated from the sidebar
-// or the Continue/Back buttons at the bottom of the card.
+// Step 1 sub-sections, navigated via the sidebar or Continue/Back buttons.
 const SECTION_META = [
   { key: 'company', label: 'Company Info', heading: 'Company Information', subtitle: 'Tell us about your organisation.' },
   { key: 'address', label: 'Address', heading: 'Address Details', subtitle: 'Where is your company registered or based?' },
@@ -94,13 +92,7 @@ const initialFormData = {
   contractRefNumber: '',
 }
 
-// Real max character length (digits, letters and separators combined) for
-// common postal code formats, plus a representative example. Used to cap
-// the Pincode field's input length and hint its format once a country is
-// selected. postcode-validator validates the actual pattern at submit time
-// (see computeStep1Errors/validateSection) — this map only bounds typing,
-// so an unlisted country safely falls back to a generous default rather
-// than blocking legitimate input.
+// Per-country max length and example format for the Pincode field.
 const POSTAL_CODE_META = {
   IN: { maxLength: 6, example: '682016' },
   US: { maxLength: 10, example: '90210 or 90210-1234' },
@@ -130,21 +122,12 @@ const DEFAULT_POSTAL_META = { maxLength: 10, example: null }
 // Strips non-digit characters and caps length — used for phone-style inputs.
 const digitsOnly = (value, maxLen) => value.replace(/\D/g, '').slice(0, maxLen)
 
-// Same normalizer used in ProductMaster.jsx — case- and whitespace-
-// insensitive (all whitespace stripped, not just collapsed) so
-// "Excel Upload", "excelupload", "Excel Upload " etc. are treated as the
-// exact same product when grouping versions together. Without this, two
-// versions of one product saved with slightly different casing/spacing
-// would show up here as two separate chips instead of one product with
-// multiple versions.
+// Case- and whitespace-insensitive key used to group products by name.
 function normalizeName(name) {
   return (name || '').replace(/\s+/g, '').toLowerCase()
 }
 
-// Standard 15-character Indian GSTIN pattern (2-digit state code, 10-char
-// PAN, entity code, "Z", checksum). Only enforced when the company's
-// country is India — for other countries we still require the field to be
-// filled in, just without assuming this specific format.
+// Standard 15-character Indian GSTIN pattern, enforced only when country is India.
 const GSTIN_PATTERN = /^\d{2}[A-Za-z]{5}\d{4}[A-Za-z]{1}[1-9A-Za-z]{1}Z[0-9A-Za-z]{1}$/
 
 // ---------- camelCase (frontend) <-> snake_case (backend) mapping ----------
@@ -152,6 +135,7 @@ const GSTIN_PATTERN = /^\d{2}[A-Za-z]{5}\d{4}[A-Za-z]{1}[1-9A-Za-z]{1}Z[0-9A-Za-
 function toBackendPayload(formData, products) {
   return {
     company_name: formData.companyName,
+    company_code: formData.companyCode,
     company_type: formData.companyType,
     gst_number: formData.gstNumber,
     pan_number: formData.panNumber,
@@ -200,16 +184,7 @@ function flattenApiErrors(data) {
     .join('\n')
 }
 
-// ---------------------------------------------------------------------------
-// Click ripple for .btn-primary AND .btn-secondary buttons — same behavior
-// as the login page's submit button ripple. Purely decorative: doesn't
-// touch any click logic, just spawns a short-lived element sized/positioned
-// at the click point. The ripple's own color is scoped in CSS based on
-// which button it landed in (see .btn-primary .btn-ripple vs
-// .btn-secondary .btn-ripple in onboarding.css), since a white ripple that
-// works on the primary button's colored gradient would be invisible on the
-// secondary button's white background.
-// ---------------------------------------------------------------------------
+// Decorative click ripple for .btn-primary and .btn-secondary buttons.
 function spawnButtonRipple(e) {
   const el = e.currentTarget
   if (el.disabled) return
@@ -235,25 +210,14 @@ function Onboarding() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [apiError, setApiError] = useState('')
 
-  // Debounced "is this mobile number already registered?" check.
-  // status: 'idle' | 'checking' | 'available' | 'taken' | 'error'
-  // value holds the exact number the current status refers to, so a
-  // stale "available"/"taken" result never gets shown against a number
-  // the person has since edited.
+  // Debounced "is this mobile number already registered?" check state.
   const [mobileCheck, setMobileCheck] = useState({ status: 'idle', value: '' })
 
-  // Product catalog — fetched from the backend instead of hardcoded.
-  // Kept as full {id, name, version} objects (not just names) so the
-  // Product Version field in Step 2 can look up the version tied to
-  // whichever product is currently selected in that row.
+  // Product catalog fetched from the backend, as full {id, name, version} objects.
   const [productCatalog, setProductCatalog] = useState([])
   const [productsLoading, setProductsLoading] = useState(true)
 
-  // Full country list (250 countries) and the states/provinces for
-  // whichever country is currently selected. formData.country/state keep
-  // storing plain names (not ISO codes) so the backend payload shape is
-  // unchanged from before — the ISO codes are only looked up locally,
-  // here, to drive the state list and the phone/pincode validation below.
+  // Full country list, and states/provinces for the currently selected country.
   const countries = useMemo(() => Country.getAllCountries(), [])
   const selectedCountry = useMemo(
     () => countries.find((c) => c.name === formData.country),
@@ -272,10 +236,7 @@ function Onboarding() {
     }
   }, [selectedCountry])
 
-  // Real national-number length for the selected country's mobile numbers
-  // (e.g. India → 10, Singapore → 8, UAE → 9), pulled from libphonenumber-js's
-  // own example-number metadata rather than guessed — used to cap how many
-  // digits the Mobile/Phone fields will even accept.
+  // Max digit length for the Mobile/Phone fields, per selected country.
   const mobileMaxLength = useMemo(() => {
     if (!selectedCountry) return 15
     try {
@@ -286,20 +247,12 @@ function Onboarding() {
     }
   }, [selectedCountry])
 
-  // Postal code length/format hint for the selected country (see
-  // POSTAL_CODE_META above for why this is a curated map rather than
-  // pulled from postcode-validator directly).
+  // Postal code length/format hint for the selected country.
   const postalMeta = selectedCountry
     ? (POSTAL_CODE_META[selectedCountry.isoCode] || DEFAULT_POSTAL_META)
     : DEFAULT_POSTAL_META
 
-  // Debounced duplicate check — only fires once the number already looks
-  // locally valid for the selected country (no point round-tripping to
-  // the server on every keystroke of an obviously-incomplete number).
-  // NOTE: this assumes a `check-mobile/` endpoint that accepts
-  // ?mobile_number=&country_code= and returns { exists: boolean }.
-  // Adjust the URL/params/response field below to match your actual
-  // backend if it differs.
+  // Debounced duplicate check against the check-mobile/ endpoint.
   useEffect(() => {
     const value = formData.mobileNumber
     const iso = selectedCountry?.isoCode
@@ -319,9 +272,7 @@ function Onboarding() {
           setMobileCheck({ status: data?.exists ? 'taken' : 'available', value })
         })
         .catch(() => {
-          // Endpoint missing/unreachable — don't block the person over
-          // an infrastructure hiccup; the backend still enforces
-          // uniqueness for real at final submit either way.
+          // Endpoint missing/unreachable — don't block the person over it.
           if (cancelled) return
           setMobileCheck({ status: 'idle', value: '' })
         })
@@ -333,12 +284,7 @@ function Onboarding() {
     }
   }, [formData.mobileNumber, selectedCountry])
 
-  // Groups every version row under one entry per product — matched
-  // case/whitespace-insensitively via normalizeName, exactly like
-  // ProductMaster.jsx's own table does. Each group's "canonical" display
-  // name is taken from its most-recently-activated version (falling back
-  // to the highest id), so the chip label stays stable and consistent
-  // with whatever the admin table is showing as the primary row.
+  // Groups every version row under one entry per product, keyed by normalizeName.
   const productGroups = useMemo(() => {
     const byKey = new Map()
     productCatalog.forEach((p) => {
@@ -357,9 +303,7 @@ function Onboarding() {
     })
   }, [productCatalog])
 
-  // One chip per product group (not per version row) — this is what fixes
-  // the same product appearing twice when a second version was saved with
-  // slightly different capitalization/spacing.
+  // One chip per product group, not per version row.
   const productOptions = productGroups.map((g) => g.name)
 
   useEffect(() => {
@@ -378,16 +322,8 @@ function Onboarding() {
     return () => { cancelled = true }
   }, [])
 
-  // Step 2's product blocks are derived directly from whichever products
-  // were checked as chips in Step 1 — one locked block per selected
-  // product, in the order they were picked. Existing per-block data
-  // (version, activation date, support type, remarks) is preserved for
-  // products that stay selected; a fresh block (defaulted to that
-  // product's first known version) is created for newly-checked ones;
-  // blocks for unchecked products are dropped. Runs whenever the Step 1
-  // selection changes OR the catalog finishes loading (so versions can
-  // be filled in retroactively once available). Matches by normalizeName
-  // (not exact string) so it lines up with the grouped chip list above.
+  // Derives Step 2's product blocks from the chips checked in Step 1,
+  // preserving existing block data and dropping unchecked products.
   useEffect(() => {
     setProducts((prev) =>
       formData.productsInUse.map((name) => {
@@ -407,10 +343,7 @@ function Onboarding() {
     if (errors[field]) setErrors((prev) => ({ ...prev, [field]: undefined }))
   }
 
-  // Changing country invalidates whatever state was picked for the old
-  // country (state lists differ per country), so it's cleared here rather
-  // than left stale and mismatched. Pincode/phone errors are also cleared
-  // since their required *format* depends on which country is selected.
+  // Clears state and pincode/phone errors when the country changes.
   const handleCountryChange = (isoCode) => {
     const c = countries.find((x) => x.isoCode === isoCode)
     if (!c) return
@@ -441,9 +374,7 @@ function Onboarding() {
 
   // ---------- Validation ----------
 
-  // Full Step 1 check across every section — used as the final gate before
-  // moving on to Step 2, so nothing can slip through even if the person
-  // jumped straight to the last sub-section via the sidebar.
+  // Full Step 1 validation across every section, used as the final gate before Step 2.
   const computeStep1Errors = () => {
     const required = {
       companyName: 'Company name is required',
@@ -586,9 +517,7 @@ function Onboarding() {
     }
   }
 
-  // Final gate before Step 2 — re-checks every section (not just the one
-  // currently open) and, if something's missing, jumps straight to the
-  // first sub-section that needs attention instead of failing silently.
+  // Re-checks every section and jumps to the first one with an error.
   const goToStep2 = () => {
     const nextErrors = computeStep1Errors()
     setErrors(nextErrors)
@@ -630,9 +559,9 @@ function Onboarding() {
   const renderSidebar = () => (
     <aside className="onboarding-sidebar">
       <div className="sidebar-brand">
-        <div className="brand-mark">TD</div>
+        <img className="brand-mark" src="/logo.png" alt="TIXA" />
         <div>
-          <div className="brand-title">Ticket Desk</div>
+          <div className="brand-title">TIXA</div>
           <div className="brand-subtitle">Create your company account</div>
         </div>
       </div>
@@ -673,10 +602,7 @@ function Onboarding() {
         })}
       </nav>
 
-      {/* Compact standalone version for mobile — the desktop link above
-          lives inside .sidebar-footer, which is hidden entirely at the
-          900px breakpoint (sidebar becomes a horizontal top bar), so
-          without this the link would just disappear on mobile. */}
+      {/* Compact standalone login link shown only on mobile. */}
       <Link to="/login" className="sidebar-login-link-mobile">
         Log in <span className="sidebar-login-link-arrow">→</span>
       </Link>
@@ -696,10 +622,7 @@ function Onboarding() {
   // ---------- Main header (breadcrumb + heading, mirrors the dashboard) ----------
 
   const renderMainHeader = () => {
-    // key includes step + activeSection so this remounts (and its
-    // ob-rise entrance animation replays) every time the person moves
-    // between sub-sections or steps — otherwise React would just patch
-    // the text in place and the reveal would only ever play once.
+    // key forces a remount so the entrance animation replays on step/section change.
     if (step === 1) {
       const meta = SECTION_META[activeSection]
       return (
@@ -747,7 +670,11 @@ function Onboarding() {
 
       <div className="form-field">
         <label>Company Code</label>
-        <input placeholder="Auto-generated after submit" value={formData.companyCode} disabled />
+        <input
+          placeholder="Enter code"
+          value={formData.companyCode}
+          onChange={(e) => updateField('companyCode', e.target.value)}
+        />
       </div>
 
       <div className={`form-field ${errors.companyType ? 'error' : ''}`}>
@@ -1066,14 +993,7 @@ function Onboarding() {
       )}
 
       {products.map((product, index) => {
-        // Version is derived from Product Master, not typed freely — a
-        // product can have several versions on file (each its own
-        // ProductMaster row sharing the same name; see
-        // ProductMaster.jsx's "Add New Version" action). Matched by
-        // normalizeName (not an exact string) so this still finds every
-        // version even if they were saved with slightly different
-        // casing/spacing — the same reason the Step 1 chip list groups
-        // them together instead of showing duplicate products.
+        // Available versions for this product, matched via normalizeName.
         const availableVersions = productCatalog
           .filter((p) => normalizeName(p.name) === normalizeName(product.productName) && p.version)
           .map((p) => p.version)
@@ -1236,14 +1156,15 @@ function Onboarding() {
         You won't be able to log in until an admin approves the account — once approved, you can log in with your
         mobile number and the password you just set.
       </p>
-      <div className="pending-note">Reference: {submittedCode || formData.contractRefNumber || 'Will be assigned after approval'}</div>
+      <div className="pending-note">Reference: {submittedCode || formData.contractRefNumber || 'Not provided'}</div>
     </div>
   )
 
   return (
     <div className="onboarding-layout">
       {renderSidebar()}
-      <main className="onboarding-main">
+      {/* has-substeps: reserves clearance on mobile for the sub-section overlay. */}
+      <main className={`onboarding-main${step === 1 ? ' has-substeps' : ''}`}>
         <div className="onboarding-shell">
           {renderMainHeader()}
           {step === 1 && renderStep1()}

@@ -1,7 +1,5 @@
 /* =========================================================================
    Global Search — dropdown (desktop) + full overlay (mobile)
-   Follows style.css tokens. Does not redefine .search-field / .icon-btn,
-   only adds the pieces those don't already cover.
    ========================================================================= */
 
 .search-field-desktop{ position: relative; }

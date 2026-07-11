@@ -1,8 +1,5 @@
 /* =========================================================================
-   Ticket Detail Modal — inner content only.
-   Reuses .modal-overlay / .modal-box / .modal-head / .modal-body / .chip /
-   .priority / .btn / .btn-primary / .btn-ghost from style.css — this file
-   only adds what those don't already cover.
+   Ticket Detail Modal — inner content only (reuses style.css shell classes)
    ========================================================================= */
 
 .ticket-modal-status{

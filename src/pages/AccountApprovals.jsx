@@ -320,7 +320,7 @@ function RequestsList({
                         <td>{r.email}</td>
                         <td className="mono" style={{ fontSize: 12.5 }}>{r.phone}</td>
                         <td className="mono" style={{ fontSize: 12.5 }}>{formatDate(r.submitted)}</td>
-                        <td><span className={`chip ${chip.cls}`}><span className="dot" />{chip.label}</span></td>
+                        <td><span className={`chip ${chip.cls}`}>{chip.label}</span></td>
                         <td>
                           <button className="btn btn-ghost btn-sm" onClick={() => onOpen(r.id)}>
                             Review <ChevronRight size={14} />
@@ -367,10 +367,7 @@ function ReviewFlow({ request, onBack, onPatch }) {
   const [savingVerification, setSavingVerification] = useState(false);
   const [verifyError, setVerifyError] = useState("");
 
-  // Step C state — staff assignment. Only products that were marked
-  // "Verified" in Step B are eligible for assignment here. Each verified
-  // product gets its own multi-select (any number of staff can be
-  // assigned to the same product — there's no single "main" contact).
+  // Step C state — staff assignment for verified products.
   const [staffList, setStaffList] = useState([]);
   const [staffLoading, setStaffLoading] = useState(true);
   const [staffError, setStaffError] = useState("");
@@ -390,9 +387,7 @@ function ReviewFlow({ request, onBack, onPatch }) {
   const [assigningStaff, setAssigningStaff] = useState(false);
   const [assignError, setAssignError] = useState("");
 
-  // Products confirmed as "Verified" in Step B (using the *persisted*
-  // verification saved against the request) — these are the only ones
-  // staff can be assigned to in Step C.
+  // Products marked "Verified" in Step B — eligible for staff assignment.
   const verifiedProducts = useMemo(
     () => (request.products || []).filter((p) => (request.productVerification || {})[p] === "Verified"),
     [request.products, request.productVerification]
@@ -553,7 +548,7 @@ function ReviewFlow({ request, onBack, onPatch }) {
               <span><Calendar size={13} />Submitted {formatDate(request.submitted)}</span>
             </div>
           </div>
-          <span className={`chip ${chip.cls}`}><span className="dot" />{chip.label}</span>
+          <span className={`chip ${chip.cls}`}>{chip.label}</span>
         </div>
 
         <div className="stepper">
@@ -730,10 +725,7 @@ function StepA({ request, onNext }) {
   );
 }
 
-/* --- Step B: Product Verification ---
-   Loops over every product the customer selected at signup
-   (request.products, i.e. products_in_use) so a company that picked
-   multiple products gets one verification row each. */
+/* --- Step B: Product Verification --- */
 function StepB({ request, verification, setVerification, verifyNote, setVerifyNote, saving, error, onBack, onNext }) {
   return (
     <>
@@ -789,10 +781,7 @@ function StepB({ request, verification, setVerification, verifyNote, setVerifyNo
   );
 }
 
-/* --- Step C: Staff Assignment ---
-   Shows only the products that were marked "Verified" in Step B. Each one
-   gets its own multi-select dropdown of staff — any number of staff can
-   be assigned to the same product, with no single "main" contact. */
+/* --- Step C: Staff Assignment for verified products --- */
 function StepC({
   request, staffList, staffLoading, staffError,
   verifiedProducts, perProductStaff, setPerProductStaff,
@@ -907,9 +896,7 @@ function StepC({
   );
 }
 
-/* Multi-select "dropdown" for assigning one or more staff members to a
-   single product. Renders like a normal select field, but opening it
-   reveals a checkbox list so multiple staff can be picked at once. */
+/* Multi-select dropdown for assigning one or more staff to a product. */
 function StaffMultiSelect({ staff, selectedIds, onToggle }) {
   const [open, setOpen] = useState(false);
   const wrapRef = React.useRef(null);
@@ -998,11 +985,7 @@ function StaffMultiSelect({ staff, selectedIds, onToggle }) {
   );
 }
 
-/* Always lists every active staff member for a product — not just the
-   ones already picked — so the admin can see everyone's department,
-   role, workload, and status (available/inactive) before choosing who
-   to assign via the dropdown above. Read-only: selection only happens
-   in the dropdown, this is just a reference table. */
+/* Read-only reference table of all active staff for a product. */
 function StaffDetailsTable({ staff }) {
   if (!staff || staff.length === 0) {
     return <div className="empty-state"><Users /><div>No active staff available.</div></div>;
@@ -1050,11 +1033,7 @@ function StepD({
   request, assignedSummary, finalAction, setFinalAction, reason, setReason,
   outcome, submitting, actionError, onBack, onSubmit,
 }) {
-  // The parent panel already renders this same "resolved" banner (with the
-  // Revoke Approval action) right above the step navigator whenever
-  // isResolved is true — which is exactly when outcome is set here. So once
-  // resolved, this step has nothing left to show; the Choose Final Action
-  // controls below only make sense pre-decision.
+  // Nothing to show once resolved — the parent already renders that banner.
   if (outcome) {
     return null;
   }

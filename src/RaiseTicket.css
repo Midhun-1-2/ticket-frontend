@@ -270,12 +270,8 @@ textarea {
   border-top: 1px solid #efede5;
 }
 
-/* .btn and .btn-primary are intentionally NOT redefined here — they
-   already exist globally in style.css (shared across every page,
-   including Dashboard). Redefining them here with page-scoped CSS
-   variables broke .btn-primary everywhere else in the app, since those
-   variables don't exist outside .raise-page. Only the variant style.css
-   doesn't provide is added below, using plain colors. */
+/* .btn / .btn-primary intentionally not redefined here — already global
+   in style.css. Only the variant it doesn't provide is added below. */
 
 .btn:disabled {
   opacity: 0.6;
@@ -293,10 +289,8 @@ textarea {
 }
 
 /* =========================================================================
-   Success animation — added on top of the existing success banner/flow.
-   Nothing above this point was changed; these rules only activate via
-   the new is-success class / raise-banner-icon / raise-btn-check markup
-   added in RaiseTicket.jsx, all additive.
+   Success animation — activates via is-success / raise-banner-icon /
+   raise-btn-check markup added in RaiseTicket.jsx
    ========================================================================= */
 
 .raise-banner {
@@ -329,8 +323,7 @@ textarea {
   to { opacity: 1; transform: scale(1); }
 }
 
-/* Quiet ring-pulse around the card on success — one-shot, doesn't loop,
-   doesn't affect layout or interactivity. */
+/* Quiet one-shot ring-pulse around the card on success */
 .raise-card.is-success {
   animation: rt-card-success-pulse 1s ease-out;
 }
@@ -340,9 +333,7 @@ textarea {
   100% { box-shadow: 0 0 0 16px rgba(14, 110, 88, 0); }
 }
 
-/* Submit button swaps its label for a checkmark once banner.type is
-   'success' — same restrained fade+scale used on the login button,
-   rather than the elastic bounce. */
+/* Submit button swaps its label for a checkmark on success */
 .raise-btn-check {
   display: inline-flex;
   align-items: center;

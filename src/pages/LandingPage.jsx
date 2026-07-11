@@ -2,11 +2,7 @@ import React, { useEffect, useRef, useState, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import '../landing.css' // adjust this path if landing.css lives somewhere else
 
-// ---------------------------------------------------------------------------
-// Small inline icon set — same stroke language as the rest of the app
-// (stroke="currentColor", strokeWidth 2, round caps/joins, 24x24 viewBox)
-// so the landing page reads as the same product, not a separate template.
-// ---------------------------------------------------------------------------
+// Small inline icon set, matching the stroke style used across the app.
 const Icon = {
   Claim: (p) => (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...p}>
@@ -46,17 +42,7 @@ const Icon = {
   ),
 }
 
-// ---------------------------------------------------------------------------
-// Splash / boot sequence — shown once per browser session
-// ---------------------------------------------------------------------------
-// sessionStorage (not localStorage) is the right tool here: it persists
-// across reloads and navigation within the same tab, but is wiped the
-// moment the browser (or that tab's session) closes — which is exactly
-// "shown once until the browser closes." A brand-new tab gets its own
-// sessionStorage, so it will boot again there; that's expected sessionStorage
-// behavior, not a bug — localStorage would be the fix if you instead want
-// "once ever, even in new tabs," but that also means real returning visitors
-// would never see it again either.
+// Splash / boot sequence — shown once per browser session (sessionStorage-backed).
 const BOOT_SESSION_KEY = 'ticketdesk:boot-shown'
 
 function hasBootedThisSession() {
@@ -195,15 +181,9 @@ function useConsoleFeed(lines) {
   return { history: done, current: typedCurrent, tag: current.tag, showCursor: charCount < current.text.length }
 }
 
-/**
- * The page's unique entrance: a full-viewport console "boot" overlay that
- * types an init line, fills a progress rule, then iris-wipes shut toward
- * the nav's logo mark — uncovering the hero exactly as its own staggered
- * reveal begins. Skipped entirely under prefers-reduced-motion, and skipped
- * after the first time it's played in this browser session (see onDone).
- */
+/** Full-viewport console "boot" overlay that types an init line, then wipes shut into the hero. */
 function BootOverlay({ onDone }) {
-  const FULL_TEXT = 'INITIALIZING TICKET DESK CONSOLE'
+  const FULL_TEXT = 'INITIALIZING TIXA CONSOLE'
   const [typed, setTyped] = useState('')
   const [barPct, setBarPct] = useState(0)
   const [exiting, setExiting] = useState(false)
@@ -243,7 +223,7 @@ function BootOverlay({ onDone }) {
       style={{ '--exit-x': 'var(--boot-exit-x, 40px)', '--exit-y': 'var(--boot-exit-y, 34px)' }}
       aria-hidden="true"
     >
-      <div className="landing-boot-mark">TD</div>
+      <img className="landing-boot-mark" src="/logo.png" alt="TIXA" />
       <div className="landing-boot-line">
         {typed}
         <span className="landing-boot-cursor" />
@@ -301,12 +281,7 @@ function AnimatedWords({ text, startIndex = 0 }) {
   ))
 }
 
-// ---------------------------------------------------------------------------
-// Click ripple for .landing-btn-primary buttons — same behavior as the
-// login page's submit button ripple, generalized here since these are
-// react-router <Link>s (render as <a>) rather than <button>s. Purely
-// decorative: doesn't touch navigation.
-// ---------------------------------------------------------------------------
+// Click ripple for .landing-btn-primary buttons — purely decorative.
 function spawnButtonRipple(e) {
   const el = e.currentTarget
   const rect = el.getBoundingClientRect()
@@ -323,9 +298,7 @@ function spawnButtonRipple(e) {
 export default function LandingPage() {
   const [scrolled, setScrolled] = useState(false)
 
-  // Boot overlay plays only if: motion isn't reduced AND it hasn't already
-  // played earlier in this browser session (tab). Computed once, synchronously,
-  // before first paint, so there's no flash-of-boot-then-hide on repeat visits.
+  // Whether to skip the boot overlay (reduced motion or already played this session).
   const [skipBoot] = useState(() => {
     if (typeof window === 'undefined') return true
     const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
@@ -362,9 +335,9 @@ export default function LandingPage() {
       <header className={`landing-nav${scrolled ? ' is-scrolled' : ''}`}>
         <div className="landing-nav-inner">
           <div className="landing-brand">
-            <span className="landing-brand-mark">TD</span>
+            <img className="landing-brand-mark" src="/logo.png" alt="TIXA" />
             <span className="landing-brand-text">
-              <span className="landing-brand-name">Ticket Desk</span>
+              <span className="landing-brand-name">TIXA</span>
               <span className="landing-brand-sub">Ops console for support teams</span>
             </span>
           </div>
@@ -393,7 +366,7 @@ export default function LandingPage() {
               <AnimatedWords text="— never dropped, never doubled." startIndex={3} />
             </h1>
             <p className="landing-sub">
-              Ticket Desk routes support requests to the right person, locks claims so nobody
+              TIXA routes support requests to the right person, locks claims so nobody
               collides, and gives customers, staff, and admins a dashboard actually built for
               what they do — not one shared view stretched three ways.
             </p>

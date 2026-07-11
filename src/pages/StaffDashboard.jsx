@@ -10,9 +10,7 @@ const STATUS_CHIP = {
   Closed: 'chip resolved',
 }
 
-// Same fix as AllTickets.jsx: forces the status pill onto a single line
-// and sizes it to its own content, matching that page's status design
-// exactly.
+// Keeps the status pill on a single line, sized to its content.
 const chipNoWrapStyle = {
   whiteSpace: 'nowrap',
   display: 'inline-flex',
@@ -29,25 +27,16 @@ const chipNoWrapStyle = {
 
 const PRIORITY_CLASS = { Low: 'low', Medium: 'medium', High: 'high', Urgent: 'urgent' }
 const ALL_STATUSES = ['Open', 'In Progress', 'On Hold', 'Resolved', 'Closed']
-// Matches the backend's TicketStatusUpdateSerializer.STAFF_SETTABLE_STATUSES —
-// 'Open' is deliberately not a settable target (it's the system's initial
-// state before anyone accepts the ticket), so it's excluded from the
-// update-status dropdown even though it's still a valid value to filter
-// History by (ALL_STATUSES above, used there).
+// Statuses staff can set via the update dropdown ('Open' excluded).
 const STAFF_SETTABLE_STATUSES = ['In Progress', 'On Hold', 'Resolved', 'Closed']
 const CAT_COLORS = ['var(--blue)', undefined, 'var(--amber)', 'var(--violet)', 'var(--red)']
 
-// A ticket only drops out of "Currently Working On" once it's actually
-// finished. Getting transferred away also removes it (assigned_staff no
-// longer matches this staff member once the new staff accepts), but
-// that's a side effect of the offer/accept flow, not a status value.
+// Statuses that count as finished, for filtering "Currently Working On".
 const DONE_STATUSES = ['Resolved', 'Closed']
 
 // Same keys Login.jsx stores and Header.jsx already reads from.
 const getFullName = () => localStorage.getItem('full_name') || ''
-// Used to identify which tickets are "mine" (assigned_staff.phone_number
-// matches this) since there's no user id stored client-side to compare
-// against assigned_staff.id directly.
+// Used to match "my" tickets via assigned_staff.phone_number.
 const getPhoneNumber = () => localStorage.getItem('phone_number') || ''
 
 function timeAgo(iso) {
@@ -86,15 +75,17 @@ function normalizeStaff(raw) {
 // - readOnly=true (opened from History): details only, no footer actions.
 function TicketDetailModal({ ticket, staffList, readOnly, onClose, onStatusChange, onTransfer, updating, transferring }) {
   const [selectedStaffId, setSelectedStaffId] = useState('')
-  // Staff ids tied to this ticket's raising company (via StaffAssignment),
-  // from GET tickets/{id}/eligible-staff/ — used purely to group the
-  // dropdown into "Assigned to this customer" vs "Other staff", per that
-  // endpoint's own docstring. null = still loading.
+  // Staged status pick — requires a confirmed remark before it's applied.
+  const [pendingStatus, setPendingStatus] = useState('')
+  const [statusRemark, setStatusRemark] = useState('')
+  // Staff ids eligible for this ticket's company, for grouping the transfer dropdown. null = loading.
   const [eligibleIds, setEligibleIds] = useState(null)
 
   useEffect(() => {
     setSelectedStaffId('')
     setEligibleIds(null)
+    setPendingStatus('')
+    setStatusRemark('')
     if (!ticket || readOnly) return
     let cancelled = false
     api.get(`tickets/${ticket.id}/eligible-staff/`)
@@ -105,14 +96,7 @@ function TicketDetailModal({ ticket, staffList, readOnly, onClose, onStatusChang
 
   if (!ticket) return null
 
-  // The staff member who currently holds it is shown separately, not as
-  // a transfer option — you can't transfer a ticket to whoever already
-  // has it (which, on this page, is normally you). Matched by full_name,
-  // not phone_number — phone_number comparisons between staffList (from
-  // staff/) and each ticket's embedded assigned_staff kept silently
-  // failing to match (likely a formatting difference between the two
-  // independently-fetched endpoints), which is why the current holder
-  // was still showing up as a transfer option.
+  // Excludes the current holder from the transfer options (matched by full_name).
   const transferOptions = staffList.filter((s) => s.full_name !== ticket.assigned_staff?.full_name)
   const assignedGroup = transferOptions.filter((s) => eligibleIds?.has(s.id))
   const otherGroup = transferOptions.filter((s) => !eligibleIds?.has(s.id))
@@ -165,17 +149,44 @@ function TicketDetailModal({ ticket, staffList, readOnly, onClose, onStatusChang
 
         {!readOnly && (
           <div className="modal-foot" style={{ flexWrap: 'wrap', rowGap: 10 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
               <span className="panel-sub">Update status</span>
               <select
                 className="select"
-                value={ticket.status}
+                value={pendingStatus || ticket.status}
                 disabled={updating}
-                onChange={(e) => onStatusChange(ticket, e.target.value)}
+                onChange={(e) => { setPendingStatus(e.target.value); setStatusRemark('') }}
               >
                 {STAFF_SETTABLE_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
               </select>
               {updating && <span className="panel-sub">Saving…</span>}
+
+              {pendingStatus && pendingStatus !== ticket.status && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', marginTop: 6 }}>
+                  <textarea
+                    className="select"
+                    placeholder={`Remark for moving to "${pendingStatus}" (required)`}
+                    value={statusRemark}
+                    onChange={(e) => setStatusRemark(e.target.value)}
+                    rows={2}
+                    style={{ flex: 1, resize: 'vertical', height: 'auto', padding: 8 }}
+                  />
+                  <button
+                    className="btn btn-primary"
+                    disabled={updating || !statusRemark.trim()}
+                    onClick={() => onStatusChange(ticket, pendingStatus, statusRemark.trim())}
+                  >
+                    {updating ? 'Saving…' : 'Confirm'}
+                  </button>
+                  <button
+                    className="btn btn-ghost"
+                    disabled={updating}
+                    onClick={() => { setPendingStatus(''); setStatusRemark('') }}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              )}
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: 'auto' }}>
@@ -266,13 +277,7 @@ function StaffDashboard() {
     }
   }
 
-  // "Mine" = tickets whose assigned_staff.phone_number matches the
-  // logged-in staff member's phone number — there's no user id stored
-  // client-side (localStorage only has role / full_name / phone_number)
-  // to compare against assigned_staff.id directly, so phone number is
-  // the only reliable match available. This is used for stats and the
-  // "Currently Working On" list — History (below) intentionally uses
-  // the full `tickets` list instead, since History is company-wide.
+  // Tickets assigned to the logged-in staff member, matched by phone number.
   const myTickets = useMemo(
     () => tickets.filter((t) => t.assigned_staff?.phone_number && t.assigned_staff.phone_number === myPhone),
     [tickets, myPhone]
@@ -286,11 +291,7 @@ function StaffDashboard() {
     return { total, inProgress, onHold, resolved }
   }, [myTickets])
 
-  // Broadened from "status === In Progress" — a ticket stays here through
-  // Open / In Progress / On Hold, and only drops off once it's Resolved,
-  // Closed, or transferred away — a transfer clears assigned_staff to
-  // None immediately, which drops it out of myTickets right away (not
-  // waiting for the new staff member to accept).
+  // My tickets that aren't finished yet, newest first.
   const workingTickets = useMemo(
     () => myTickets.filter((t) => !DONE_STATUSES.includes(t.status))
       .sort((a, b) => new Date(b.created_at) - new Date(a.created_at)),
@@ -312,9 +313,7 @@ function StaffDashboard() {
     }))
   }, [myTickets])
 
-  // Re-run counter animation + trend chart draw once real stats are ready,
-  // and again whenever this page mounts (matches how the original admin
-  // Dashboard.jsx wired these up).
+  // Re-run counter animation + trend chart once stats are ready.
   useEffect(() => {
     if (!loading) {
       initCounters()
@@ -322,9 +321,7 @@ function StaffDashboard() {
     }
   }, [loading, stats.total])
 
-  // History is the full company-wide ticket log, not just this staff
-  // member's own tickets — everyone gets to see everything the company
-  // has ever received, same underlying `tickets` list AdminDashboard uses.
+  // Every ticket ever assigned to this staff member, filterable by status/search.
   const historyTickets = useMemo(() => {
     return tickets
       .filter((t) => historyStatus === 'All' || t.status === historyStatus)
@@ -336,23 +333,19 @@ function StaffDashboard() {
       .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
   }, [tickets, historyStatus, historySearch])
 
-  // Hits the dedicated status endpoint (PATCH tickets/{id}/status/), NOT
-  // tickets/{id}/ — that generic detail endpoint has `status` marked
-  // read_only on TicketSerializer, so a PATCH there returns 200 but
-  // silently ignores the status change server-side. Updates local state
-  // from the server's response rather than assuming the value we sent
-  // was applied, so the UI can't drift out of sync with what's actually
-  // in the database again.
-  const handleStatusChange = async (ticket, newStatus) => {
+  // Updates a ticket's status via the dedicated status endpoint.
+  const handleStatusChange = async (ticket, newStatus, remark) => {
     setUpdating(true)
+    setError('')
     try {
-      const { data } = await api.patch(`tickets/${ticket.id}/status/`, { status: newStatus })
+      const { data } = await api.patch(`tickets/${ticket.id}/status/`, { status: newStatus, remark })
       setTickets((prev) => prev.map((t) => (t.id === ticket.id ? data : t)))
       setWorkingTicket((prev) => (prev && prev.id === ticket.id ? data : prev))
     } catch (err) {
       setError(
         err.response?.data?.detail
         || err.response?.data?.status?.[0]
+        || err.response?.data?.remark?.[0]
         || 'Could not update ticket status.'
       )
     } finally {
@@ -360,12 +353,7 @@ function StaffDashboard() {
     }
   }
 
-  // Per TransferTicketView on the backend: this clears assigned_staff to
-  // None on the ticket immediately (not left with the outgoing staff
-  // member) and creates a fresh 'pending' TicketAssignment for the target
-  // staff — they must accept it from Ticket Assignment before it's
-  // actually theirs. Until then the ticket is unassigned and only an
-  // admin can act on it (see _can_manage_ticket on the backend).
+  // Sends a transfer offer; ticket becomes unassigned until the target staff accepts.
   const handleTransfer = async (ticket, staffId) => {
     setTransferring(true)
     setNotice('')
@@ -524,14 +512,12 @@ function StaffDashboard() {
           </div>
         </section>
 
-        {/* History = every ticket the company has ever received, not just
-            yours. Clicking a row opens the same modal in read-only mode —
-            status update and transfer only happen from the table above. */}
+        {/* History table — clicking a row opens the modal in read-only mode. */}
         <section className="panel">
           <div className="panel-head">
             <div>
               <div className="panel-title">History</div>
-              <div className="panel-sub">Every ticket ever raised, company-wide. Click a row for details.</div>
+              <div className="panel-sub">Every ticket ever assigned to you. Click a row for details.</div>
             </div>
             <div style={{ display: 'flex', gap: 8 }}>
               <input

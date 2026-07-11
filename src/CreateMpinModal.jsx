@@ -4,24 +4,13 @@ import '/src/login.css'
 
 const PIN_LENGTH = 4
 
-// Trims an array of per-box characters down to its leading contiguous run
-// (stops at the first empty slot) and joins it. This is what keeps
-// "value" unambiguous — digits typed out of order past a gap (e.g. a user
-// clicks box 4 directly while boxes 1-3 are still empty) just don't count
-// toward the PIN yet, rather than silently being included or dropped in a
-// way that wouldn't match what's on screen.
+// Joins per-box characters into a value, stopping at the first empty slot.
 function contiguousValue(chars) {
   const gap = chars.findIndex((d) => !d)
   return (gap === -1 ? chars : chars.slice(0, gap)).join('')
 }
 
-// Six-box segmented PIN entry — mirrors the digit-box treatment already
-// used for the login screen's captcha (auth-captcha-box), so this modal
-// reads as the same product instead of a generic browser form. Typing
-// auto-advances via an imperative .focus() call; deliberately does NOT
-// also redirect focus on click/focus events, since that combination
-// caused the auto-advance's own focus() call to re-trigger a redirect
-// against a stale digits snapshot and skip a box.
+// Segmented PIN entry box with auto-advance, backspace, arrow-key and paste handling.
 function PinBoxes({ id, value, onChange, autoFocus, state }) {
   const refs = useRef([])
   const digits = value.split('')

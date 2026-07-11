@@ -30,29 +30,13 @@ function MainLayout() {
   )
 }
 
-// Login.jsx stores these as flat localStorage keys after a successful
-// login (matching the backend's issue_tokens() response) — same keys
-// Header.jsx already reads from.
+// Reads the logged-in user's role from localStorage.
 const getRole = () => localStorage.getItem('role') || ''
 
-// Presence of an access token is the same signal api.js's request
-// interceptor already relies on to decide whether to attach
-// Authorization headers — reusing it here keeps "am I logged in" defined
-// in exactly one place's worth of meaning, even though it's checked in
-// two files. logout()/clearSession() in api.js removes 'access', so this
-// flips false immediately on logout, including for any tab still open.
+// Checks whether an access token is present in localStorage.
 const isLoggedIn = () => !!localStorage.getItem('access')
 
-// Guards every route nested under it (Dashboard, All Tickets, Profile,
-// etc.) — if there's no access token, bounce to the login page instead of
-// rendering the protected page's shell. Doesn't try to validate the
-// token itself (expired/invalid tokens are handled by api.js's response
-// interceptor + refresh flow); this is just the "never even show the
-// page without SOME token" guard for direct URL access.
-//
-// Redirects to "/login" rather than "/" — "/" is now the public landing
-// page, not the login form, so bouncing here still puts the person
-// straight in front of a login form instead of a marketing page.
+// Route guard: redirects to /login if there's no access token.
 function RequireAuth({ children }) {
   if (!isLoggedIn()) {
     return <Navigate to="/login" replace />
@@ -60,10 +44,7 @@ function RequireAuth({ children }) {
   return children
 }
 
-// Inverse guard for the landing + login routes — if someone who's
-// already logged in navigates to "/" or "/login" directly (bookmark,
-// typed URL, browser back), send them straight to their dashboard
-// instead of showing marketing copy or the login form again.
+// Inverse guard: sends already-logged-in users away from landing/login to their dashboard.
 function RedirectIfAuthed({ children }) {
   if (isLoggedIn()) {
     return <Navigate to="/dashboard/" replace />
@@ -71,13 +52,7 @@ function RedirectIfAuthed({ children }) {
   return children
 }
 
-// Per-page role gate — sits INSIDE RequireAuth (so we already know
-// there's a valid session by the time this runs), and checks the role
-// against an explicit allow-list per route. Unlike RequireAuth, this
-// doesn't redirect: someone who's logged in but hitting a page their
-// role isn't permitted to see should get an explicit "Permission
-// Denied" rather than being silently bounced elsewhere, since a
-// redirect could look like the page just doesn't exist / is broken.
+// Per-page role gate — shows Permission Denied if the user's role isn't in the allow-list.
 function RequireRole({ allow, children }) {
   const role = getRole()
   if (!allow.includes(role)) {
@@ -236,9 +211,7 @@ function App() {
 
         <Route path='/onboarding' element={<Onboarding />} />
 
-        {/* Public landing page — first thing anyone hits at "/".
-            Already-authenticated visitors get bounced straight to their
-            dashboard instead of seeing marketing copy. */}
+        {/* Public landing page at "/". */}
         <Route
           path='/'
           element={
@@ -248,8 +221,7 @@ function App() {
           }
         />
 
-        {/* Login moved off "/" and onto its own path now that "/" is
-            the landing page. */}
+        {/* Login page. */}
         <Route
           path='/login'
           element={

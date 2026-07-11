@@ -82,10 +82,7 @@ export default function ProfilePage() {
       setSaveSuccess('Profile updated.')
       setTimeout(() => setSaveSuccess(''), 3000)
 
-      // Sidebar/topbar (Header.jsx) read full_name straight from
-      // localStorage rather than the API, so update it here and let
-      // Header know to re-read it — otherwise the change only shows up
-      // after the next login.
+      // Sync full_name to localStorage so Header re-reads it immediately.
       localStorage.setItem('full_name', data.full_name || '')
       window.dispatchEvent(new Event('profile-updated'))
     } catch (err) {

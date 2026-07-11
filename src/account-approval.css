@@ -1,10 +1,5 @@
 /* =========================================================================
-   Account Approval Screen — supplemental styles
-   Extends style.css (Ops Desk design tokens). Import AFTER style.css.
-   Reuses existing vars: --ink, --paper, --surface, --line, --text*,
-   --accent*, --amber*, --red*, --blue*, --violet*, --gray-soft,
-   --font-display, --font-body, --font-mono, --radius, --radius-sm,
-   --shadow-card.
+   Account Approval Screen — supplemental styles (extends style.css tokens)
    ========================================================================= */
 
 /* --- Filters bar (search + selects above the requests table) --- */

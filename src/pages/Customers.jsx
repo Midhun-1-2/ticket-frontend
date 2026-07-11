@@ -8,9 +8,7 @@ const STATUS_CHIP = {
   Blocked: 'chip overdue',
 }
 
-// Ticket status uses a different set of labels than customer account
-// status, so it needs its own color map (falls back to 'chip open' if a
-// status is missing here).
+// Color map for ticket status chips (separate from customer account status).
 const TICKET_STATUS_CHIP = {
   Open: 'chip open',
   'In Progress': 'chip hold',
@@ -19,10 +17,7 @@ const TICKET_STATUS_CHIP = {
   Closed: 'chip closed',
 }
 
-// Same fix as AllTickets.jsx / the dashboards / TicketAssignment.jsx /
-// StaffManagement.jsx: forces every status chip on this page onto a
-// single line and sizes it to its own content, matching the design used
-// everywhere else in the app.
+// Forces every status chip on this page onto a single line, sized to its own content.
 const chipNoWrapStyle = {
   whiteSpace: 'nowrap',
   display: 'inline-flex',
@@ -61,13 +56,7 @@ function formatDateTime(iso) {
   })
 }
 
-// Shows a small "Note" chip when a ticket has a staff remark (currently
-// sourced from Ticket.escalation_note — the only staff-authored note
-// field on the ticket today). Hovering/focusing reveals the full text via
-// a fixed-position portal on <body>, so it's never clipped by the modal's
-// own overflow-y:auto. Mirrors the HolderChip pattern in
-// TicketAssignment.jsx, but self-contained (no external CSS classes)
-// since this file doesn't import ticket-assignment.css.
+// Shows a "Note" chip for a ticket's staff remark; hover/focus reveals the full text via a portal tooltip.
 function RemarkTooltip({ text }) {
   const [open, setOpen] = useState(false)
   const [coords, setCoords] = useState({ top: 0, left: 0 })
@@ -382,8 +371,7 @@ function Customers() {
 }
 
 // ---------------------------------------------------------------------------
-// View modal — wide, two-column, shows every field entered by the customer
-// plus their ticket activity / contact history
+// View modal — shows full customer/company details plus ticket activity
 // ---------------------------------------------------------------------------
 function ViewModal({ user, onClose }) {
   const [detail, setDetail] = useState(null)
@@ -610,9 +598,7 @@ function ViewModal({ user, onClose }) {
 }
 
 // ---------------------------------------------------------------------------
-// Edit modal — PATCH name / email / phone, plus Products (add + remove,
-// sourced from the Product Master catalog via two dependent dropdowns:
-// pick a product name, then pick one of its available versions)
+// Edit modal — updates name/email/phone and manages the customer's products
 // ---------------------------------------------------------------------------
 function EditModal({ user, onClose, onSaved }) {
   const [form, setForm] = useState({ name: user.name || '', email: user.email || '', phone: user.phone || '' })
@@ -695,9 +681,7 @@ function EditModal({ user, onClose, onSaved }) {
   const catalogExhausted = !detailLoading && hasCompany && catalog.length > 0 && availableNames.length === 0
   const catalogEmpty = !detailLoading && hasCompany && catalog.length === 0
 
-  // Picking a name auto-fills the first available version — most products
-  // only have one anyway, so this makes the common case a single click
-  // instead of forcing two dropdown interactions before Add lights up.
+  // Picking a name auto-fills the first available version.
   const handleNameChange = (e) => {
     const name = e.target.value
     setSelectedName(name)
@@ -1016,9 +1000,7 @@ function ConfirmModal({ title, text, confirmLabel, onCancel, onConfirm }) {
 }
 
 // ---------------------------------------------------------------------------
-// Delete modal — fetches the customer's ticket count first. If they have
-// ANY tickets (even one), deletion is blocked entirely and only a "Close"
-// button is shown. Only customers with zero tickets can be deleted.
+// Delete modal — only customers with zero tickets can be deleted
 // ---------------------------------------------------------------------------
 function DeleteCustomerModal({ user, onCancel, onDeleted }) {
   const [checking, setChecking] = useState(true)

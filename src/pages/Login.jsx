@@ -22,13 +22,7 @@ function Login() {
   const [toastMessage, setToastMessage] = useState('')
   const [showForgotMpin, setShowForgotMpin] = useState(false)
 
-  // --- Captcha ---------------------------------------------------------
-  // Simple 4-digit numeric captcha, generated client-side. captchaNoise
-  // holds a small random rotation/vertical-offset per digit purely for
-  // display (rendered in auth-captcha-box) so the code isn't just flat,
-  // trivially-selectable text. This is a lightweight UX deterrent against
-  // casual bots, not a security boundary — real bot/abuse protection
-  // should still live server-side if that's ever a concern.
+  // Simple 4-digit numeric captcha, generated client-side (UX deterrent, not a security boundary).
   const [captchaCode, setCaptchaCode] = useState('')
   const [captchaNoise, setCaptchaNoise] = useState([])
   const [captchaInput, setCaptchaInput] = useState('')
@@ -49,10 +43,7 @@ function Login() {
     generateCaptcha()
   }, [])
 
-  // 'idle' -> 'success' (checkmark shows in the button) -> 'exiting' (the
-  // full-screen wipe plays) -> navigate. Purely a presentation layer over
-  // the real login flow below; redirectByRole still does the actual
-  // navigation once the wipe has had time to play.
+  // Post-submit UI phase: 'idle' -> 'success' -> 'exiting' -> navigate.
   const [transitionPhase, setTransitionPhase] = useState('idle')
 
   // Plain JS auto-dismiss — runs whenever toastMessage changes.
@@ -131,10 +122,7 @@ function Login() {
         return
       }
 
-      // issue_tokens() on the backend returns { access, refresh, role,
-      // phone_number, full_name } — persist all of it so Header.jsx /
-      // GlobalSearch.jsx can show the logged-in user's actual name and role
-      // instead of falling back to generic placeholders.
+      // Persist auth/session data for Header.jsx / GlobalSearch.jsx to use.
       localStorage.setItem('access', data.access)
       localStorage.setItem('refresh', data.refresh)
       localStorage.setItem('role', data.role)
@@ -147,12 +135,7 @@ function Login() {
         return
       }
 
-      // Success — button swaps its label for a checkmark (a quick, quiet
-      // confirmation), then the screen crossfades into a branded loading
-      // moment — the same "TD" mark + ring-pulse language already used
-      // on the landing page's boot sequence — rather than a flashy wipe.
-      // Navigation fires once that's fully faded in, so the route swap
-      // happens while covered.
+      // Success — swap button label for a checkmark, then crossfade out and navigate.
       setTransitionPhase('success')
       setTimeout(() => {
         setTransitionPhase('exiting')
@@ -194,9 +177,7 @@ function Login() {
     setToastMessage('M-PIN reset! Please log in with your new M-PIN.')
   }
 
-  // Spawns a short-lived ripple element at the click point — purely
-  // decorative, doesn't touch submit logic. The ripple sizes itself to
-  // the button so it always fully covers it regardless of viewport width.
+  // Spawns a short-lived decorative ripple element at the click point.
   function spawnRipple(e) {
     const button = e.currentTarget
     if (button.disabled) return
@@ -213,13 +194,9 @@ function Login() {
 
   return (
     <>
-      {/* Rendered as a SIBLING of .auth-screen, not a child — see the
-          .is-transitioning containing-block note in login.css. A clean
-          crossfade into a branded loading moment (mark + ring-pulse,
-          same language as the landing page's boot sequence) rather than
-          a wipe. */}
+      {/* Branded crossfade overlay shown while transitioning away after login. */}
       <div className={`auth-transition-overlay${transitionPhase === 'exiting' ? ' is-active' : ''}`} aria-hidden="true">
-        <div className="auth-transition-mark">TD</div>
+        <img className="auth-transition-mark" src="/logo.png" alt="TIXA" />
       </div>
 
       <div className={`auth-screen${transitionPhase === 'exiting' ? ' is-transitioning' : ''}`}>
@@ -240,19 +217,14 @@ function Login() {
 
       <div className="auth-shell">
 
-        {/* Branded panel — purely presentational, echoes the app shell's
-            dark ink sidebar so the login screen reads as part of the same
-            product rather than a generic auth page. Headline is split into
-            <span className="word"> pieces (same trick as LandingPage.jsx's
-            AnimatedWords) purely so login.css can stagger them in on
-            mount — no behavior change. */}
+        {/* Branded panel — presentational sidebar echoing the app shell. */}
         <aside className="auth-visual" aria-hidden="true">
           <div className="auth-visual-glow"></div>
 
           <div className="auth-visual-top">
-            <div className="brand-mark">TD</div>
+            <img className="brand-mark" src="/logo.png" alt="TIXA" />
             <div className="brand-text">
-              <div className="brand-name">Ticket Desk</div>
+              <div className="brand-name">TIXA</div>
               <div className="brand-sub">Admin Console</div>
             </div>
           </div>
@@ -301,17 +273,12 @@ function Login() {
           </div>
         </aside>
 
-        {/* Mobile-only condensed hero — the dark .auth-visual panel is
-            hidden below 860px (see media query), so without this, mobile
-            was left with just a plain white card on flat background.
-            This recreates the same brand + headline + ticker moment in
-            miniature, reusing the same word-in/rise/pulse animations as
-            the desktop panel so it still feels like one product. */}
+        {/* Mobile-only condensed hero, shown when .auth-visual is hidden below 860px. */}
         <div className="auth-mobile-hero" aria-hidden="true">
           <div className="auth-mobile-hero-top">
-            <div className="brand-mark">TD</div>
+            <img className="brand-mark" src="/logo.png" alt="TIXA" />
             <div>
-              <div className="brand-name">Ticket Desk</div>
+              <div className="brand-name">TIXA</div>
               <div className="brand-sub">Admin Console</div>
             </div>
           </div>
@@ -369,9 +336,7 @@ function Login() {
                   />
                 </label>
 
-                {/* Role Detected is only surfaced for admin/staff — customers
-                    don't need to see this, and it avoids exposing role info
-                    unnecessarily for the common case. */}
+                {/* Role Detected is only surfaced for admin/staff accounts. */}
                 {(role === 'admin' || role === 'staff') && (
                   <div className="auth-role-detected">
                     Role detected: <span>{role}</span>
@@ -399,12 +364,7 @@ function Login() {
                   </label>
                 )}
 
-                {/* 4-digit numeric captcha — client-generated, regenerated
-                    on refresh click and on any failed attempt so a code
-                    can't be reused. Digits are rendered individually with
-                    a small random rotate/offset (captchaNoise) instead of
-                    as flat text. Only shown once the phone number has been
-                    entered/checked, same gating as the credential field. */}
+                {/* 4-digit numeric captcha, regenerated on refresh or failed attempt. */}
                 {phoneChecked && (
                   <div className="auth-field auth-captcha">
                     <span className="auth-label">Verification Code</span>
