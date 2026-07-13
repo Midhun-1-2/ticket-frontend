@@ -114,6 +114,13 @@ function TicketDetailModal({ ticket, onClose }) {
             </div>
           )}
 
+          {(ticket.status === 'Resolved' || ticket.status === 'Closed') && ticket.current_remark && (
+            <>
+              <div className="detail-section-title">{ticket.status} Remark</div>
+              <div className="remarks-box">{ticket.current_remark}</div>
+            </>
+          )}
+
           <div className="detail-section-title">Timeline</div>
           <ul className="timeline-list">
             {history.map((h, i) => (

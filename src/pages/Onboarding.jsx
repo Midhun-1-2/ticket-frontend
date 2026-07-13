@@ -51,7 +51,6 @@ const emptyProduct = () => ({
   productVersion: '',
   activationDate: '',
   supportType: 'AMC',
-  remarks: '',
 })
 
 const initialFormData = {
@@ -87,7 +86,6 @@ const initialFormData = {
   amcEndDate: '',
   preferredChannel: SUPPORT_CHANNELS[0],
   preferredTime: SUPPORT_TIMES[0],
-  remarks: '',
   productsInUse: [],
   contractRefNumber: '',
 }
@@ -162,7 +160,6 @@ function toBackendPayload(formData, products) {
     amc_end_date: formData.amcEndDate || null,
     preferred_channel: formData.preferredChannel,
     preferred_time: formData.preferredTime,
-    remarks: formData.remarks,
     products_in_use: formData.productsInUse,
     contract_ref_number: formData.contractRefNumber,
     products: products.map((p) => ({
@@ -170,7 +167,6 @@ function toBackendPayload(formData, products) {
       product_version: p.productVersion,
       activation_date: p.activationDate || null,
       support_type: p.supportType,
-      remarks: p.remarks,
     })),
   }
 }
@@ -938,17 +934,6 @@ function Onboarding() {
         </div>
         {errors.productsInUse && <span className="field-error">{errors.productsInUse}</span>}
       </div>
-
-      <div className="form-field full">
-        <label>Remarks<span className="optional">optional</span></label>
-        <textarea
-          placeholder="Anything else we should know?"
-          maxLength={250}
-          value={formData.remarks}
-          onChange={(e) => updateField('remarks', e.target.value)}
-        />
-        <span className="char-count">{formData.remarks.length} / 250</span>
-      </div>
     </div>
   )
 
@@ -1039,15 +1024,6 @@ function Onboarding() {
                     </label>
                   ))}
                 </div>
-              </div>
-
-              <div className="form-field full">
-                <label>Remarks<span className="optional">optional</span></label>
-                <textarea
-                  placeholder="Version notes, migration details, etc."
-                  value={product.remarks}
-                  onChange={(e) => updateProduct(index, 'remarks', e.target.value)}
-                />
               </div>
             </div>
           </div>

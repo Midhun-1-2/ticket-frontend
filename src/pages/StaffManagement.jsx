@@ -1,12 +1,20 @@
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { Country } from 'country-state-city'
+import { isValidPhoneNumber, isSupportedCountry, getCountryCallingCode, getExampleNumber } from 'libphonenumber-js'
+import examplesMobile from 'libphonenumber-js/examples.mobile.json'
 import api from '../api' // adjust this path to match where api.js actually lives
+import SearchableSelect from '../SearchableSelect.jsx'
 import '/src/staff-management.css'
+import '/src/onboarding.css' // .phone-input / .phone-prefix / .searchable-select* — shared with Onboarding's country-aware phone field
 
 // Case/whitespace-insensitive key for grouping product name variants.
 function normalizeName(name) {
   return (name || '').replace(/\s+/g, '').toLowerCase()
 }
+
+// Strips non-digit characters and caps length — same helper Onboarding.jsx uses for phone-style inputs.
+const digitsOnly = (value, maxLen) => value.replace(/\D/g, '').slice(0, maxLen)
 
 // Strips any leading "v"/"V" so display never doubles it up, then adds
 // exactly one back. '' stays '' (versionless products have nothing to show).
@@ -17,7 +25,7 @@ function displayVersion(version) {
 }
 
 const EMPTY_FORM = {
-  name: '', email: '', phone: '', department: '', role: '', password: '', products: [],
+  name: '', email: '', phone: '', country: 'India', department: '', role: '', password: '', products: [],
 }
 
 // Keeps the status chip on a single line, sized to its content.
@@ -56,6 +64,38 @@ function StaffManagement() {
   const [form, setForm] = useState(EMPTY_FORM)
   const [formError, setFormError] = useState('')
   const [saving, setSaving] = useState(false)
+
+  // Country-aware phone verification for the Add/Edit Staff modal — same
+  // approach as Onboarding.jsx's Mobile Number field (calling-code prefix,
+  // per-country digit cap, libphonenumber-js format validation).
+  const countries = useMemo(() => Country.getAllCountries(), [])
+  const selectedCountry = useMemo(
+    () => countries.find((c) => c.name === form.country),
+    [countries, form.country]
+  )
+  const callingCode = useMemo(() => {
+    if (!selectedCountry || !isSupportedCountry(selectedCountry.isoCode)) return null
+    try {
+      return getCountryCallingCode(selectedCountry.isoCode)
+    } catch {
+      return null
+    }
+  }, [selectedCountry])
+  const phoneMaxLength = useMemo(() => {
+    if (!selectedCountry) return 15
+    try {
+      const example = getExampleNumber(selectedCountry.isoCode, examplesMobile)
+      return example ? example.nationalNumber.length : 15
+    } catch {
+      return 15
+    }
+  }, [selectedCountry])
+
+  function handleCountryChange(isoCode) {
+    const c = countries.find((x) => x.isoCode === isoCode)
+    if (!c) return
+    setForm((prev) => ({ ...prev, country: c.name, phone: '' }))
+  }
 
   const [showRoleModal, setShowRoleModal] = useState(false)
   const [newRoleName, setNewRoleName] = useState('')
@@ -161,6 +201,7 @@ function StaffManagement() {
       name: member.name,
       email: member.email,
       phone: member.phone || '',
+      country: 'India', // not tracked on the staff record — always starts from India, same as a fresh Add Staff
       department: member.department || departments[0]?.name || '',
       role: member.role || roles[0]?.name || '',
       password: '', // left blank on edit — only sent if changed
@@ -202,6 +243,10 @@ function StaffManagement() {
 
     if (!form.name.trim() || !form.email.trim() || !form.phone.trim()) {
       setFormError('Name, email, and phone are required.')
+      return
+    }
+    if (selectedCountry && isSupportedCountry(selectedCountry.isoCode) && !isValidPhoneNumber(form.phone, selectedCountry.isoCode)) {
+      setFormError(`Enter a valid phone number for ${selectedCountry.name}.`)
       return
     }
     if (editingId === null && form.password.length < 4) {
@@ -448,7 +493,7 @@ function StaffManagement() {
                 <th>Name</th>
                 <th>Department</th>
                 <th>Role</th>
-                <th>Tickets Assigned</th>
+                <th>Assigned</th>
                 <th>Status</th>
                 <th>Actions</th>
               </tr>
@@ -595,16 +640,34 @@ function StaffManagement() {
                 </div>
 
                 <div>
-                  <label className="sm-field-label">Phone</label>
-                  <input
-                    type="tel"
-                    className="sm-input"
-                    value={form.phone}
-                    onChange={(e) => handleFormChange('phone', e.target.value.replace(/\D/g, '').slice(0, 10))}
-                    placeholder="10-digit phone number"
-                    maxLength={10}
-                    required
+                  <label className="sm-field-label">Country</label>
+                  <SearchableSelect
+                    value={selectedCountry?.isoCode || ''}
+                    onChange={handleCountryChange}
+                    options={countries}
+                    placeholder="Select a country"
+                    searchPlaceholder="Search countries…"
+                    getValue={(c) => c.isoCode}
+                    getLabel={(c) => c.name}
+                    renderOption={(c) => <>{c.flag} {c.name}</>}
                   />
+                </div>
+
+                <div>
+                  <label className="sm-field-label">Phone</label>
+                  <div className="phone-input">
+                    <span className="phone-prefix">{callingCode ? `+${callingCode}` : '+'}</span>
+                    <input
+                      type="tel"
+                      className="sm-input"
+                      inputMode="numeric"
+                      value={form.phone}
+                      onChange={(e) => handleFormChange('phone', digitsOnly(e.target.value, phoneMaxLength))}
+                      placeholder="9845021190"
+                      maxLength={phoneMaxLength}
+                      required
+                    />
+                  </div>
                 </div>
 
                 <div>

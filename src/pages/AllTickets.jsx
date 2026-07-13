@@ -714,9 +714,16 @@ function TicketModal({ ticket, onClose, onUpdated }) {
           <div className="detail-section-title">Description</div>
           <div className="remarks-box">{ticket.description}</div>
 
-          {(ticket.current_remark || ticket.escalation_note) && (
+          {/* Resolved/Closed carries the outcome remark — customer-only from
+              here on (staff/admin already have it via Status History /
+              having written it themselves). Any other status still shows
+              the latest remark to everyone, unchanged. */}
+          {(ticket.current_remark || ticket.escalation_note)
+            && (ticket.status !== 'Resolved' && ticket.status !== 'Closed' || getRole() === 'customer') && (
             <>
-              <div className="detail-section-title">Current Remark</div>
+              <div className="detail-section-title">
+                {ticket.status === 'Resolved' || ticket.status === 'Closed' ? `${ticket.status} Remark` : 'Current Remark'}
+              </div>
               <div className="remarks-box">{ticket.current_remark || ticket.escalation_note}</div>
             </>
           )}

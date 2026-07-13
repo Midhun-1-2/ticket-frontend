@@ -83,8 +83,7 @@ function mapDetail(c) {
     productDetails: c.products || [],
     reviewedAt: c.reviewed_at,
     productVerification: c.product_verification || {},
-    verificationNote: c.verification_note || "",
-    staffAssignment: c.staff_assignment || null, 
+    staffAssignment: c.staff_assignment || null,
   };
 }
 
@@ -303,7 +302,7 @@ function RequestsList({
                     <th>Email</th>
                     <th>Phone</th>
                     <th>Submitted</th>
-                    <th>Status</th>
+                    <th className="status-col">Status</th>
                     <th></th>
                   </tr>
                 </thead>
@@ -320,7 +319,7 @@ function RequestsList({
                         <td>{r.email}</td>
                         <td className="mono" style={{ fontSize: 12.5 }}>{r.phone}</td>
                         <td className="mono" style={{ fontSize: 12.5 }}>{formatDate(r.submitted)}</td>
-                        <td><span className={`chip ${chip.cls}`}>{chip.label}</span></td>
+                        <td className="status-col"><span className={`chip ${chip.cls}`}>{chip.label}</span></td>
                         <td>
                           <button className="btn btn-ghost btn-sm" onClick={() => onOpen(r.id)}>
                             Review <ChevronRight size={14} />
@@ -363,7 +362,6 @@ function ReviewFlow({ request, onBack, onPatch }) {
       (request.products || []).map((p) => [p, saved[p] || "Verified"])
     );
   });
-  const [verifyNote, setVerifyNote] = useState(request.verificationNote || "");
   const [savingVerification, setSavingVerification] = useState(false);
   const [verifyError, setVerifyError] = useState("");
 
@@ -513,11 +511,9 @@ function ReviewFlow({ request, onBack, onPatch }) {
     try {
       const { data } = await api.post(`onboarding/${request.id}/verify-products/`, {
         product_verification: verification,
-        verification_note: verifyNote,
       });
       onPatch({
         productVerification: data.product_verification,
-        verificationNote: data.verification_note,
       });
       advance(nextStepIndex);
     } catch (err) {
@@ -594,8 +590,6 @@ function ReviewFlow({ request, onBack, onPatch }) {
                 request={request}
                 verification={verification}
                 setVerification={setVerification}
-                verifyNote={verifyNote}
-                setVerifyNote={setVerifyNote}
                 saving={savingVerification}
                 error={verifyError}
                 onBack={() => setStep(0)}
@@ -726,7 +720,7 @@ function StepA({ request, onNext }) {
 }
 
 /* --- Step B: Product Verification --- */
-function StepB({ request, verification, setVerification, verifyNote, setVerifyNote, saving, error, onBack, onNext }) {
+function StepB({ request, verification, setVerification, saving, error, onBack, onNext }) {
   return (
     <>
       <div className="section-label"><ShieldCheck />Confirm Products the Customer Is Using</div>
@@ -744,7 +738,6 @@ function StepB({ request, verification, setVerification, verifyNote, setVerifyNo
                   onChange={(e) => setVerification((v) => ({ ...v, [p]: e.target.value }))}
                 >
                   <option>Verified</option>
-                  <option>Needs Clarification</option>
                   <option>Not Found in Records</option>
                 </select>
                 <ChevronDown />
@@ -752,16 +745,6 @@ function StepB({ request, verification, setVerification, verifyNote, setVerifyNo
             </div>
           ))
         )}
-      </div>
-
-      <div className="field-block">
-        <label className="field-label">Internal Note</label>
-        <textarea
-          className="field-textarea"
-          placeholder="Add any observations before proceeding — e.g. mismatched product names, pricing tier notes…"
-          value={verifyNote}
-          onChange={(e) => setVerifyNote(e.target.value)}
-        />
       </div>
 
       {error && (
