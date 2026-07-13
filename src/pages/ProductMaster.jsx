@@ -134,10 +134,21 @@ function ProductMasterPage() {
         const aTime = a.activation_date ? new Date(a.activation_date).getTime() : -Infinity
         const bTime = b.activation_date ? new Date(b.activation_date).getTime() : -Infinity
         if (bTime !== aTime) return bTime - aTime
-        return (b.id > a.id ? 1 : -1)
+        // id is a UUID (random, not sequential) — created_at is the only
+        // field that actually reflects insertion order as a tiebreaker.
+        return new Date(a.created_at) - new Date(b.created_at)
       })
-      // First-created version (lowest id) owns the display name.
-      const originalNameSource = [...versions].sort((a, b) => a.id - b.id)[0]
+      // First-created version owns the display name — compared by
+      // created_at, NOT id. id is a random UUID (models.py uses
+      // uuid.uuid4), so comparing/sorting by it doesn't correlate with
+      // creation order at all; that was silently picking an arbitrary
+      // row's name (effectively whichever sorted first alphabetically by
+      // name/version, since that's ProductMaster's default ordering) —
+      // which is exactly why the display name appeared to "randomly"
+      // flip to a newly-added version's casing instead of staying put.
+      const originalNameSource = [...versions].sort(
+        (a, b) => new Date(a.created_at) - new Date(b.created_at)
+      )[0]
       return { name: originalNameSource.name, versions: sorted }
     })
 
@@ -384,6 +395,27 @@ function AddProductModal({ onClose, onSaved }) {
   const [errors, setErrors] = useState({})
   const [saving, setSaving] = useState(false)
 
+  // Staff who handle this product, settable right at creation time — same
+  // picker Edit Product has. Saved as part of the same "Save Product"
+  // action rather than a separate step.
+  const [staffList, setStaffList] = useState([])
+  const [staffIds, setStaffIds] = useState([])
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const { data } = await api.get('staff/')
+        setStaffList(data)
+      } catch (err) {
+        // Non-fatal — the staff picker just shows empty.
+      }
+    })()
+  }, [])
+
+  const toggleStaff = (id) => {
+    setStaffIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]))
+  }
+
   const handleChange = (field) => (e) => setForm((f) => ({ ...f, [field]: e.target.value }))
 
   const handleSave = async () => {
@@ -395,6 +427,21 @@ function AddProductModal({ onClose, onSaved }) {
         version: stripVersionPrefix(form.version),
         activation_date: form.activation_date || null,
       })
+
+      if (staffIds.length > 0) {
+        try {
+          // products/staff-map/ replaces the FULL set for a product name —
+          // merge with whatever's already there (e.g. this is a new
+          // version under an existing name) instead of overwriting it.
+          const productName = form.name.trim()
+          const { data: existingMap } = await api.get('products/staff-map/')
+          const merged = Array.from(new Set([...(existingMap[productName] || []), ...staffIds]))
+          await api.post('products/staff-map/', { product_name: productName, staff_ids: merged })
+        } catch (err) {
+          // Non-fatal — the product itself is already saved.
+        }
+      }
+
       onSaved(data)
     } catch (err) {
       setErrors(err.response?.data || { detail: 'Could not save product.' })
@@ -432,6 +479,31 @@ function AddProductModal({ onClose, onSaved }) {
           </div>
           {errors.detail && <div className="form-error">{errors.detail}</div>}
           {errors.non_field_errors && <div className="form-error">{errors.non_field_errors[0]}</div>}
+
+          <div className="form-field">
+            <label>Staff who handle this product</label>
+            <p style={{ fontSize: 11.5, color: '#6b7280', margin: '0 0 8px' }}>
+              Optional — used to route tickets. You can also set this later from Edit.
+            </p>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              {staffList.length === 0 && (
+                <span style={{ fontSize: 12.5, color: '#6b7280' }}>No staff accounts yet.</span>
+              )}
+              {staffList.map((s) => {
+                const active = staffIds.includes(s.id)
+                return (
+                  <span
+                    key={s.id}
+                    onClick={() => toggleStaff(s.id)}
+                    className={active ? 'chip resolved' : 'chip closed'}
+                    style={{ cursor: 'pointer', userSelect: 'none' }}
+                  >
+                    {s.name}
+                  </span>
+                )
+              })}
+            </div>
+          </div>
 
           <p style={{ fontSize: 12.5, color: '#6b7280', marginTop: 4 }}>
             If a product with this name (regardless of spacing or capitalization) already exists,

@@ -62,8 +62,11 @@ function TicketDetailModal({ ticketId, onClose, onChanged }) {
     return () => window.removeEventListener('keydown', handler)
   }, [onClose])
 
-  // Whether the current user is allowed to manage this ticket.
-  const canManage = ticket && (
+  // Whether the current user is allowed to manage this ticket. Closed is
+  // a terminal state — nobody can manage it further, mirroring
+  // _can_manage_ticket on the backend. Resolved is NOT terminal: it must
+  // still be movable to Closed.
+  const canManage = ticket && ticket.status !== 'Closed' && (
     !ticket.assigned_staff
       ? isAdmin
       : ticket.assigned_staff.role === 'admin'
@@ -170,7 +173,7 @@ function TicketDetailModal({ ticketId, onClose, onChanged }) {
 
   const statusChipClass = {
     'Open': 'open',
-    'In Progress': 'progress',
+    'In Progress': 'inprogress',
     'On Hold': 'hold',
     'Resolved': 'resolved',
     'Closed': 'closed',
@@ -267,11 +270,11 @@ function TicketDetailModal({ ticketId, onClose, onChanged }) {
                     {pendingStatus && (
                       <div style={{ marginTop: 10 }}>
                         <textarea
+                          className="remark-textarea"
                           placeholder={`Add a remark for moving this ticket to "${pendingStatus}" (required)`}
                           value={statusRemark}
                           onChange={(e) => setStatusRemark(e.target.value)}
                           rows={3}
-                          style={{ width: '100%', resize: 'vertical' }}
                         />
                         <div className="action-row">
                           <button className="btn btn-ghost" onClick={cancelStatusChange} disabled={statusSaving}>Cancel</button>
@@ -358,6 +361,7 @@ function TicketDetailModal({ ticketId, onClose, onChanged }) {
                   {showEscalate && (
                     <div className="escalate-panel">
                       <textarea
+                        className="remark-textarea"
                         placeholder="Optional note for admin — what needs attention?"
                         value={escalateReason}
                         onChange={(e) => setEscalateReason(e.target.value)}
@@ -371,6 +375,10 @@ function TicketDetailModal({ ticketId, onClose, onChanged }) {
                     </div>
                   )}
                 </>
+              ) : ticket.status === 'Closed' ? (
+                <div className="ticket-modal-status">
+                  This ticket is closed and can no longer be updated.
+                </div>
               ) : (
                 ticket.assigned_staff && (
                   <div className="ticket-modal-status">

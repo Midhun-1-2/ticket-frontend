@@ -554,7 +554,7 @@ table.tickets tbody tr:hover{ background: var(--paper); }
   background: currentColor;
 }
 .chip.open{ background: var(--amber-soft); color:#8A550F; border-color: rgba(200,121,26,0.16); }
-.chip.progress{ background: var(--blue-soft); color: var(--blue); border-color: rgba(59,91,169,0.14); }
+.chip.inprogress{ background: var(--blue-soft); color: var(--blue); border-color: rgba(59,91,169,0.14); }
 .chip.resolved{ background: var(--accent-soft); color: var(--accent-ink); border-color: rgba(15,110,99,0.14); }
 .chip.overdue{ background: var(--red-soft); color: var(--red); border-color: rgba(196,67,46,0.14); }
 .chip.hold{ background: var(--violet-soft); color: var(--violet); border-color: rgba(107,91,149,0.14); }
@@ -810,6 +810,15 @@ table.tickets tbody tr:hover{ background: var(--paper); }
 }
 .select:focus, .input:focus{ border-color: var(--accent); }
 .select{ cursor:pointer; }
+
+/* Remark textareas (status-change / escalate panels) */
+.remark-textarea{
+  width:100%; border:1px solid var(--line); border-radius:8px;
+  padding:10px 12px; font-size:13.5px; font-family:var(--font-body); color:var(--text);
+  background:#fff; outline:none; resize:vertical; line-height:1.5;
+}
+.remark-textarea::placeholder{ color: var(--text-faint); }
+.remark-textarea:focus{ border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
 
 /* Staff Performance (AdminDashboard.jsx) — segmented workload bars per staff row */
 .perf-legend{

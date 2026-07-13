@@ -5,7 +5,7 @@ import { initCounters, initTrendChart, buildTrendData } from '../script.js'
 
 const STATUS_CHIP = {
   Open: 'chip open',
-  'In Progress': 'chip progress',
+  'In Progress': 'chip inprogress',
   'On Hold': 'chip hold',
   Resolved: 'chip resolved',
   Closed: 'chip resolved',

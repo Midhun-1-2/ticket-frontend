@@ -8,6 +8,26 @@ const getRole = () => localStorage.getItem('role') || 'staff'
 const getFullName = () => localStorage.getItem('full_name') || ''
 const ROLE_EYEBROW = { admin: 'Admin · Manage', staff: 'Staff · Manage', customer: 'Customer · Manage' }
 
+// Case/whitespace-insensitive key — same normalizer ProductMaster.jsx uses
+// — so "Excel Upload" and "excel upload" collapse into one filter option
+// instead of showing as two, regardless of which version/casing a given
+// ticket's product string happens to be stored with.
+function normalizeName(name) {
+  return (name || '').replace(/\s+/g, '').toLowerCase()
+}
+
+// Collapses names that normalize the same (e.g. "Excel Upload" and "excel
+// upload" — one product with two ProductMaster version rows saved with
+// different casing) down to one representative label each, first-seen wins.
+function dedupeProductNames(names) {
+  const seen = new Map()
+  for (const name of names) {
+    const key = normalizeName(name)
+    if (key && !seen.has(key)) seen.set(key, name)
+  }
+  return [...seen.values()]
+}
+
 // Static option lists — mirrors RaiseTicket.jsx / ticketapp/models.py.
 const PRIORITIES = ['Low', 'Medium', 'High', 'Urgent']
 const STATUSES = ['In Progress', 'On Hold', 'Resolved', 'Closed']
@@ -16,7 +36,7 @@ const PRIORITY_KEY = { Low: 'low', Medium: 'medium', High: 'high', Urgent: 'urge
 
 const STATUS_CHIP = {
   Open: 'chip open',
-  'In Progress': 'chip progress',
+  'In Progress': 'chip inprogress',
   'On Hold': 'chip hold',
   Resolved: 'chip resolved',
   Closed: 'chip closed',
@@ -193,9 +213,23 @@ function AllTickets() {
 
   const fetchProducts = async () => {
     try {
+      // Customers can't see the full Product Master catalog (admin/staff
+      // only) — and shouldn't filter by products they don't have anyway,
+      // so they get their own verified product list instead.
+      if (getRole() === 'customer') {
+        const { data } = await api.get('my-products/')
+        setProductOptions(dedupeProductNames(data.products || []))
+        return
+      }
       // include_inactive so tickets tagged with a deactivated product still filter correctly.
       const { data } = await api.get('products/?include_inactive=true')
-      setProductOptions(data.map((p) => p.name))
+      // Sort by created_at first so dedup's "first-seen wins" picks the
+      // ORIGINAL version's casing — same rule ProductMaster.jsx uses for its
+      // grouped display name. Without this, ProductMaster's default
+      // name-then-version ordering could hand the dropdown a later variant's
+      // casing (e.g. "EXCEL UPLOAD" instead of "Excel Upload").
+      const sorted = [...data].sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
+      setProductOptions(dedupeProductNames(sorted.map((p) => p.name)))
     } catch (err) {
       // Filter dropdown just won't populate — not fatal.
     }
@@ -219,7 +253,7 @@ function AllTickets() {
     if (statusTab !== 'all') rows = rows.filter((t) => t.status === statusTab)
     if (priorityFilter !== 'all') rows = rows.filter((t) => t.priority === priorityFilter)
     if (categoryFilter !== 'all') rows = rows.filter((t) => t.category === categoryFilter)
-    if (productFilter !== 'all') rows = rows.filter((t) => t.product === productFilter)
+    if (productFilter !== 'all') rows = rows.filter((t) => normalizeName(t.product) === normalizeName(productFilter))
 
     // Date range filter, inclusive on both ends.
     if (dateFrom) {
@@ -239,7 +273,9 @@ function AllTickets() {
           t.subject?.toLowerCase().includes(q) ||
           t.raised_by?.full_name?.toLowerCase().includes(q) ||
           t.raised_by?.phone_number?.includes(q) ||
-          t.category?.toLowerCase().includes(q)
+          t.category?.toLowerCase().includes(q) ||
+          t.id?.toLowerCase().includes(q) ||
+          shortId(t.id).toLowerCase().includes(q)
       )
     }
     return rows
@@ -404,7 +440,7 @@ function AllTickets() {
               <circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" />
             </svg>
             <input
-              placeholder="Search by subject, customer, category…"
+              placeholder="Search by ticket ID, subject, customer, category…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
@@ -589,15 +625,17 @@ function TicketModal({ ticket, onClose, onUpdated }) {
   const [statusHistory, setStatusHistory] = useState([])
   const [historyLoading, setHistoryLoading] = useState(false)
 
-  useEffect(() => {
+  const fetchStatusHistory = () => {
     if (!isAdmin) return
-    let cancelled = false
     setHistoryLoading(true)
     api.get(`tickets/${ticket.id}/status-history/`)
-      .then(({ data }) => { if (!cancelled) setStatusHistory(data) })
-      .catch(() => { if (!cancelled) setStatusHistory([]) })
-      .finally(() => { if (!cancelled) setHistoryLoading(false) })
-    return () => { cancelled = true }
+      .then(({ data }) => setStatusHistory(data))
+      .catch(() => setStatusHistory([]))
+      .finally(() => setHistoryLoading(false))
+  }
+
+  useEffect(() => {
+    fetchStatusHistory()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ticket.id, isAdmin])
 
@@ -611,6 +649,7 @@ function TicketModal({ ticket, onClose, onUpdated }) {
       onUpdated(data)
       setRemark('')
       setSaved(true)
+      fetchStatusHistory()
     } catch (err) {
       setError(
         err.response?.data?.detail
@@ -736,57 +775,72 @@ function TicketModal({ ticket, onClose, onUpdated }) {
             </>
           )}
 
-          {/* ---------------- Status update (highlighted) ---------------- */}
-          <div
-            style={{
-              marginTop: 24,
-              padding: '18px 20px 20px',
-              borderRadius: 12,
-              border: '1.5px solid #1f8a83',
-              background: 'rgba(31, 138, 131, 0.06)',
-            }}
-          >
-            <div className="detail-section-title" style={{ marginTop: 0, color: '#1f8a83' }}>
-              Update Status
+          {/* ---------------- Status update (highlighted) ----------------
+              Customers never get this — status changes are a staff/admin
+              action (backend's _can_manage_ticket rejects customers
+              outright anyway). Closed is also a terminal state — nobody
+              can update it further once done. Resolved is NOT terminal:
+              it must still be movable to Closed. */}
+          {getRole() === 'customer' ? null : ticket.status === 'Closed' ? (
+            <div
+              className="detail-section-title"
+              style={{ marginTop: 24, fontStyle: 'italic', color: 'var(--text-muted)' }}
+            >
+              This ticket is closed and can no longer be updated.
             </div>
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginBottom: 14 }}>
-              {STATUSES.map((s) => (
-                <span
-                  key={s}
-                  onClick={() => { setStatus(s); setSaved(false) }}
-                  className={STATUS_CHIP[s] || 'chip open'}
-                  style={{
-                    cursor: 'pointer',
-                    outline: status === s ? '2px solid #1f8a83' : 'none',
-                    outlineOffset: 2,
-                    ...chipNoWrapStyle,
-                  }}
+          ) : (
+            <div
+              style={{
+                marginTop: 24,
+                padding: '18px 20px 20px',
+                borderRadius: 'var(--radius)',
+                border: '1.5px solid var(--accent)',
+                background: 'var(--accent-soft)',
+              }}
+            >
+              <div className="detail-section-title" style={{ marginTop: 0, color: 'var(--accent-ink)' }}>
+                Update Status
+              </div>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginBottom: 14 }}>
+                {STATUSES.map((s) => (
+                  <span
+                    key={s}
+                    onClick={() => { setStatus(s); setSaved(false) }}
+                    className={STATUS_CHIP[s] || 'chip open'}
+                    style={{
+                      cursor: 'pointer',
+                      outline: status === s ? '2px solid var(--accent)' : 'none',
+                      outlineOffset: 2,
+                      ...chipNoWrapStyle,
+                    }}
+                  >
+                    {s}
+                  </span>
+                ))}
+              </div>
+              {status !== ticket.status && (
+                <textarea
+                  className="remark-textarea"
+                  placeholder={`Add a remark for moving this ticket to "${status}" (required)`}
+                  value={remark}
+                  onChange={(e) => { setRemark(e.target.value); setSaved(false) }}
+                  rows={3}
+                  style={{ marginBottom: 12 }}
+                />
+              )}
+              <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+                <button
+                  className="btn btn-primary"
+                  onClick={handleUpdateStatus}
+                  disabled={saving || status === ticket.status || !remark.trim()}
                 >
-                  {s}
-                </span>
-              ))}
+                  {saving ? 'Saving…' : 'Update Status'}
+                </button>
+                {saved && <span style={{ fontSize: 12.5, color: 'var(--accent-ink)', fontWeight: 600 }}>Updated ✓</span>}
+              </div>
+              {error && <div className="form-error" style={{ marginTop: 8 }}>{error}</div>}
             </div>
-            {status !== ticket.status && (
-              <textarea
-                placeholder={`Add a remark for moving this ticket to "${status}" (required)`}
-                value={remark}
-                onChange={(e) => { setRemark(e.target.value); setSaved(false) }}
-                rows={3}
-                style={{ width: '100%', resize: 'vertical', marginBottom: 12 }}
-              />
-            )}
-            <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-              <button
-                className="btn btn-primary"
-                onClick={handleUpdateStatus}
-                disabled={saving || status === ticket.status || !remark.trim()}
-              >
-                {saving ? 'Saving…' : 'Update Status'}
-              </button>
-              {saved && <span style={{ fontSize: 12.5, color: '#1f8a83', fontWeight: 600 }}>Updated ✓</span>}
-            </div>
-            {error && <div className="form-error" style={{ marginTop: 8 }}>{error}</div>}
-          </div>
+          )}
         </div>
         <div className="modal-foot">
           <button className="btn btn-ghost" onClick={onClose}>Close</button>

@@ -4,7 +4,7 @@ import { initCounters, initTrendChart, buildTrendData } from '../script.js'
 
 const STATUS_CHIP = {
   Open: 'chip open',
-  'In Progress': 'chip progress',
+  'In Progress': 'chip inprogress',
   'On Hold': 'chip hold',
   Resolved: 'chip resolved',
   Closed: 'chip resolved',
@@ -181,7 +181,7 @@ function TicketDetailModal({ ticket, staffList, readOnly, onClose, onTransfer, t
           )}
         </div>
 
-        {!readOnly && (
+        {!readOnly && ticket.status !== 'Closed' && (
           <div className="modal-foot">
             <span className="panel-sub" style={{ marginRight: 'auto' }}>Transfer to</span>
             <select

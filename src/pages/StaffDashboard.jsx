@@ -4,7 +4,7 @@ import { initCounters, initTrendChart, buildTrendData } from '../script.js'
 
 const STATUS_CHIP = {
   Open: 'chip open',
-  'In Progress': 'chip progress',
+  'In Progress': 'chip inprogress',
   'On Hold': 'chip hold',
   Resolved: 'chip resolved',
   Closed: 'chip resolved',
@@ -147,7 +147,7 @@ function TicketDetailModal({ ticket, staffList, readOnly, onClose, onStatusChang
           </div>
         </div>
 
-        {!readOnly && (
+        {!readOnly && ticket.status !== 'Closed' && (
           <div className="modal-foot" style={{ flexWrap: 'wrap', rowGap: 10 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
               <span className="panel-sub">Update status</span>
