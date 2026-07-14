@@ -215,14 +215,17 @@ function StaffManagement() {
     setForm((prev) => ({ ...prev, [field]: value }))
   }
 
-  // Toggles one { name, version } product entry in the form.
+  // Toggles one { name, version } product entry in the form. A blank-version
+  // entry means "linked from the Product tab" (covers every version of that
+  // product), so it also counts as covering whichever specific version is
+  // being toggled here — and gets cleared along with it.
   function toggleFormProduct(name, version) {
     setForm((prev) => {
-      const exists = prev.products.some((p) => p.name === name && p.version === version)
+      const active = prev.products.some((p) => p.name === name && (p.version === version || p.version === ''))
       return {
         ...prev,
-        products: exists
-          ? prev.products.filter((p) => !(p.name === name && p.version === version))
+        products: active
+          ? prev.products.filter((p) => !(p.name === name && (p.version === version || p.version === '')))
           : [...prev.products, { name, version }],
       }
     })
@@ -1002,7 +1005,10 @@ function ProductHandledChip({ group, selected, onToggle }) {
   const triggerRef = useRef(null)
   const panelRef = useRef(null)
 
-  const isSelected = (version) => selected.some((p) => p.name === group.name && p.version === version)
+  // A blank-version entry comes from the Product tab's staff picker (which
+  // links staff to a product name as a whole) and counts as covering every
+  // version of that product here too.
+  const isSelected = (version) => selected.some((p) => p.name === group.name && (p.version === version || p.version === ''))
   const selectedCount = group.versions.filter((v) => isSelected(v)).length
 
   if (group.versions.length <= 1) {

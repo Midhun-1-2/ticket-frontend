@@ -109,8 +109,12 @@ function Header() {
 
     async function loadPendingCount() {
       try {
+        // onboarding/pending/ returns every registration (pending, approved,
+        // rejected) for the Account Approvals page's three sections — filter
+        // back down to just pending for the sidebar badge.
         const { data } = await api.get("onboarding/pending/");
-        if (!cancelled) setPendingApprovals(Array.isArray(data) ? data.length : 0);
+        const pendingOnly = Array.isArray(data) ? data.filter((c) => c.status === "pending") : [];
+        if (!cancelled) setPendingApprovals(pendingOnly.length);
       } catch (err) {
         // Fail quietly — the badge just won't show rather than breaking the header.
         if (!cancelled) setPendingApprovals(null);
