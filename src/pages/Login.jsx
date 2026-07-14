@@ -59,6 +59,7 @@ function Login() {
     const value = e.target.value.replace(/\D/g, '').slice(0, 10)
     setPhone(value)
     setError('')
+    setRejectedReason('')
     setCredential('')
 
     if (value.length === 10) {
@@ -152,7 +153,7 @@ function Login() {
       if (detail === 'pending_approval') {
         setPendingApproval(true)
       } else if (detail === 'account_rejected') {
-        setError('Your account has been rejected by admin.')
+        setError('Your account registration has been rejected by admin.')
         setRejectedReason(err.response?.data?.reason || '')
       } else if (detail === 'account_deactivated') {
         setError('This account has been deactivated. Contact an admin for access.')
@@ -434,7 +435,7 @@ function Login() {
                         <button
                           type="button"
                           className="auth-link"
-                          style={{ background: 'none', border: 0, padding: 0, cursor: 'pointer', font: 'inherit', color: 'inherit', textDecoration: 'underline' }}
+                          style={{ background: 'none', border: 0, padding: 0, cursor: 'pointer', font: 'inherit' }}
                           onClick={() => setShowRejectedReason(true)}
                         >
                           Read more
@@ -495,19 +496,25 @@ function Login() {
         <div className="modal-overlay" onMouseDown={(e) => { if (e.target === e.currentTarget) setShowRejectedReason(false) }}>
           <div className="modal-box narrow">
             <div className="modal-head">
-              <div className="modal-title">Registration Rejected</div>
-              <button className="modal-close" onClick={() => setShowRejectedReason(false)} aria-label="Close">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+              <div className="modal-title">Reason for Rejection</div>
+              <button type="button" className="modal-close" onClick={() => setShowRejectedReason(false)} aria-label="Close">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
               </button>
             </div>
             <div className="modal-body">
-              <div className="remarks-box">
+              <p style={{ fontSize: 13.5, color: 'var(--text-muted)' }}>
                 {rejectedReason || 'No reason was provided by the admin.'}
-              </div>
+              </p>
+            </div>
+            <div className="modal-foot">
+              <button type="button" className="btn btn-primary" onClick={() => setShowRejectedReason(false)}>
+                Close
+              </button>
             </div>
           </div>
         </div>
       )}
+
       </div>
     </>
   )

@@ -84,6 +84,7 @@ function mapDetail(c) {
     reviewedAt: c.reviewed_at,
     productVerification: c.product_verification || {},
     staffAssignment: c.staff_assignment || null,
+    rejectionReason: c.rejection_reason || "",
   };
 }
 
@@ -100,7 +101,6 @@ export default function AccountApprovals() {
   const [detailError, setDetailError] = useState("");
 
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
   const [dateSort, setDateSort] = useState("newest");
 
   const loadPending = useCallback(async () => {
@@ -110,7 +110,7 @@ export default function AccountApprovals() {
       const { data } = await api.get("onboarding/pending/");
       setRequests(data.map(mapListItem));
     } catch (err) {
-      setLoadError(err.response?.data?.detail || "Couldn't load pending registrations.");
+      setLoadError(err.response?.data?.detail || "Couldn't load registrations.");
     } finally {
       setLoading(false);
     }
@@ -125,20 +125,17 @@ export default function AccountApprovals() {
   const rejectedCount = requests.filter((r) => r.status === "rejected").length;
 
   const filtered = useMemo(() => {
-    let list = requests.filter((r) => {
-      const matchesSearch =
-        !search ||
-        [r.contact, r.company, r.email, r.requestCode].join(" ").toLowerCase().includes(search.toLowerCase());
-      const matchesStatus = statusFilter === "all" || r.status === statusFilter;
-      return matchesSearch && matchesStatus;
-    });
+    let list = requests.filter((r) =>
+      !search ||
+      [r.contact, r.company, r.email, r.requestCode].join(" ").toLowerCase().includes(search.toLowerCase())
+    );
     list.sort((a, b) => {
       const aVal = a.submitted || "";
       const bVal = b.submitted || "";
       return dateSort === "newest" ? bVal.localeCompare(aVal) : aVal.localeCompare(bVal);
     });
     return list;
-  }, [requests, search, statusFilter, dateSort]);
+  }, [requests, search, dateSort]);
 
   async function openRequest(id) {
     setSelectedId(id);
@@ -162,10 +159,17 @@ export default function AccountApprovals() {
   }
 
   // Called after a successful approve/reject/revoke — updates the row in
-  // place so the chip reflects the new status without needing a full refetch.
+  // place so it moves to the right section without needing a full refetch.
   function patchLocalStatus(id, patch) {
     setRequests((prev) => prev.map((r) => (r.id === id ? { ...r, ...patch } : r)));
     setSelectedDetail((prev) => (prev && prev.id === id ? { ...prev, ...patch } : prev));
+  }
+
+  // Revoke is triggered directly from the Approved section's row action (a
+  // confirm popup, not the full review wizard) — no need to open a request.
+  async function handleRevokeApproval(id) {
+    await api.post(`onboarding/${id}/revoke/`);
+    patchLocalStatus(id, { status: "pending" });
   }
 
   return (
@@ -183,11 +187,10 @@ export default function AccountApprovals() {
             rejectedCount={rejectedCount}
             search={search}
             setSearch={setSearch}
-            statusFilter={statusFilter}
-            setStatusFilter={setStatusFilter}
             dateSort={dateSort}
             setDateSort={setDateSort}
             onOpen={openRequest}
+            onRevoke={handleRevokeApproval}
           />
         ) : detailLoading ? (
           <div className="panel">
@@ -223,8 +226,12 @@ export default function AccountApprovals() {
 function RequestsList({
   loading, loadError, onRetry,
   requests, total, pendingCount, approvedCount, rejectedCount,
-  search, setSearch, statusFilter, setStatusFilter, dateSort, setDateSort, onOpen,
+  search, setSearch, dateSort, setDateSort, onOpen, onRevoke,
 }) {
+  const pending = requests.filter((r) => r.status === "pending");
+  const approved = requests.filter((r) => r.status === "approved");
+  const rejected = requests.filter((r) => r.status === "rejected");
+
   return (
     <>
       <div className="page-head">
@@ -254,86 +261,174 @@ function RequestsList({
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
-        <SelectField value={statusFilter} onChange={setStatusFilter} options={[
-          { value: "all", label: "All statuses" },
-          { value: "pending", label: "Pending" },
-          { value: "approved", label: "Approved" },
-          { value: "rejected", label: "Rejected" },
-        ]} />
         <SelectField value={dateSort} onChange={setDateSort} options={[
           { value: "newest", label: "Newest first" },
           { value: "oldest", label: "Oldest first" },
         ]} />
       </div>
 
-      <div className="panel">
-        <div className="panel-head">
-          <div>
-            <div className="panel-title">Pending Registrations</div>
-            <div className="panel-sub">{requests.length} of {total} requests match your filters</div>
+      {loading ? (
+        <div className="panel">
+          <div className="empty-state">
+            <Loader2 className="spin" />
+            <div>Loading registrations…</div>
           </div>
         </div>
-        <div className="panel-body" style={{ padding: 0 }}>
-          {loading ? (
-            <div className="empty-state">
-              <Loader2 className="spin" />
-              <div>Loading registrations…</div>
-            </div>
-          ) : loadError ? (
-            <div className="empty-state">
-              <AlertCircle />
-              <div>{loadError}</div>
-              <button className="btn btn-ghost btn-sm" onClick={onRetry} style={{ marginTop: 10 }}>
-                Try again
+      ) : loadError ? (
+        <div className="panel">
+          <div className="empty-state">
+            <AlertCircle />
+            <div>{loadError}</div>
+            <button className="btn btn-ghost btn-sm" onClick={onRetry} style={{ marginTop: 10 }}>
+              Try again
+            </button>
+          </div>
+        </div>
+      ) : (
+        <>
+          <RegistrationSection
+            title="Pending Registrations"
+            emptyLabel="No pending registrations match your filters."
+            rows={pending}
+            renderAction={(r) => (
+              <button className="btn btn-ghost btn-sm" onClick={() => onOpen(r.id)}>
+                Review <ChevronRight size={14} />
               </button>
-            </div>
-          ) : requests.length === 0 ? (
-            <div className="empty-state">
-              <UserPlus />
-              <div>No requests match your filters.</div>
-            </div>
-          ) : (
-            <div className="table-wrap">
-              <table className="tickets">
-                <thead>
-                  <tr>
-                    <th>Request</th>
-                    <th>Contact &amp; Company</th>
-                    <th>Email</th>
-                    <th>Phone</th>
-                    <th>Submitted</th>
-                    <th className="status-col">Status</th>
-                    <th></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {requests.map((r) => {
-                    const chip = STATUS_CHIP[r.status] || STATUS_CHIP.pending;
-                    return (
-                      <tr key={r.id}>
-                        <td className="tid">{r.requestCode}</td>
-                        <td className="subject-cell">
-                          <div className="subj">{r.contact}</div>
-                          <div className="cust"><Building2 size={12} /> {r.company}</div>
-                        </td>
-                        <td>{r.email}</td>
-                        <td className="mono" style={{ fontSize: 12.5 }}>{r.phone}</td>
-                        <td className="mono" style={{ fontSize: 12.5 }}>{formatDate(r.submitted)}</td>
-                        <td className="status-col"><span className={`chip ${chip.cls}`}>{chip.label}</span></td>
-                        <td>
-                          <button className="btn btn-ghost btn-sm" onClick={() => onOpen(r.id)}>
-                            Review <ChevronRight size={14} />
-                          </button>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
+            )}
+          />
+          <RegistrationSection
+            title="Approved Accounts"
+            emptyLabel="No approved accounts match your filters."
+            rows={approved}
+            renderAction={(r) => <RevokeButton request={r} onRevoke={onRevoke} />}
+          />
+          <RegistrationSection
+            title="Rejected Accounts"
+            emptyLabel="No rejected accounts match your filters."
+            rows={rejected}
+            renderAction={(r) => (
+              <button className="btn btn-ghost btn-sm" onClick={() => onOpen(r.id)}>
+                Review <ChevronRight size={14} />
+              </button>
+            )}
+          />
+        </>
+      )}
+    </>
+  );
+}
+
+function RegistrationSection({ title, emptyLabel, rows, renderAction }) {
+  return (
+    <div className="panel" style={{ marginBottom: 20 }}>
+      <div className="panel-head">
+        <div>
+          <div className="panel-title">{title}</div>
+          <div className="panel-sub">{rows.length} {rows.length === 1 ? "request" : "requests"}</div>
         </div>
       </div>
+      <div className="panel-body" style={{ padding: 0 }}>
+        {rows.length === 0 ? (
+          <div className="empty-state">
+            <UserPlus />
+            <div>{emptyLabel}</div>
+          </div>
+        ) : (
+          <div className="table-wrap">
+            <table className="tickets">
+              <thead>
+                <tr>
+                  <th>Request</th>
+                  <th>Contact &amp; Company</th>
+                  <th>Email</th>
+                  <th>Phone</th>
+                  <th>Submitted</th>
+                  <th className="status-col">Status</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((r) => {
+                  const chip = STATUS_CHIP[r.status] || STATUS_CHIP.pending;
+                  return (
+                    <tr key={r.id}>
+                      <td className="tid">{r.requestCode}</td>
+                      <td className="subject-cell">
+                        <div className="subj">{r.contact}</div>
+                        <div className="cust"><Building2 size={12} /> {r.company}</div>
+                      </td>
+                      <td>{r.email}</td>
+                      <td className="mono" style={{ fontSize: 12.5 }}>{r.phone}</td>
+                      <td className="mono" style={{ fontSize: 12.5 }}>{formatDate(r.submitted)}</td>
+                      <td className="status-col"><span className={`chip ${chip.cls}`}>{chip.label}</span></td>
+                      <td>{renderAction(r)}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// Approved rows skip the review wizard entirely — a direct action with its
+// own confirm popup, since revoking doesn't need re-reviewing anything.
+function RevokeButton({ request, onRevoke }) {
+  const [confirming, setConfirming] = useState(false);
+  const [revoking, setRevoking] = useState(false);
+  const [error, setError] = useState("");
+
+  async function confirm() {
+    setRevoking(true);
+    setError("");
+    try {
+      await onRevoke(request.id);
+      setConfirming(false);
+    } catch (err) {
+      setError(err.response?.data?.detail || "Couldn't revoke this approval.");
+    } finally {
+      setRevoking(false);
+    }
+  }
+
+  return (
+    <>
+      <button className="btn btn-ghost btn-sm" onClick={() => setConfirming(true)}>
+        Revoke Approval
+      </button>
+      {confirming && (
+        <div className="modal-overlay" onMouseDown={(e) => { if (e.target === e.currentTarget && !revoking) setConfirming(false); }}>
+          <div className="modal-box narrow">
+            <div className="modal-head">
+              <div className="modal-title">Revoke Approval?</div>
+              <button className="modal-close" onClick={() => setConfirming(false)} disabled={revoking} aria-label="Close">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+              </button>
+            </div>
+            <div className="modal-body">
+              <p className="confirm-text">
+                <b>{request.company}</b> will lose login access and go back to the pending queue.
+                Nothing else about their account is deleted.
+              </p>
+              {error && (
+                <div className="banner danger" style={{ marginTop: 10 }}>
+                  <AlertCircle />
+                  <div>{error}</div>
+                </div>
+              )}
+            </div>
+            <div className="modal-foot">
+              <button className="btn btn-ghost" onClick={() => setConfirming(false)} disabled={revoking}>Cancel</button>
+              <button className="btn btn-danger" onClick={confirm} disabled={revoking}>
+                {revoking ? <><Loader2 size={14} className="spin" /> Revoking…</> : "Yes, Revoke Approval"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }
@@ -396,12 +491,10 @@ function ReviewFlow({ request, onBack, onPatch }) {
   const [reason, setReason] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [actionError, setActionError] = useState("");
-  const outcome = request.status !== "pending" ? request.status : null;
-
-  // Revoke state — lives here (not in the parent) because it needs
-  // `request` and `onPatch`, both of which only exist within ReviewFlow.
-  const [revoking, setRevoking] = useState(false);
-  const [revokeError, setRevokeError] = useState("");
+  // Only "approved" is terminal here — a rejection can still be reconsidered
+  // (nothing was deleted), so StepD stays interactive for rejected requests
+  // instead of being replaced by a dead-end banner.
+  const outcome = request.status === "approved" ? request.status : null;
 
   useEffect(() => {
     let cancelled = false;
@@ -479,29 +572,15 @@ function ReviewFlow({ request, onBack, onPatch }) {
     setActionError("");
     try {
       await api.post(`onboarding/${request.id}/reject/`, { reason });
-      onPatch({ status: "rejected" });
+      onPatch({ status: "rejected", rejectionReason: reason });
+      // Nothing was deleted — reset the choice so StepD is ready for a
+      // fresh decision if the admin wants to reconsider right away.
+      setFinalAction(null);
+      setReason("");
     } catch (err) {
       setActionError(err.response?.data?.detail || "Couldn't reject this account.");
     } finally {
       setSubmitting(false);
-    }
-  }
-
-  async function handleRevoke() {
-    setRevoking(true);
-    setRevokeError("");
-    try {
-      await api.post(`onboarding/${request.id}/revoke/`);
-      onPatch({ status: "pending" });
-      // Send the reviewer back to the start of the flow, since the
-      // registration is now unreviewed again.
-      setStep(0);
-      setFurthestStep(0);
-      setFinalAction(null);
-    } catch (err) {
-      setRevokeError(err.response?.data?.detail || "Couldn't revoke this approval.");
-    } finally {
-      setRevoking(false);
     }
   }
 
@@ -568,19 +647,13 @@ function ReviewFlow({ request, onBack, onPatch }) {
             <div className={`banner ${request.status === "approved" ? "success" : "danger"}`}>
               {request.status === "approved" ? <ShieldCheck /> : <AlertCircle />}
               <div style={{ flex: 1 }}>
-                <b>{request.status === "approved" ? "Account approved" : "Account rejected"}</b>
+                <b>{request.status === "approved" ? "Account approved" : "Previously rejected"}</b>
                 {request.status === "approved"
-                  ? "The customer can now log in with the password they set at signup."
-                  : "The customer was notified by email that their registration was rejected."}
-                {revokeError && (
-                  <div style={{ marginTop: 8, color: "var(--danger, #d33)" }}>{revokeError}</div>
-                )}
+                  ? "The customer can now log in with the password they set at signup. Use Revoke Approval from the list to undo this."
+                  : (request.rejectionReason
+                      ? `Reason given: ${request.rejectionReason}`
+                      : "No reason was given.") + " Nothing was deleted — you can still approve this registration below."}
               </div>
-              {request.status === "approved" && (
-                <button className="btn btn-ghost btn-sm" onClick={handleRevoke} disabled={revoking}>
-                  {revoking ? <><Loader2 size={14} className="spin" /> Revoking…</> : "Revoke Approval"}
-                </button>
-              )}
             </div>
           )}
 
