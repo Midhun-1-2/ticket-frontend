@@ -15,6 +15,8 @@ function Login() {
   const [hasMpin, setHasMpin] = useState(false)
   const [phoneChecked, setPhoneChecked] = useState(false)
   const [pendingApproval, setPendingApproval] = useState(false)
+  const [rejectedReason, setRejectedReason] = useState('')
+  const [showRejectedReason, setShowRejectedReason] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [showMpinSetup, setShowMpinSetup] = useState(false)
@@ -93,6 +95,7 @@ function Login() {
   async function handleSubmit(e) {
     e.preventDefault()
     setError('')
+    setRejectedReason('')
 
     if (phone.length !== 10) {
       setError('Enter a valid 10-digit phone number.')
@@ -148,6 +151,9 @@ function Login() {
 
       if (detail === 'pending_approval') {
         setPendingApproval(true)
+      } else if (detail === 'account_rejected') {
+        setError('Your account has been rejected by admin.')
+        setRejectedReason(err.response?.data?.reason || '')
       } else if (detail === 'account_deactivated') {
         setError('This account has been deactivated. Contact an admin for access.')
       } else if (err.response) {
@@ -419,7 +425,24 @@ function Login() {
                 </div>
                 )}
 
-                {error && <div className="auth-error">{error}</div>}
+                {error && (
+                  <div className="auth-error">
+                    {error}
+                    {rejectedReason && (
+                      <>
+                        {' '}
+                        <button
+                          type="button"
+                          className="auth-link"
+                          style={{ background: 'none', border: 0, padding: 0, cursor: 'pointer', font: 'inherit', color: 'inherit', textDecoration: 'underline' }}
+                          onClick={() => setShowRejectedReason(true)}
+                        >
+                          Read more
+                        </button>
+                      </>
+                    )}
+                  </div>
+                )}
 
                 <button
                   type="submit"
@@ -466,6 +489,24 @@ function Login() {
           onSuccess={handleMpinReset}
           onClose={() => setShowForgotMpin(false)}
         />
+      )}
+
+      {showRejectedReason && (
+        <div className="modal-overlay" onMouseDown={(e) => { if (e.target === e.currentTarget) setShowRejectedReason(false) }}>
+          <div className="modal-box narrow">
+            <div className="modal-head">
+              <div className="modal-title">Registration Rejected</div>
+              <button className="modal-close" onClick={() => setShowRejectedReason(false)} aria-label="Close">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+              </button>
+            </div>
+            <div className="modal-body">
+              <div className="remarks-box">
+                {rejectedReason || 'No reason was provided by the admin.'}
+              </div>
+            </div>
+          </div>
+        </div>
       )}
       </div>
     </>

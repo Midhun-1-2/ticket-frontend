@@ -39,6 +39,9 @@ function ForgotMpinModal({ phone, onClose, onSuccess }) {
       const detail = err.response?.data?.detail
       if (detail === 'pending_approval') {
         setError('This account is still pending admin approval.')
+      } else if (detail === 'account_rejected') {
+        const reason = err.response?.data?.reason
+        setError(`Your account has been rejected by admin.${reason ? ` Reason: ${reason}` : ''}`)
       } else if (detail === 'account_deactivated') {
         setError('This account has been deactivated. Contact an admin.')
       } else {
