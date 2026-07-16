@@ -321,6 +321,10 @@ function debounce(fn, wait) {
 export function initApp() {
   initSidebar();
   initCounters();
-  initTrendChart();
+  // Dashboards call initTrendChart(buildTrendData(tickets)) themselves once
+  // their real data has loaded — calling it here too (with the mock
+  // fallback data) drew a throwaway placeholder chart that got yanked out
+  // and replaced a moment later, which read as an abrupt jump rather than
+  // a smooth load-in.
 }
 export { initCounters, initTrendChart, buildTrendData };

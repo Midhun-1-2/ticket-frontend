@@ -1107,7 +1107,30 @@ table.tickets tbody tr:hover{ background: var(--paper); }
 }
 .main .form-field input:focus{ box-shadow: 0 0 0 3px rgba(15,110,99,0.12); }
 
+/* Dashboard graphs (trend chart, category bars, status pie, staff
+   performance) fade/rise into place on load instead of just appearing. */
+@keyframes panel-chart-in{
+  from{ opacity: 0; transform: translateY(24px) scale(.97); }
+  to{ opacity: 1; transform: translateY(0) scale(1); }
+}
+.chart-animate-in{
+  animation: panel-chart-in .7s cubic-bezier(.16,.8,.24,1) both;
+}
+
+/* Status pie — grows into a full circle instead of just appearing. */
+@keyframes pie-grow-in{
+  from{ opacity: 0; transform: scale(.55); }
+  to{ opacity: 1; transform: scale(1); }
+}
+.pie-grow-in{
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: pie-grow-in .6s .1s cubic-bezier(.16,.8,.24,1) both;
+}
+
 @media (prefers-reduced-motion: reduce){
+  .chart-animate-in{ animation: none; }
+  .pie-grow-in{ animation: none; }
   .main .stat-card, .main .tab, .main .icon-action, .main .icon-btn, .main .btn-primary,
   .main table.tickets tbody tr, .main .row-clickable .chip{
     transition: none;

@@ -262,7 +262,7 @@ function CustomerDashboard() {
         </div>
 
         <div className="grid-2">
-          <section className="panel">
+          <section key={loading ? 'trend-loading' : 'trend-loaded'} className="panel chart-animate-in" style={{ animationDelay: '0s' }}>
             <div className="panel-head">
               <div>
                 <div className="panel-title">Your Ticket Trend</div>
@@ -285,7 +285,7 @@ function CustomerDashboard() {
             </div>
           </section>
 
-          <section className="panel">
+          <section key={loading ? 'category-loading' : 'category-loaded'} className="panel chart-animate-in" style={{ animationDelay: '0.08s' }}>
             <div className="panel-head">
               <div>
                 <div className="panel-title">By Category</div>

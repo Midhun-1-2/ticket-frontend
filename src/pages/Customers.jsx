@@ -974,7 +974,8 @@ function EditModal({ user, onClose, onSaved }) {
   const canAdd = !!selectedVersionId && !addingProduct
 
   const selectStyle = {
-    flex: 1,
+    flex: '1 1 45%',
+    minWidth: 0,
     height: 38,
     padding: '0 10px',
     borderRadius: 8,
@@ -986,7 +987,7 @@ function EditModal({ user, onClose, onSaved }) {
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-box narrow" onClick={(e) => e.stopPropagation()}>
+      <div className="modal-box" style={{ maxWidth: 520 }} onClick={(e) => e.stopPropagation()}>
         <div className="modal-head">
           <div className="modal-title">Edit Customer</div>
           <button className="modal-close" onClick={onClose}>
@@ -1032,24 +1033,26 @@ function EditModal({ user, onClose, onSaved }) {
                   AMC
                 </span>
               </div>
-              <div style={{ display: 'flex', gap: 10 }}>
-                <div className="form-field" style={{ flex: 1, marginBottom: 0 }}>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+                <div className="form-field" style={{ flex: '1 1 45%', minWidth: 0, marginBottom: 0 }}>
                   <label>AMC Start Date<span className="required">*</span></label>
                   <input
                     type="date"
                     value={form.amcStartDate}
                     onChange={handleChange('amcStartDate')}
                     required
+                    style={{ width: '100%' }}
                   />
                   {errors.amc_start_date && <div className="form-error">{errors.amc_start_date[0]}</div>}
                 </div>
-                <div className="form-field" style={{ flex: 1, marginBottom: 0 }}>
+                <div className="form-field" style={{ flex: '1 1 45%', minWidth: 0, marginBottom: 0 }}>
                   <label>AMC End Date<span className="required">*</span></label>
                   <input
                     type="date"
                     value={form.amcEndDate}
                     onChange={handleChange('amcEndDate')}
                     required
+                    style={{ width: '100%' }}
                   />
                   {errors.amc_end_date && <div className="form-error">{errors.amc_end_date[0]}</div>}
                 </div>
@@ -1185,7 +1188,7 @@ function EditModal({ user, onClose, onSaved }) {
                       background: '#fff',
                     }}
                   >
-                    <div style={{ display: 'flex', gap: 8 }}>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                       <select value={selectedName} onChange={handleNameChange} style={selectStyle}>
                         <option value="">Product name…</option>
                         {availableNames.map((name) => (

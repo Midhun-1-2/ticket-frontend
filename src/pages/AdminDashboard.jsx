@@ -139,7 +139,7 @@ function StatusPieChart({ stats, tickets }) {
 
   return (
     <div className="status-pie-wrap">
-      <svg viewBox="0 0 180 180" className="status-pie-svg" role="img" aria-label="Open, in progress, and on hold ticket breakdown">
+      <svg viewBox="0 0 180 180" className="status-pie-svg pie-grow-in" role="img" aria-label="Open, in progress, and on hold ticket breakdown">
         {nonZero.length === 1 ? (
           <circle
             cx={cx} cy={cy} r={r} fill={nonZero[0].color} stroke="var(--surface)" strokeWidth="3"
@@ -638,7 +638,7 @@ function AdminDashboard() {
         </div>
 
         <div className="grid-2">
-          <section className="panel">
+          <section key={loading ? 'trend-loading' : 'trend-loaded'} className="panel chart-animate-in" style={{ animationDelay: '0s' }}>
             <div className="panel-head">
               <div>
                 <div className="panel-title">Ticket Trend</div>
@@ -661,7 +661,7 @@ function AdminDashboard() {
             </div>
           </section>
 
-          <section className="panel">
+          <section key={loading ? 'category-loading' : 'category-loaded'} className="panel chart-animate-in" style={{ animationDelay: '0.08s' }}>
             <div className="panel-head">
               <div>
                 <div className="panel-title">By Category</div>
@@ -691,7 +691,7 @@ function AdminDashboard() {
         </div>
 
         <div className="status-staff-row">
-          <section className="panel status-overview-panel">
+          <section key={loading ? 'status-loading' : 'status-loaded'} className="panel status-overview-panel chart-animate-in" style={{ animationDelay: '0.16s' }}>
             <div className="panel-head">
               <div>
                 <div className="panel-title">Status Overview</div>
@@ -703,7 +703,7 @@ function AdminDashboard() {
             </div>
           </section>
 
-          <section className="panel status-staff-panel">
+          <section key={loading ? 'staffperf-loading' : 'staffperf-loaded'} className="panel status-staff-panel chart-animate-in" style={{ animationDelay: '0.24s' }}>
             <div className="panel-head">
               <div>
                 <div className="panel-title">Staff Performance</div>
