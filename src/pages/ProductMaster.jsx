@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import api from '../api'
+import useIsMobile from '../hooks/useIsMobile'
 
 // Shared style forcing status chips onto a single line, sized to content.
 const chipNoWrapStyle = {
@@ -39,6 +40,9 @@ function stripVersionPrefix(version) {
 }
 
 function ProductMasterPage() {
+  // On mobile the Actions column moves to the front — see AllTickets.jsx for
+  // the same pattern/rationale.
+  const isMobile = useIsMobile()
   const [products, setProducts] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -203,11 +207,12 @@ function ProductMasterPage() {
             <table className="tickets">
               <thead>
                 <tr>
+                  {isMobile && <th>Actions</th>}
                   <th>Product</th>
                   <th>Version</th>
                   <th>Activation Date</th>
                   <th>Status</th>
-                  <th>Actions</th>
+                  {!isMobile && <th>Actions</th>}
                 </tr>
               </thead>
               <tbody>
@@ -221,8 +226,42 @@ function ProductMasterPage() {
                   const primary = group.versions[0]
                   const hasMultiple = group.versions.length > 1
 
+                  const actionsCell = (
+                    <td key="actions">
+                      <div className="row-actions">
+                        <button className="icon-action" title="Edit" onClick={() => setEditGroup(group)}>
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M12 20h9" /><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+                          </svg>
+                        </button>
+                        <button
+                          className="icon-action danger"
+                          title={primary.is_active ? 'Deactivate' : 'Activate'}
+                          onClick={() => handleDeactivate(primary)}
+                        >
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M18.36 6.64a9 9 0 1 1-12.73 0" /><path d="M12 2v10" />
+                          </svg>
+                        </button>
+                        <button
+                          className="icon-action danger"
+                          title={primary.in_use ? 'This product is in use and cannot be deleted' : 'Delete'}
+                          disabled={primary.in_use}
+                          style={primary.in_use ? { opacity: 0.4, cursor: 'not-allowed' } : undefined}
+                          onClick={() => !primary.in_use && setDeleteProduct(primary)}
+                        >
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M3 6h18" /><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                            <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+                            <path d="M10 11v6" /><path d="M14 11v6" />
+                          </svg>
+                        </button>
+                      </div>
+                    </td>
+                  )
                   return (
                     <tr key={normalizeName(group.name)}>
+                      {isMobile && actionsCell}
                       <td className="subj">
                         <span>{group.name}</span>
                       </td>
@@ -235,37 +274,7 @@ function ProductMasterPage() {
                       </td>
                       <td className="sla ok">{formatDate(primary.activation_date)}</td>
                       <td>{renderStatusChip(primary)}</td>
-                      <td>
-                        <div className="row-actions">
-                          <button className="icon-action" title="Edit" onClick={() => setEditGroup(group)}>
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                              <path d="M12 20h9" /><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
-                            </svg>
-                          </button>
-                          <button
-                            className="icon-action danger"
-                            title={primary.is_active ? 'Deactivate' : 'Activate'}
-                            onClick={() => handleDeactivate(primary)}
-                          >
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                              <path d="M18.36 6.64a9 9 0 1 1-12.73 0" /><path d="M12 2v10" />
-                            </svg>
-                          </button>
-                          <button
-                            className="icon-action danger"
-                            title={primary.in_use ? 'This product is in use and cannot be deleted' : 'Delete'}
-                            disabled={primary.in_use}
-                            style={primary.in_use ? { opacity: 0.4, cursor: 'not-allowed' } : undefined}
-                            onClick={() => !primary.in_use && setDeleteProduct(primary)}
-                          >
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                              <path d="M3 6h18" /><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                              <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
-                              <path d="M10 11v6" /><path d="M14 11v6" />
-                            </svg>
-                          </button>
-                        </div>
-                      </td>
+                      {!isMobile && actionsCell}
                     </tr>
                   )
                 })}

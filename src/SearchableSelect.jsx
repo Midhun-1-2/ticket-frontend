@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 
 // A lightweight searchable dropdown (e.g. for Country/State fields), with panel
 // flip-up when there isn't enough room below the trigger.
@@ -17,15 +18,17 @@ function SearchableSelect({
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
   const [openUpward, setOpenUpward] = useState(false)
+  const [coords, setCoords] = useState({ top: 0, left: 0, width: 0 })
   const rootRef = useRef(null)
   const triggerRef = useRef(null)
+  const panelRef = useRef(null)
 
   useEffect(() => {
     const handleClickOutside = (e) => {
-      if (rootRef.current && !rootRef.current.contains(e.target)) {
-        setOpen(false)
-        setQuery('')
-      }
+      if (rootRef.current && rootRef.current.contains(e.target)) return
+      if (panelRef.current && panelRef.current.contains(e.target)) return
+      setOpen(false)
+      setQuery('')
     }
     const handleEscape = (e) => {
       if (e.key === 'Escape') {
@@ -41,14 +44,21 @@ function SearchableSelect({
     }
   }, [])
 
-  // Decides whether the panel opens up or down based on viewport space.
+  // Decides whether the panel opens up or down based on viewport space, and
+  // positions it (rendered via portal — see below) against the trigger.
   useEffect(() => {
     if (!open || !triggerRef.current) return
     const rect = triggerRef.current.getBoundingClientRect()
     const spaceBelow = window.innerHeight - rect.bottom
     const spaceAbove = rect.top
     const PANEL_ESTIMATE = 300 // search box + ~6 visible rows + padding
-    setOpenUpward(spaceBelow < PANEL_ESTIMATE && spaceAbove > spaceBelow)
+    const upward = spaceBelow < PANEL_ESTIMATE && spaceAbove > spaceBelow
+    setOpenUpward(upward)
+    setCoords({
+      top: (upward ? rect.top - 6 : rect.bottom + 6) + window.scrollY,
+      left: rect.left + window.scrollX,
+      width: rect.width,
+    })
   }, [open])
 
   const selected = options.find((o) => getValue(o) === value)
@@ -71,38 +81,53 @@ function SearchableSelect({
         <span className="searchable-select-caret">⌄</span>
       </button>
 
-      {open && (
-        <div className={`searchable-select-panel ${openUpward ? 'panel-up' : ''}`}>
-          <input
-            autoFocus
-            type="text"
-            className="searchable-select-search"
-            placeholder={searchPlaceholder}
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-          />
-          <div className="searchable-select-list">
-            {filtered.length === 0 && (
-              <div className="searchable-select-empty">{emptyLabel}</div>
-            )}
-            {filtered.map((o) => {
-              const val = getValue(o)
-              return (
-                <div
-                  key={val}
-                  className={`searchable-select-option ${val === value ? 'selected' : ''}`}
-                  onClick={() => {
-                    onChange(val)
-                    setOpen(false)
-                    setQuery('')
-                  }}
-                >
-                  {renderOption ? renderOption(o) : getLabel(o)}
-                </div>
-              )
-            })}
+      {open && createPortal(
+        // Positioning wrapper (plain, no animation) — kept separate from the
+        // panel below so the upward-flip translateY doesn't fight the
+        // panel's own scale/fade entrance animation on the same element.
+        <div
+          ref={panelRef}
+          className="searchable-select-positioner"
+          style={{
+            top: coords.top,
+            left: coords.left,
+            width: coords.width,
+            transform: openUpward ? 'translateY(-100%)' : 'none',
+          }}
+        >
+          <div className={`searchable-select-panel ${openUpward ? 'panel-up' : ''}`}>
+            <input
+              autoFocus
+              type="text"
+              className="searchable-select-search"
+              placeholder={searchPlaceholder}
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+            />
+            <div className="searchable-select-list">
+              {filtered.length === 0 && (
+                <div className="searchable-select-empty">{emptyLabel}</div>
+              )}
+              {filtered.map((o) => {
+                const val = getValue(o)
+                return (
+                  <div
+                    key={val}
+                    className={`searchable-select-option ${val === value ? 'selected' : ''}`}
+                    onClick={() => {
+                      onChange(val)
+                      setOpen(false)
+                      setQuery('')
+                    }}
+                  >
+                    {renderOption ? renderOption(o) : getLabel(o)}
+                  </div>
+                )
+              })}
+            </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   )

@@ -17,10 +17,34 @@ import TicketAssignment from './pages/TicketAssignment.jsx'
 import ProductMaster from './pages/ProductMaster.jsx'
 import AllTickets from './pages/AllTickets.jsx'
 import ProfilePage from './pages/ProfilePage.jsx'
+import api from './api.js'
 import './style.css'
 import { initApp } from './script.js'
 
 function MainLayout() {
+  // Periodic authenticated ping so a tab that's just sitting open (not
+  // otherwise making API calls) still discovers within seconds that its
+  // session was ended — "logout from all devices" on the login screen, or
+  // a newer login elsewhere superseding it — instead of only finding out
+  // the next time it happens to hit a real endpoint. The 401 handling
+  // (refresh, then clearSession() if still rejected) already lives in
+  // api.js's interceptor; this just gives it something to trip on.
+  useEffect(() => {
+    const check = () => { api.get('session-check/').catch(() => {}) }
+    const id = setInterval(check, 5000)
+    // Also check the instant this tab regains focus/visibility — covers
+    // switching back to a tab that's been sitting in the background,
+    // without waiting for the next scheduled tick.
+    const onVisible = () => { if (document.visibilityState === 'visible') check() }
+    document.addEventListener('visibilitychange', onVisible)
+    window.addEventListener('focus', check)
+    return () => {
+      clearInterval(id)
+      document.removeEventListener('visibilitychange', onVisible)
+      window.removeEventListener('focus', check)
+    }
+  }, [])
+
   return (
     <div className="app-shell">
       <Header />

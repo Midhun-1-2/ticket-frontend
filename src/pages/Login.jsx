@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
-import api from '/src/api.js'
+import api, { getDeviceId } from '/src/api.js'
 import '/src/login.css'
 import '/src/style.css'
 import CreateMpinModal from '/src/CreateMpinModal.jsx'
@@ -24,10 +24,25 @@ function Login() {
   const [toastMessage, setToastMessage] = useState('')
   const [showForgotMpin, setShowForgotMpin] = useState(false)
 
+  // Shown when login is blocked because the account is already signed in
+  // elsewhere and the user can't get to that device to log out themselves.
+  const [alreadyLoggedIn, setAlreadyLoggedIn] = useState(false)
+  const [showLogoutAllConfirm, setShowLogoutAllConfirm] = useState(false)
+  const [loggingOutAll, setLoggingOutAll] = useState(false)
+
   // Simple 4-digit numeric captcha, generated client-side (UX deterrent, not a security boundary).
   const [captchaCode, setCaptchaCode] = useState('')
   const [captchaNoise, setCaptchaNoise] = useState([])
   const [captchaInput, setCaptchaInput] = useState('')
+
+  // Visitor's IP, shown below the sign-up link — best-effort only, never
+  // blocks or affects the login flow if it fails.
+  const [visitorIp, setVisitorIp] = useState('')
+  useEffect(() => {
+    api.get('my-ip/')
+      .then(({ data }) => setVisitorIp(data.ip || ''))
+      .catch(() => {})
+  }, [])
 
   function generateCaptcha() {
     const code = Array.from({ length: 4 }, () => Math.floor(Math.random() * 10)).join('')
@@ -60,7 +75,11 @@ function Login() {
     setPhone(value)
     setError('')
     setRejectedReason('')
+    setAlreadyLoggedIn(false)
     setCredential('')
+    // Editing the phone number starts a new attempt — don't let a stale
+    // captcha (solved for whatever was typed before) carry over.
+    generateCaptcha()
 
     if (value.length === 10) {
       detectRole(value)
@@ -97,6 +116,7 @@ function Login() {
     e.preventDefault()
     setError('')
     setRejectedReason('')
+    setAlreadyLoggedIn(false)
 
     if (phone.length !== 10) {
       setError('Enter a valid 10-digit phone number.')
@@ -115,8 +135,8 @@ function Login() {
     setLoading(true)
     try {
       const payload = hasMpin
-        ? { phone_number: phone, mpin: credential }
-        : { phone_number: phone, password: credential }
+        ? { phone_number: phone, mpin: credential, device_id: getDeviceId() }
+        : { phone_number: phone, password: credential, device_id: getDeviceId() }
 
       const { data } = await api.post('login/', payload)
 
@@ -157,6 +177,9 @@ function Login() {
         setRejectedReason(err.response?.data?.reason || '')
       } else if (detail === 'account_deactivated') {
         setError('This account has been deactivated. Contact an admin for access.')
+      } else if (detail === 'already_logged_in') {
+        setError(err.response?.data?.message || 'This account is already signed in on another device. Please log out there first.')
+        setAlreadyLoggedIn(true)
       } else if (err.response) {
         setError(detail || `Incorrect phone number or ${hasMpin ? 'M-PIN' : 'password'}.`)
       } else {
@@ -167,6 +190,29 @@ function Login() {
       generateCaptcha()
     } finally {
       setLoading(false)
+    }
+  }
+
+  // Clears the stale session on whichever device is still signed in, using
+  // the same phone + M-PIN/password already typed on this screen — reuses
+  // the credentials the user just proved they know when the login attempt
+  // was blocked, rather than asking them to type it all again.
+  async function handleLogoutAllDevices() {
+    setLoggingOutAll(true)
+    try {
+      const payload = hasMpin
+        ? { phone_number: phone, mpin: credential }
+        : { phone_number: phone, password: credential }
+      await api.post('force-logout/', payload)
+      setShowLogoutAllConfirm(false)
+      setAlreadyLoggedIn(false)
+      setError('')
+      setToastMessage('Logged out from all devices. You can now log in.')
+    } catch (err) {
+      setShowLogoutAllConfirm(false)
+      setError(err.response?.data?.detail || 'Could not log out from other devices. Please try again.')
+    } finally {
+      setLoggingOutAll(false)
     }
   }
 
@@ -442,6 +488,19 @@ function Login() {
                         </button>
                       </>
                     )}
+                    {alreadyLoggedIn && (
+                      <>
+                        {' '}
+                        <button
+                          type="button"
+                          className="auth-link"
+                          style={{ background: 'none', border: 0, padding: 0, cursor: 'pointer', font: 'inherit' }}
+                          onClick={() => setShowLogoutAllConfirm(true)}
+                        >
+                          Can't get to that device? Logout from all devices
+                        </button>
+                      </>
+                    )}
                   </div>
                 )}
 
@@ -471,6 +530,9 @@ function Login() {
               </form>
             )}
           </div>
+          {visitorIp && (
+            <p className="auth-ip">Your IP address: {visitorIp}</p>
+          )}
         </div>
 
       </div>
@@ -490,6 +552,33 @@ function Login() {
           onSuccess={handleMpinReset}
           onClose={() => setShowForgotMpin(false)}
         />
+      )}
+
+      {showLogoutAllConfirm && (
+        <div className="modal-overlay" onMouseDown={(e) => { if (e.target === e.currentTarget && !loggingOutAll) setShowLogoutAllConfirm(false) }}>
+          <div className="modal-box narrow">
+            <div className="modal-head">
+              <div className="modal-title">Logout from all devices?</div>
+              <button type="button" className="modal-close" onClick={() => setShowLogoutAllConfirm(false)} aria-label="Close" disabled={loggingOutAll}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+              </button>
+            </div>
+            <div className="modal-body">
+              <p style={{ fontSize: 13.5, color: 'var(--text-muted)' }}>
+                This will sign this account out of whichever device it's currently
+                logged in on, so you can sign in here instead.
+              </p>
+            </div>
+            <div className="modal-foot">
+              <button type="button" className="btn btn-ghost" onClick={() => setShowLogoutAllConfirm(false)} disabled={loggingOutAll}>
+                Cancel
+              </button>
+              <button type="button" className="btn btn-primary" onClick={handleLogoutAllDevices} disabled={loggingOutAll}>
+                {loggingOutAll ? 'Logging out…' : 'Logout from all devices'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {showRejectedReason && (

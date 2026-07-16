@@ -60,15 +60,6 @@
   white-space: pre-wrap;
 }
 
-.attachment-list{ display: flex; flex-direction: column; gap: 6px; }
-.attachment-item{
-  font-size: 13px;
-  color: var(--accent-ink);
-  text-decoration: underline;
-  word-break: break-all;
-}
-.attachment-item:hover{ color: var(--accent); }
-
 .status-btn-group{ display: flex; flex-wrap: wrap; gap: 8px; }
 .status-btn{
   padding: 7px 12px;

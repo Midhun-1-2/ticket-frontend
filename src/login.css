@@ -229,6 +229,7 @@
    ========================================================================= */
 .auth-card-wrap{
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
   padding: 24px;
@@ -636,6 +637,14 @@
   font-size: 12.5px;
   color: var(--text-muted);
   margin-top: 4px;
+}
+
+.auth-ip{
+  text-align: center;
+  font-size: 9.5px;
+  color: var(--text-faint, #9ca3af);
+  margin-top: 18px;
+  font-family: var(--font-mono, ui-monospace, monospace);
 }
 
 /* --- Pending approval notice state --- */

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import api from '/src/api.js'
+import AttachmentThumbnails from '/src/components/AttachmentPreview.jsx'
 import '/src/ticket-detail-modal.css'
 
 const STATUS_OPTIONS = ['In Progress', 'On Hold', 'Resolved', 'Closed']
@@ -237,13 +238,7 @@ function TicketDetailModal({ ticketId, onClose, onChanged }) {
               <div className="ticket-modal-section">
                 <div className="ticket-modal-label">Attachments</div>
                 {ticket.attachments?.length > 0 ? (
-                  <div className="attachment-list">
-                    {ticket.attachments.map((att) => (
-                      <a key={att.id} href={att.file} target="_blank" rel="noreferrer" className="attachment-item">
-                        {att.file.split('/').pop()}
-                      </a>
-                    ))}
-                  </div>
+                  <AttachmentThumbnails attachments={ticket.attachments} />
                 ) : (
                   <div className="ticket-modal-status">No attachments</div>
                 )}

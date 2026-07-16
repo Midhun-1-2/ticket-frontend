@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import api from '../api' // adjust this path to match where api.js actually lives
+import useIsMobile from '../hooks/useIsMobile'
 
 const STATUS_CHIP = {
   Active: 'chip resolved',
@@ -116,6 +117,9 @@ function RemarkTooltip({ text }) {
 }
 
 function Customers() {
+  // On mobile the Actions column moves to the front — see AllTickets.jsx for
+  // the same pattern/rationale.
+  const isMobile = useIsMobile()
   const [customers, setCustomers] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -264,11 +268,12 @@ function Customers() {
             <table className="tickets">
               <thead>
                 <tr>
+                  {isMobile && <th>Actions</th>}
                   <th>Customer</th>
                   <th>Company</th>
-                  <th>Status</th>
                   <th>Joined</th>
-                  <th>Actions</th>
+                  <th>Status</th>
+                  {!isMobile && <th>Actions</th>}
                 </tr>
               </thead>
               <tbody>
@@ -278,21 +283,9 @@ function Customers() {
                 {!loading && filtered.length === 0 && (
                   <tr><td colSpan={5}>No customers found.</td></tr>
                 )}
-                {!loading && filtered.map((c) => (
-                  <tr key={c.id}>
-                    <td>
-                      <div className="cust-cell">
-                        <div className="cust-avatar">{initials(c.name)}</div>
-                        <div>
-                          <div className="cust-name">{c.name || '—'}</div>
-                          <div className="cust-email">{c.email || '—'}</div>
-                        </div>
-                      </div>
-                    </td>
-                    <td>{c.company || '—'}</td>
-                    <td><span className={STATUS_CHIP[c.status] || 'chip open'} style={chipNoWrapStyle}>{c.status}</span></td>
-                    <td className="sla ok">{formatDate(c.date_joined)}</td>
-                    <td>
+                {!loading && filtered.map((c) => {
+                  const actionsCell = (
+                    <td key="actions">
                       <div className="row-actions">
                         <button className="icon-action" title="View" onClick={() => setViewUser(c)}>
                           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -322,8 +315,27 @@ function Customers() {
                         </button>
                       </div>
                     </td>
-                  </tr>
-                ))}
+                  )
+                  return (
+                    <tr key={c.id}>
+                      {isMobile && actionsCell}
+                      <td>
+                        <div className="cust-cell">
+                          <div className="cust-avatar">{initials(c.name)}</div>
+                          <div>
+                            <div className="cust-name">{c.name || '—'}</div>
+                            <div className="cust-email">{c.email || '—'}</div>
+                            <div className="cust-email">{c.phone || '—'}</div>
+                          </div>
+                        </div>
+                      </td>
+                      <td>{c.company || '—'}</td>
+                      <td className="sla ok">{formatDate(c.date_joined)}</td>
+                      <td><span className={STATUS_CHIP[c.status] || 'chip open'} style={chipNoWrapStyle}>{c.status}</span></td>
+                      {!isMobile && actionsCell}
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           </div>

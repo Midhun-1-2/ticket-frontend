@@ -4,7 +4,7 @@ import axios from 'axios'
 const API_BASE = 'http://localhost:8000/'
 
 // Endpoints that don't need — and shouldn't send — an auth token.
-const PUBLIC_ENDPOINTS = ['login', 'detect-role', 'signup', 'register']
+const PUBLIC_ENDPOINTS = ['login', 'detect-role', 'signup', 'register', 'my-ip', 'force-logout']
 
 // Matches only the public onboarding submission route, not the admin-only onboarding/* routes.
 const PUBLIC_ONBOARDING_PATTERN = /^\/?onboarding\/?(register\/?)?$/
@@ -28,6 +28,18 @@ const api = axios.create({
   baseURL: API_BASE,
   headers: { 'Content-Type': 'application/json' },
 })
+
+// Stable per-browser id, generated once and persisted — lets the backend
+// tell "this same device logging in again" apart from "a different device",
+// for the single-active-session login check.
+export function getDeviceId() {
+  let id = localStorage.getItem('device_id')
+  if (!id) {
+    id = (crypto.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`)
+    localStorage.setItem('device_id', id)
+  }
+  return id
+}
 
 // Attaches the JWT access token to every outgoing request, except public endpoints.
 api.interceptors.request.use((config) => {
@@ -58,6 +70,16 @@ api.interceptors.response.use(
 
     // Don't try to refresh on the login/refresh/detect-role endpoints themselves
     const isAuthEndpoint = isPublicEndpoint(originalRequest.url)
+
+    // A 401 that survives a refresh-and-retry means the new access token
+    // was rejected too — e.g. this session was signed out from the login
+    // screen's "logout from all devices" or superseded by a newer login
+    // elsewhere (see DeviceCheckedJWTAuthentication on the backend). Not
+    // recoverable by refreshing again, so just clear the session.
+    if (status === 401 && originalRequest._retry && !isAuthEndpoint) {
+      clearSession()
+      return Promise.reject(error)
+    }
 
     if (status === 401 && !originalRequest._retry && !isAuthEndpoint) {
       const refreshToken = localStorage.getItem('refresh')

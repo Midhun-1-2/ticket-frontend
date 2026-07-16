@@ -9,17 +9,6 @@ import '/src/onboarding.css'
 import api from '/src/api.js'
 import SearchableSelect from '/src/SearchableSelect.jsx'
 
-// ---------- Static dropdown options ----------
-
-const COMPANY_TYPES = ['Private Limited', 'Public Limited', 'LLP', 'Partnership', 'Sole Proprietorship', 'Government', 'Non-Profit']
-const INDUSTRY_TYPES = ['Retail', 'IT / Software', 'Manufacturing', 'Healthcare', 'Education', 'Finance', 'Logistics', 'Other']
-const TURNOVER_RANGES = ['< ₹1 Cr', '₹1 Cr - ₹5 Cr', '₹5 Cr - ₹25 Cr', '₹25 Cr - ₹100 Cr', '> ₹100 Cr']
-const EMPLOYEE_RANGES = ['1-10', '11-50', '51-200', '201-500', '500+']
-const AMC_STATUSES = ['Active', 'Inactive', 'Expired', 'Not Applicable']
-const SUPPORT_CHANNELS = ['Email', 'Phone', 'Portal', 'WhatsApp']
-const SUPPORT_TIMES = ['9 AM - 6 PM IST', '24x7', 'Custom SLA']
-const SUPPORT_TYPES = ['AMC', 'NON-AMC', 'SAS']
-
 const STEP_LABELS = ['Company & Contact Details', 'Product Details', 'Review & Submit']
 
 // Step 1 sub-sections, navigated via the sidebar or Continue/Back buttons.
@@ -61,9 +50,9 @@ const initialFormData = {
   gstNumber: '',
   panNumber: '',
   website: '',
-  industryType: INDUSTRY_TYPES[0],
-  annualTurnover: TURNOVER_RANGES[0],
-  employeeCount: EMPLOYEE_RANGES[0],
+  industryType: '',
+  annualTurnover: '',
+  employeeCount: '',
   // Section B - Address Details
   addressLine1: '',
   addressLine2: '',
@@ -81,11 +70,11 @@ const initialFormData = {
   password: '',
   confirmPassword: '',
   // Section D - Additional Information
-  amcStatus: AMC_STATUSES[0],
+  amcStatus: '',
   amcStartDate: '',
   amcEndDate: '',
-  preferredChannel: SUPPORT_CHANNELS[0],
-  preferredTime: SUPPORT_TIMES[0],
+  preferredChannel: '',
+  preferredTime: '',
   productsInUse: [],
   contractRefNumber: '',
 }
@@ -213,6 +202,11 @@ function Onboarding() {
   const [productCatalog, setProductCatalog] = useState([])
   const [productsLoading, setProductsLoading] = useState(true)
 
+  // Admin-editable dropdown options (Company Type, Industry Type, Annual Turnover,
+  // No. of Employees, AMC Status, Support Channel/Time, Support Type) — see
+  // DropdownOption in the backend and manage these from the Django admin.
+  const [dropdownOptions, setDropdownOptions] = useState({})
+
   // Full country list, and states/provinces for the currently selected country.
   const countries = useMemo(() => Country.getAllCountries(), [])
   const selectedCountry = useMemo(
@@ -318,6 +312,30 @@ function Onboarding() {
     return () => { cancelled = true }
   }, [])
 
+  useEffect(() => {
+    let cancelled = false
+    api.get('dropdown-options/')
+      .then(({ data }) => {
+        if (cancelled) return
+        setDropdownOptions(data)
+        // These fields default to the first available option, same as the
+        // old hardcoded arrays did — but only once the real list has loaded.
+        setFormData((prev) => ({
+          ...prev,
+          industryType: prev.industryType || data.industry_type?.[0] || '',
+          annualTurnover: prev.annualTurnover || data.turnover_range?.[0] || '',
+          employeeCount: prev.employeeCount || data.employee_range?.[0] || '',
+          amcStatus: prev.amcStatus || data.amc_status?.[0] || '',
+          preferredChannel: prev.preferredChannel || data.support_channel?.[0] || '',
+          preferredTime: prev.preferredTime || data.support_time?.[0] || '',
+        }))
+      })
+      .catch(() => {
+        if (!cancelled) setApiError('Could not load form options. Please refresh the page.')
+      })
+    return () => { cancelled = true }
+  }, [])
+
   // Derives Step 2's product blocks from the chips checked in Step 1,
   // preserving existing block data and dropping unchecked products.
   useEffect(() => {
@@ -337,6 +355,14 @@ function Onboarding() {
   const updateField = (field, value) => {
     setFormData((prev) => ({ ...prev, [field]: value }))
     if (errors[field]) setErrors((prev) => ({ ...prev, [field]: undefined }))
+  }
+
+  // PAN is embedded in a GSTIN as characters 3-12 (state code + PAN + entity/checksum suffix).
+  const handleGstNumberChange = (value) => {
+    updateField('gstNumber', value)
+    if (value.length >= 15) {
+      updateField('panNumber', value.slice(2, -3).toUpperCase())
+    }
   }
 
   // Clears state and pincode/phone errors when the country changes.
@@ -677,20 +703,20 @@ function Onboarding() {
         <label>Company Type<span className="required">*</span></label>
         <select value={formData.companyType} onChange={(e) => updateField('companyType', e.target.value)}>
           <option value="">Select</option>
-          {COMPANY_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+          {(dropdownOptions.company_type || []).map((t) => <option key={t} value={t}>{t}</option>)}
         </select>
         {errors.companyType && <span className="field-error">{errors.companyType}</span>}
       </div>
 
       <div className={`form-field ${errors.gstNumber ? 'error' : ''}`}>
         <label>GST Number<span className="required">*</span></label>
-        <input placeholder="29ABCDE1234F1Z5" value={formData.gstNumber} onChange={(e) => updateField('gstNumber', e.target.value)} />
+        <input placeholder="29ABCDE1234F1Z5" maxLength={15} value={formData.gstNumber} onChange={(e) => handleGstNumberChange(e.target.value)} />
         {errors.gstNumber && <span className="field-error">{errors.gstNumber}</span>}
       </div>
 
       <div className="form-field">
         <label>PAN Number</label>
-        <input placeholder="ABCDE1234F" value={formData.panNumber} onChange={(e) => updateField('panNumber', e.target.value)} />
+        <input placeholder="ABCDE1234F" maxLength={10} value={formData.panNumber} onChange={(e) => updateField('panNumber', e.target.value)} />
       </div>
 
       <div className="form-field">
@@ -701,21 +727,21 @@ function Onboarding() {
       <div className="form-field">
         <label>Industry Type</label>
         <select value={formData.industryType} onChange={(e) => updateField('industryType', e.target.value)}>
-          {INDUSTRY_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+          {(dropdownOptions.industry_type || []).map((t) => <option key={t} value={t}>{t}</option>)}
         </select>
       </div>
 
       <div className="form-field">
         <label>Annual Turnover</label>
         <select value={formData.annualTurnover} onChange={(e) => updateField('annualTurnover', e.target.value)}>
-          {TURNOVER_RANGES.map((t) => <option key={t} value={t}>{t}</option>)}
+          {(dropdownOptions.turnover_range || []).map((t) => <option key={t} value={t}>{t}</option>)}
         </select>
       </div>
 
       <div className="form-field">
         <label>No. of Employees</label>
         <select value={formData.employeeCount} onChange={(e) => updateField('employeeCount', e.target.value)}>
-          {EMPLOYEE_RANGES.map((t) => <option key={t} value={t}>{t}</option>)}
+          {(dropdownOptions.employee_range || []).map((t) => <option key={t} value={t}>{t}</option>)}
         </select>
       </div>
     </div>
@@ -732,12 +758,6 @@ function Onboarding() {
       <div className="form-field full">
         <label>Address Line 2<span className="optional">optional</span></label>
         <input placeholder="Landmark, area" value={formData.addressLine2} onChange={(e) => updateField('addressLine2', e.target.value)} />
-      </div>
-
-      <div className={`form-field ${errors.city ? 'error' : ''}`}>
-        <label>City<span className="required">*</span></label>
-        <input placeholder="Enter your city" value={formData.city} onChange={(e) => updateField('city', e.target.value)} />
-        {errors.city && <span className="field-error">{errors.city}</span>}
       </div>
 
       <div className={`form-field ${errors.country ? 'error' : ''}`}>
@@ -775,6 +795,12 @@ function Onboarding() {
           />
         )}
         {errors.state && <span className="field-error">{errors.state}</span>}
+      </div>
+
+      <div className={`form-field ${errors.city ? 'error' : ''}`}>
+        <label>City<span className="required">*</span></label>
+        <input placeholder="Enter your city" value={formData.city} onChange={(e) => updateField('city', e.target.value)} />
+        {errors.city && <span className="field-error">{errors.city}</span>}
       </div>
 
       <div className={`form-field ${errors.pincode ? 'error' : ''}`}>
@@ -882,7 +908,7 @@ function Onboarding() {
       <div className={`form-field ${errors.amcStatus ? 'error' : ''}`}>
         <label>AMC Status<span className="required">*</span></label>
         <select value={formData.amcStatus} onChange={(e) => updateField('amcStatus', e.target.value)}>
-          {AMC_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
+          {(dropdownOptions.amc_status || []).map((s) => <option key={s} value={s}>{s}</option>)}
         </select>
       </div>
 
@@ -904,14 +930,14 @@ function Onboarding() {
       <div className="form-field">
         <label>Preferred Support Channel</label>
         <select value={formData.preferredChannel} onChange={(e) => updateField('preferredChannel', e.target.value)}>
-          {SUPPORT_CHANNELS.map((c) => <option key={c} value={c}>{c}</option>)}
+          {(dropdownOptions.support_channel || []).map((c) => <option key={c} value={c}>{c}</option>)}
         </select>
       </div>
 
       <div className="form-field">
         <label>Preferred Support Time</label>
         <select value={formData.preferredTime} onChange={(e) => updateField('preferredTime', e.target.value)}>
-          {SUPPORT_TIMES.map((t) => <option key={t} value={t}>{t}</option>)}
+          {(dropdownOptions.support_time || []).map((t) => <option key={t} value={t}>{t}</option>)}
         </select>
       </div>
 
@@ -1012,7 +1038,7 @@ function Onboarding() {
               <div className="form-field full">
                 <label>Current Support Type</label>
                 <div className="segmented">
-                  {SUPPORT_TYPES.map((type) => (
+                  {(dropdownOptions.support_type || []).map((type) => (
                     <label className="segmented-option" key={type}>
                       <input
                         type="radio"

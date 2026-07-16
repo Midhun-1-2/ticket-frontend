@@ -5,6 +5,7 @@ import { isValidPhoneNumber, isSupportedCountry, getCountryCallingCode, getExamp
 import examplesMobile from 'libphonenumber-js/examples.mobile.json'
 import api from '../api' // adjust this path to match where api.js actually lives
 import SearchableSelect from '../SearchableSelect.jsx'
+import useIsMobile from '../hooks/useIsMobile'
 import '/src/staff-management.css'
 import '/src/onboarding.css' // .phone-input / .phone-prefix / .searchable-select* — shared with Onboarding's country-aware phone field
 
@@ -43,6 +44,9 @@ const chipNoWrapStyle = {
 }
 
 function StaffManagement() {
+  // On mobile the Actions column moves to the front — see AllTickets.jsx for
+  // the same pattern/rationale.
+  const isMobile = useIsMobile()
   const [staff, setStaff] = useState([])
   const [staffLoading, setStaffLoading] = useState(true)
   const [staffLoadError, setStaffLoadError] = useState('')
@@ -493,12 +497,13 @@ function StaffManagement() {
           <table className="tickets staff-table">
             <thead>
               <tr>
+                {isMobile && <th>Actions</th>}
                 <th>Name</th>
                 <th>Department</th>
                 <th>Role</th>
                 <th>Assigned</th>
                 <th>Status</th>
-                <th>Actions</th>
+                {!isMobile && <th>Actions</th>}
               </tr>
             </thead>
             <tbody>
@@ -508,35 +513,9 @@ function StaffManagement() {
                 </tr>
               ) : (
                 <>
-                  {staff.map((member) => (
-                    <tr key={member.id}>
-                      <td>
-                        <button
-                          type="button"
-                          className="staff-name-btn"
-                          onClick={() => openStaffDetail(member)}
-                        >
-                          <div className="staff-table-avatar">
-                            {member.name.split(' ').map((p) => p[0]).slice(0, 2).join('')}
-                          </div>
-                          <div>
-                            <div className="name">{member.name}</div>
-                            <div className="email">{member.email}</div>
-                          </div>
-                        </button>
-                      </td>
-                      <td>{member.department || '—'}</td>
-                      <td>{member.role || '—'}</td>
-                      <td className="mono">{member.ticketsAssigned}</td>
-                      <td>
-                        <span
-                          className={`chip ${member.status === 'active' ? 'active' : 'inactive'}`}
-                          style={chipNoWrapStyle}
-                        >
-                          {member.status === 'active' ? 'Active' : 'Inactive'}
-                        </span>
-                      </td>
-                      <td>
+                  {staff.map((member) => {
+                    const actionsCell = (
+                      <td key="actions">
                         <div className="row-actions">
                           <button
                             type="button"
@@ -586,8 +565,40 @@ function StaffManagement() {
                           </button>
                         </div>
                       </td>
-                    </tr>
-                  ))}
+                    )
+                    return (
+                      <tr key={member.id}>
+                        {isMobile && actionsCell}
+                        <td>
+                          <button
+                            type="button"
+                            className="staff-name-btn"
+                            onClick={() => openStaffDetail(member)}
+                          >
+                            <div className="staff-table-avatar">
+                              {member.name.split(' ').map((p) => p[0]).slice(0, 2).join('')}
+                            </div>
+                            <div>
+                              <div className="name">{member.name}</div>
+                              <div className="email">{member.email}</div>
+                            </div>
+                          </button>
+                        </td>
+                        <td>{member.department || '—'}</td>
+                        <td>{member.role || '—'}</td>
+                        <td className="mono">{member.ticketsAssigned}</td>
+                        <td>
+                          <span
+                            className={`chip ${member.status === 'active' ? 'active' : 'inactive'}`}
+                            style={chipNoWrapStyle}
+                          >
+                            {member.status === 'active' ? 'Active' : 'Inactive'}
+                          </span>
+                        </td>
+                        {!isMobile && actionsCell}
+                      </tr>
+                    )
+                  })}
                   {staff.length === 0 && (
                     <tr>
                       <td colSpan={6} className="sm-empty-row">No staff added yet.</td>

@@ -490,6 +490,64 @@ p{ margin:0; }
 .cat-bar-fill{ height:100%; border-radius:6px; background: var(--accent); }
 .cat-count{ font-family:var(--font-mono); font-size:12px; color:var(--text-muted); width:34px; text-align:right; flex-shrink:0; }
 
+/* --- Status Overview pie chart (admin dashboard) --- */
+/* Sits beside Staff Performance instead of stacking, so its extra width isn't wasted. */
+.status-staff-row{ display:flex; align-items:stretch; gap:16px; margin-bottom:16px; }
+.status-staff-panel{ flex:1; min-width:0; }
+/* Compact card, not a full-width panel — the pie + legend don't need the extra room.
+   Stretches to match Staff Performance's height (same row); the content below
+   fills that height instead of leaving blank space under a small, top-anchored pie. */
+.status-overview-panel{ width:440px; flex-shrink:0; display:flex; flex-direction:column; }
+.status-overview-panel .panel-body{ flex:1; display:flex; align-items:center; justify-content:center; }
+/* Pie centered, legend stacked below it. */
+.status-pie-wrap{ display:flex; flex-direction:column; align-items:center; justify-content:center; gap:24px; }
+.status-pie-svg{ width:190px; height:190px; flex-shrink:0; }
+.status-pie-svg path, .status-pie-svg circle{ transition: opacity .15s ease; cursor:default; }
+.status-pie-svg path:hover, .status-pie-svg circle:hover{ opacity:.85; }
+.status-pie-label{ fill:#fff; font-family:var(--font-mono); font-size:13px; font-weight:600; pointer-events:none; }
+.status-legend{ display:flex; flex-direction:row; align-items:center; justify-content:center; gap:20px; flex-wrap:wrap; }
+.status-legend-row{ display:flex; align-items:center; gap:7px; }
+.status-legend-row-interactive{ cursor:pointer; border-radius:6px; padding:4px 7px; margin:-4px -7px; transition: background .15s ease; }
+.status-legend-row-interactive:hover{ background: var(--gray-soft); }
+.status-legend-dot{ width:11px; height:11px; border-radius:50%; flex-shrink:0; }
+.status-legend-name{ font-size:13.5px; color:var(--text); white-space:nowrap; }
+
+/* Ticket-list popover shown on hover/click of a pie slice or legend row */
+@keyframes status-pie-popover-in{
+  from{ opacity:0; transform: translateY(-3px); }
+  to{ opacity:1; transform: translateY(0); }
+}
+.status-pie-popover{
+  position:fixed; z-index:1300; width:220px; max-height:220px;
+  background: var(--surface); border:1px solid var(--line); border-radius: var(--radius-sm);
+  border-top: 2px solid var(--slice-color, var(--accent));
+  box-shadow: 0 10px 24px -8px rgba(20,23,31,0.22);
+  display:flex; flex-direction:column; overflow:hidden;
+  animation: status-pie-popover-in .1s ease-out;
+}
+.status-pie-popover-head{
+  display:flex; align-items:center; gap:6px; padding:7px 9px;
+  font-size:11px; font-weight:700; flex-shrink:0;
+}
+.status-pie-popover-title{ font-family:var(--font-display); }
+.status-pie-popover-badge{
+  font-family:var(--font-mono); font-size:10px; font-weight:700;
+  background: rgba(255,255,255,0.6); border-radius:20px; padding:1px 6px; line-height:1.4;
+}
+.status-pie-popover-close{
+  margin-left:auto; display:flex; align-items:center; justify-content:center;
+  width:18px; height:18px; border-radius:50%; border:0; background:transparent; cursor:pointer;
+  opacity:.7; transition: opacity .15s ease, background .15s ease;
+}
+.status-pie-popover-close:hover{ opacity:1; background: rgba(255,255,255,0.5); }
+.status-pie-popover-close svg{ width:11px; height:11px; }
+.status-pie-popover-list{ overflow-y:auto; padding:4px; }
+.status-pie-popover-row{ padding:6px 6px; border-radius:6px; transition: background .12s ease; }
+.status-pie-popover-row:hover{ background: var(--gray-soft); }
+.status-pie-popover-row + .status-pie-popover-row{ border-top:1px solid var(--line); }
+.pie-ticket-title{ font-weight:600; font-size:11.5px; color:var(--text); line-height:1.35; }
+.pie-ticket-raiser{ font-size:10.5px; color:var(--text-muted); margin-top:2px; }
+
 /* --- Staff performance list --- */
 .staff-list{ list-style:none; margin:0; padding:0; }
 .staff-row{
@@ -513,6 +571,17 @@ p{ margin:0; }
 /* --- Table --- */
 .table-wrap{ overflow-x:auto; }
 table.tickets{ width:100%; border-collapse:collapse; font-size:13px; min-width:720px; }
+
+/* All Tickets: the row list scrolls inside a fixed-height panel, in both
+   directions, instead of the whole page growing as long as the ticket
+   count or the columns squeezing together on a narrower screen. Plain
+   single table, no sticky header — simplest thing that reliably works. */
+.tickets-panel .table-wrap{
+  overflow: auto;
+  max-height: calc(100vh - var(--topbar-h) - 340px);
+  min-height: 280px;
+}
+.tickets-panel table.tickets{ min-width: 1100px; }
 table.tickets th{
   text-align:left; font-size:11px; text-transform:uppercase; letter-spacing:.04em;
   color: var(--text-faint); font-weight:600; padding: 10px 14px; border-bottom:1px solid var(--line);
@@ -576,6 +645,8 @@ table.tickets tbody tr:hover{ background: var(--paper); }
 @media (max-width: 1180px){
   .stat-grid{ grid-template-columns: repeat(3, 1fr); }
   .grid-2{ grid-template-columns: 1fr; }
+  .status-staff-row{ flex-direction:column; }
+  .status-overview-panel{ width:100%; }
 }
 
 @media (max-width: 880px){

@@ -1,6 +1,8 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import api from '../api' // adjust this path to match where api.js actually lives
 import { initCounters, initTrendChart, buildTrendData } from '../script.js'
+import AttachmentThumbnails from '../components/AttachmentPreview'
 
 const STATUS_CHIP = {
   Open: 'chip open',
@@ -28,6 +30,213 @@ const chipNoWrapStyle = {
 const PRIORITY_CLASS = { Low: 'low', Medium: 'medium', High: 'high', Urgent: 'urgent' }
 const ALL_STATUSES = ['Open', 'In Progress', 'On Hold', 'Resolved', 'Closed']
 const CAT_COLORS = ['var(--blue)', undefined, 'var(--amber)', 'var(--violet)', 'var(--red)']
+
+// Same colors as the status chips used everywhere else on this page (Now Working / History tables).
+const STATUS_PIE_SLICES = [
+  { key: 'open', name: 'Open', color: 'var(--amber)', soft: 'var(--amber-soft)', ink: '#8A550F' },
+  { key: 'inProgress', name: 'In Progress', color: 'var(--blue)', soft: 'var(--blue-soft)', ink: 'var(--blue)' },
+  { key: 'onHold', name: 'On Hold', color: 'var(--violet)', soft: 'var(--violet-soft)', ink: 'var(--violet)' },
+]
+
+function polarToCartesian(cx, cy, r, angleDeg) {
+  const rad = ((angleDeg - 90) * Math.PI) / 180
+  return { x: cx + r * Math.cos(rad), y: cy + r * Math.sin(rad) }
+}
+
+function describeSlice(cx, cy, r, startAngle, endAngle) {
+  const start = polarToCartesian(cx, cy, r, endAngle)
+  const end = polarToCartesian(cx, cy, r, startAngle)
+  const largeArcFlag = endAngle - startAngle <= 180 ? '0' : '1'
+  return `M ${cx} ${cy} L ${start.x} ${start.y} A ${r} ${r} 0 ${largeArcFlag} 0 ${end.x} ${end.y} Z`
+}
+
+// Open / In Progress / On Hold breakdown as a pie chart — admin dashboard only.
+// Hovering (or clicking, to pin it open) a slice or legend row shows the
+// matching tickets' subject and who raised them.
+function StatusPieChart({ stats, tickets }) {
+  const slices = STATUS_PIE_SLICES.map((s) => ({ ...s, value: stats[s.key] }))
+  const total = slices.reduce((sum, s) => sum + s.value, 0)
+
+  const [activeKey, setActiveKey] = useState(null)
+  const [pinned, setPinned] = useState(false)
+  const [coords, setCoords] = useState({ top: 0, left: 0 })
+  const panelRef = useRef(null)
+  // Closing on mouseleave is delayed briefly so moving the cursor onto the
+  // popover to scroll its ticket list (which can momentarily register as
+  // leaving the trigger, e.g. crossing the small gap between them) doesn't
+  // instantly dismiss it — a fresh hover anywhere on trigger/popover cancels
+  // the pending close.
+  const closeTimerRef = useRef(null)
+
+  function cancelPendingClose() {
+    if (closeTimerRef.current) {
+      clearTimeout(closeTimerRef.current)
+      closeTimerRef.current = null
+    }
+  }
+
+  useEffect(() => () => cancelPendingClose(), [])
+
+  useEffect(() => {
+    if (!pinned) return
+    const handleOutside = (e) => {
+      if (panelRef.current?.contains(e.target)) return
+      setPinned(false)
+      setActiveKey(null)
+    }
+    const handleKey = (e) => {
+      if (e.key === 'Escape') { setPinned(false); setActiveKey(null) }
+    }
+    document.addEventListener('mousedown', handleOutside)
+    document.addEventListener('keydown', handleKey)
+    return () => {
+      document.removeEventListener('mousedown', handleOutside)
+      document.removeEventListener('keydown', handleKey)
+    }
+  }, [pinned])
+
+  function positionNear(el) {
+    if (!el) return
+    const rect = el.getBoundingClientRect()
+    setCoords({ top: rect.bottom + window.scrollY + 8, left: rect.left + window.scrollX })
+  }
+
+  function handleEnter(key, e) {
+    if (pinned) return
+    cancelPendingClose()
+    setActiveKey(key)
+    positionNear(e.currentTarget)
+  }
+  function handleLeave() {
+    if (pinned) return
+    cancelPendingClose()
+    closeTimerRef.current = setTimeout(() => setActiveKey(null), 200)
+  }
+  function handleClick(key, e) {
+    e.stopPropagation()
+    if (pinned && activeKey === key) {
+      setPinned(false)
+      setActiveKey(null)
+      return
+    }
+    setActiveKey(key)
+    setPinned(true)
+    positionNear(e.currentTarget)
+  }
+
+  if (total === 0) {
+    return <div className="panel-sub">No open, in-progress, or on-hold tickets right now.</div>
+  }
+
+  const cx = 90, cy = 90, r = 78
+  const nonZero = slices.filter((s) => s.value > 0)
+  let cumulativeAngle = 0
+
+  const activeSlice = slices.find((s) => s.key === activeKey)
+  const activeTickets = activeSlice
+    ? tickets.filter((t) => t.status === activeSlice.name).sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+    : []
+
+  return (
+    <div className="status-pie-wrap">
+      <svg viewBox="0 0 180 180" className="status-pie-svg" role="img" aria-label="Open, in progress, and on hold ticket breakdown">
+        {nonZero.length === 1 ? (
+          <circle
+            cx={cx} cy={cy} r={r} fill={nonZero[0].color} stroke="var(--surface)" strokeWidth="3"
+            style={{ cursor: 'pointer' }}
+            onMouseEnter={(e) => handleEnter(nonZero[0].key, e)}
+            onMouseLeave={handleLeave}
+            onClick={(e) => handleClick(nonZero[0].key, e)}
+          />
+        ) : (
+          nonZero.map((s) => {
+            const startAngle = cumulativeAngle
+            const angle = (s.value / total) * 360
+            cumulativeAngle += angle
+            const endAngle = cumulativeAngle
+            const pct = Math.round((s.value / total) * 100)
+            // Only label a slice inline if it's wide enough for the text to sit comfortably.
+            const showLabel = angle >= 30
+            const labelPos = polarToCartesian(cx, cy, r * 0.62, (startAngle + endAngle) / 2)
+            return (
+              <g key={s.key}>
+                <path
+                  d={describeSlice(cx, cy, r, startAngle, endAngle)}
+                  fill={s.color}
+                  stroke="var(--surface)"
+                  strokeWidth="3"
+                  strokeLinejoin="round"
+                  style={{ cursor: 'pointer' }}
+                  onMouseEnter={(e) => handleEnter(s.key, e)}
+                  onMouseLeave={handleLeave}
+                  onClick={(e) => handleClick(s.key, e)}
+                />
+                {showLabel && (
+                  <text x={labelPos.x} y={labelPos.y} textAnchor="middle" dominantBaseline="middle" className="status-pie-label" style={{ pointerEvents: 'none' }}>
+                    {pct}%
+                  </text>
+                )}
+              </g>
+            )
+          })
+        )}
+      </svg>
+      <ul className="status-legend">
+        {slices.map((s) => (
+          <li
+            className="status-legend-row status-legend-row-interactive"
+            key={s.key}
+            onClick={(e) => handleClick(s.key, e)}
+          >
+            <span className="status-legend-dot" style={{ background: s.color }}></span>
+            <span className="status-legend-name">{s.name}</span>
+          </li>
+        ))}
+      </ul>
+
+      {activeSlice && createPortal(
+        <div
+          ref={panelRef}
+          className="status-pie-popover"
+          style={{ top: coords.top, left: coords.left, '--slice-color': activeSlice.color }}
+          onMouseEnter={() => { if (!pinned) { cancelPendingClose(); setActiveKey(activeSlice.key) } }}
+          onMouseLeave={handleLeave}
+        >
+          <div className="status-pie-popover-head" style={{ background: activeSlice.soft, color: activeSlice.ink }}>
+            <span className="status-legend-dot" style={{ background: activeSlice.color }}></span>
+            <span className="status-pie-popover-title">{activeSlice.name}</span>
+            <span className="status-pie-popover-badge" style={{ color: activeSlice.ink }}>{activeTickets.length}</span>
+            {pinned && (
+              <button
+                type="button"
+                className="status-pie-popover-close"
+                style={{ color: activeSlice.ink }}
+                aria-label="Close"
+                onClick={() => { setPinned(false); setActiveKey(null) }}
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+              </button>
+            )}
+          </div>
+          <div className="status-pie-popover-list">
+            {activeTickets.length === 0 && (
+              <div className="panel-sub" style={{ padding: '10px 4px' }}>No tickets in this status.</div>
+            )}
+            {activeTickets.map((t) => (
+              <div className="status-pie-popover-row" key={t.id}>
+                <div className="pie-ticket-title">{t.subject}</div>
+                <div className="pie-ticket-raiser">
+                  {t.raised_by?.full_name || 'Unknown'}{t.company_name ? ` - ${t.company_name}` : ''}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>,
+        document.body
+      )}
+    </div>
+  )
+}
 
 // Statuses that remove a ticket from "Now Working".
 const DONE_STATUSES = ['Resolved', 'Closed']
@@ -153,6 +362,13 @@ function TicketDetailModal({ ticket, staffList, readOnly, onClose, onTransfer, t
           <div className="detail-row">
             <span className="v">{ticket.assigned_staff?.full_name || 'Unassigned'}</span>
           </div>
+
+          {ticket.attachments?.length > 0 && (
+            <>
+              <div className="detail-section-title">Attachments</div>
+              <AttachmentThumbnails attachments={ticket.attachments} />
+            </>
+          )}
 
           <div className="detail-section-title">Status History</div>
           {historyLoading ? (
@@ -453,7 +669,7 @@ function AdminDashboard() {
               </div>
             </div>
             <div className="panel-body">
-              <div className="cat-list">
+              <div className="cat-list" style={{ maxHeight: 220, overflowY: 'auto' }}>
                 {categoryBreakdown.length === 0 && !loading && (
                   <div className="panel-sub">No tickets yet.</div>
                 )}
@@ -474,62 +690,76 @@ function AdminDashboard() {
           </section>
         </div>
 
-        <section className="panel">
-          <div className="panel-head">
-            <div>
-              <div className="panel-title">Staff Performance</div>
-              <div className="panel-sub">Tickets handled per staff member</div>
+        <div className="status-staff-row">
+          <section className="panel status-overview-panel">
+            <div className="panel-head">
+              <div>
+                <div className="panel-title">Status Overview</div>
+                <div className="panel-sub">Open, in progress, and on hold — right now</div>
+              </div>
             </div>
-            {staffPerformance.length > 0 && (
-              <div className="perf-legend">
-                <span className="perf-legend-item"><span className="perf-dot working"></span>Working</span>
-                <span className="perf-legend-item"><span className="perf-dot resolved"></span>Resolved</span>
-                <span className="perf-legend-item"><span className="perf-dot other"></span>Open / On Hold</span>
-              </div>
-            )}
-          </div>
-          <div className="panel-body">
-            {!loading && staffPerformance.length === 0 && (
-              <div className="panel-sub">
-                No staff found. If staff exist in the system, check the browser console for a
-                "staff/ returned no usable entries" warning — the API response shape may not
-                match what this page expects.
-              </div>
-            )}
+            <div className="panel-body">
+              <StatusPieChart stats={stats} tickets={tickets} />
+            </div>
+          </section>
 
-            {staffPerformance.length > 0 && (
-              // Scrollable horizontal rows, scales to any staff count.
-              <div className="staff-list" style={{ maxHeight: 420, overflowY: 'auto', overflowX: 'visible' }}>
-                {staffPerformance.map((s) => {
-                  const other = Math.max(s.total - s.working - s.resolved, 0)
-                  return (
-                    <div className="staff-row" key={s.id}>
-                      <div className="staff-avatar">{getInitials(s.name)}</div>
-                      <div className="staff-info">
-                        <div className="staff-name">{s.name}</div>
-                        <div className="staff-dept">
-                          {s.working} working · {s.resolved} resolved{other ? ` · ${other} open/on hold` : ''}
-                        </div>
-                        {/* Bar length = share of busiest staff's total; segments = workload mix. */}
-                        <div className="perf-track">
-                          <div className="perf-fill" style={{ width: `${Math.max(s.pct, s.total ? 3 : 0)}%` }}>
-                            <div className="perf-seg working" style={{ flexBasis: `${s.total ? (s.working / s.total) * 100 : 0}%` }}></div>
-                            <div className="perf-seg resolved" style={{ flexBasis: `${s.total ? (s.resolved / s.total) * 100 : 0}%` }}></div>
-                            <div className="perf-seg other" style={{ flexBasis: `${s.total ? (other / s.total) * 100 : 0}%` }}></div>
+          <section className="panel status-staff-panel">
+            <div className="panel-head">
+              <div>
+                <div className="panel-title">Staff Performance</div>
+                <div className="panel-sub">Tickets handled per staff member</div>
+              </div>
+              {staffPerformance.length > 0 && (
+                <div className="perf-legend">
+                  <span className="perf-legend-item"><span className="perf-dot working"></span>Working</span>
+                  <span className="perf-legend-item"><span className="perf-dot resolved"></span>Resolved</span>
+                  <span className="perf-legend-item"><span className="perf-dot other"></span>Open / On Hold</span>
+                </div>
+              )}
+            </div>
+            <div className="panel-body">
+              {!loading && staffPerformance.length === 0 && (
+                <div className="panel-sub">
+                  No staff found. If staff exist in the system, check the browser console for a
+                  "staff/ returned no usable entries" warning — the API response shape may not
+                  match what this page expects.
+                </div>
+              )}
+
+              {staffPerformance.length > 0 && (
+                // Scrollable horizontal rows, scales to any staff count.
+                <div className="staff-list" style={{ maxHeight: 225, overflowY: 'auto', overflowX: 'visible' }}>
+                  {staffPerformance.map((s) => {
+                    const other = Math.max(s.total - s.working - s.resolved, 0)
+                    return (
+                      <div className="staff-row" key={s.id}>
+                        <div className="staff-avatar">{getInitials(s.name)}</div>
+                        <div className="staff-info">
+                          <div className="staff-name">{s.name}</div>
+                          <div className="staff-dept">
+                            {s.working} working · {s.resolved} resolved{other ? ` · ${other} open/on hold` : ''}
+                          </div>
+                          {/* Bar length = share of busiest staff's total; segments = workload mix. */}
+                          <div className="perf-track">
+                            <div className="perf-fill" style={{ width: `${Math.max(s.pct, s.total ? 3 : 0)}%` }}>
+                              <div className="perf-seg working" style={{ flexBasis: `${s.total ? (s.working / s.total) * 100 : 0}%` }}></div>
+                              <div className="perf-seg resolved" style={{ flexBasis: `${s.total ? (s.resolved / s.total) * 100 : 0}%` }}></div>
+                              <div className="perf-seg other" style={{ flexBasis: `${s.total ? (other / s.total) * 100 : 0}%` }}></div>
+                            </div>
                           </div>
                         </div>
+                        <div className="staff-metric">
+                          <div className="num">{s.total}</div>
+                          <div className="cap">{s.companyShare}% of all</div>
+                        </div>
                       </div>
-                      <div className="staff-metric">
-                        <div className="num">{s.total}</div>
-                        <div className="cap">{s.companyShare}% of all</div>
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            )}
-          </div>
-        </section>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          </section>
+        </div>
 
         <section className="panel">
           <div className="panel-head">
@@ -538,7 +768,7 @@ function AdminDashboard() {
               <div className="panel-sub">Every ticket not yet resolved or closed, company-wide. Click to send a transfer offer.</div>
             </div>
           </div>
-          <div className="panel-body table-wrap">
+          <div className="panel-body table-wrap" style={{ maxHeight: 420, overflowY: 'auto' }}>
             <table className="tickets">
               <thead>
                 <tr>

@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import api from '../api' // adjust this path to match where api.js actually lives
 import { initCounters, initTrendChart, buildTrendData } from '../script.js'
+import AttachmentThumbnails from '../components/AttachmentPreview'
 
 const STATUS_CHIP = {
   Open: 'chip open',
@@ -97,6 +98,13 @@ function TicketDetailModal({ ticket, onClose }) {
             <>
               <div className="detail-section-title">Description</div>
               <div className="remarks-box">{ticket.description}</div>
+            </>
+          )}
+
+          {ticket.attachments?.length > 0 && (
+            <>
+              <div className="detail-section-title">Attachments</div>
+              <AttachmentThumbnails attachments={ticket.attachments} />
             </>
           )}
 

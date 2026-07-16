@@ -2,10 +2,13 @@ import React, { useEffect, useMemo, useState, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import ExcelJS from 'exceljs'
 import api from '../api' // adjust this path to match where api.js actually lives
+import AttachmentThumbnails from '../components/AttachmentPreview'
+import useIsMobile from '../hooks/useIsMobile'
 
 // Reads the logged-in user's role from localStorage.
 const getRole = () => localStorage.getItem('role') || 'staff'
 const getFullName = () => localStorage.getItem('full_name') || ''
+const getPhoneNumber = () => localStorage.getItem('phone_number') || ''
 const ROLE_EYEBROW = { admin: 'Admin · Manage', staff: 'Staff · Manage', customer: 'Customer · Manage' }
 
 // Case/whitespace-insensitive key — same normalizer ProductMaster.jsx uses
@@ -80,13 +83,6 @@ function formatDateTime(iso) {
 
 function shortId(id) {
   return id ? id.slice(0, 8).toUpperCase() : '—'
-}
-
-// Prefixes a relative attachment path with the backend's origin.
-const BACKEND_ORIGIN = api.defaults.baseURL.replace(/\/+$/, '')
-function attachmentUrl(path) {
-  if (!path) return '#'
-  return path.startsWith('http') ? path : `${BACKEND_ORIGIN}${path}`
 }
 
 // Formats Ticket.closed_at, if the ticket has been closed.
@@ -165,6 +161,11 @@ function RemarkTooltip({ text, maxLen = 36 }) {
 }
 
 function AllTickets() {
+  // On mobile the Actions column moves to the front of the row so it's
+  // reachable without scrolling the table sideways first — desktop keeps
+  // it last. Real column reorder (not a CSS trick) so header/body stay
+  // aligned regardless of each cell's own content width.
+  const isMobile = useIsMobile()
   const [tickets, setTickets] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -362,6 +363,29 @@ function AllTickets() {
       const widths = [12, 28, 18, 13, 14, 16, 10, 12, 16, 34, 18, 18]
       widths.forEach((w, i) => { sheet.getColumn(i + 1).width = w })
 
+      // Locks the sheet against editing. Staff/admin exports use the
+      // admin-set password (Django admin > Report Password); customers get
+      // their own last-4-digits-of-phone-number instead, so they can still
+      // edit their own report without needing to ask an admin.
+      const role = getRole()
+      let editPassword = ''
+      if (role === 'customer') {
+        editPassword = getPhoneNumber().slice(-4)
+      } else {
+        try {
+          const { data } = await api.get('report-password/')
+          editPassword = data.password || ''
+        } catch (err) {
+          // Falls through with no password rather than blocking report generation.
+        }
+      }
+      if (editPassword) {
+        // objects: false locks inserted/embedded objects (pictures, shapes,
+        // charts) too — exceljs otherwise leaves them editable even with
+        // the sheet protected, since that flag defaults to unprotected.
+        await sheet.protect(editPassword, { selectLockedCells: true, selectUnlockedCells: true, objects: false })
+      }
+
       const buffer = await workbook.xlsx.writeBuffer()
       const blob = new Blob([buffer], {
         type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -512,12 +536,15 @@ function AllTickets() {
           )}
         </div>
 
-        {/* Table */}
-        <section className="panel">
-          <div className="panel-body table-wrap" style={{ paddingTop: 18 }}>
+        {/* Table — scrolls internally (both directions) inside a fixed-height
+            box so the page itself doesn't grow as long as the ticket list,
+            and columns never have to squeeze/overlap on a narrower screen. */}
+        <section className="panel tickets-panel">
+          <div className="panel-body table-wrap">
             <table className="tickets">
               <thead>
                 <tr>
+                  {isMobile && <th>Actions</th>}
                   <th>Ticket</th>
                   <th>Raised By</th>
                   <th>Category</th>
@@ -528,7 +555,7 @@ function AllTickets() {
                   <th>Remarks</th>
                   <th>Raised On</th>
                   <th>Closed On</th>
-                  <th>Actions</th>
+                  {!isMobile && <th>Actions</th>}
                 </tr>
               </thead>
               <tbody>
@@ -538,38 +565,9 @@ function AllTickets() {
                 {!loading && filtered.length === 0 && (
                   <tr><td colSpan={11}>No tickets found.</td></tr>
                 )}
-                {!loading && filtered.map((t) => (
-                  <tr key={t.id}>
-                    <td>
-                      <div className="tid">{shortId(t.id)}</div>
-                      <div className="subj">{t.subject}</div>
-                    </td>
-                    <td>
-                      <div className="cust-cell">
-                        <div className="cust-avatar">{initials(t.raised_by?.full_name)}</div>
-                        <div>
-                          <div className="cust-name">{t.raised_by?.full_name || '—'}</div>
-                          <div className="cust-email">{t.raised_by?.phone_number || '—'}</div>
-                        </div>
-                      </div>
-                    </td>
-                    <td>{t.category}</td>
-                    <td>{t.product || '—'}</td>
-                    <td>
-                      <span className={`priority ${PRIORITY_KEY[t.priority] || ''}`} style={chipNoWrapStyle}>
-                        <span className="dot" />{t.priority}
-                      </span>
-                    </td>
-                    <td>
-                      <span className={STATUS_CHIP[t.status] || 'chip open'} style={chipNoWrapStyle}>
-                        {t.status}
-                      </span>
-                    </td>
-                    <td>{t.assigned_staff?.full_name || <span style={{ color: 'var(--text-faint)' }}>Unassigned</span>}</td>
-                    <td><RemarkTooltip text={t.current_remark || t.escalation_note} /></td>
-                    <td className="sla ok">{formatDateTime(t.created_at)}</td>
-                    <td className="sla ok">{closedOn(t)}</td>
-                    <td>
+                {!loading && filtered.map((t) => {
+                  const actionsCell = (
+                    <td key="actions">
                       <div className="row-actions">
                         <button className="icon-action" title="View" onClick={() => setViewTicket(t)}>
                           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -578,11 +576,46 @@ function AllTickets() {
                         </button>
                       </div>
                     </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                  )
+                  return (
+                    <tr key={t.id}>
+                      {isMobile && actionsCell}
+                      <td>
+                        <div className="tid">{shortId(t.id)}</div>
+                        <div className="subj">{t.subject}</div>
+                      </td>
+                      <td>
+                        <div className="cust-cell">
+                          <div className="cust-avatar">{initials(t.raised_by?.full_name)}</div>
+                          <div>
+                            <div className="cust-name">{t.raised_by?.full_name || '—'}</div>
+                            <div className="cust-email">{t.raised_by?.phone_number || '—'}</div>
+                          </div>
+                        </div>
+                      </td>
+                      <td>{t.category}</td>
+                      <td>{t.product || '—'}</td>
+                      <td>
+                        <span className={`priority ${PRIORITY_KEY[t.priority] || ''}`} style={chipNoWrapStyle}>
+                          <span className="dot" />{t.priority}
+                        </span>
+                      </td>
+                      <td>
+                        <span className={STATUS_CHIP[t.status] || 'chip open'} style={chipNoWrapStyle}>
+                          {t.status}
+                        </span>
+                      </td>
+                      <td>{t.assigned_staff?.full_name || <span style={{ color: 'var(--text-faint)' }}>Unassigned</span>}</td>
+                      <td><RemarkTooltip text={t.current_remark || t.escalation_note} /></td>
+                      <td className="sla ok">{formatDateTime(t.created_at)}</td>
+                      <td className="sla ok">{closedOn(t)}</td>
+                      {!isMobile && actionsCell}
+                    </tr>
+                  )
+                })}
+                </tbody>
+              </table>
+            </div>
         </section>
 
       </div>
@@ -766,19 +799,7 @@ function TicketModal({ ticket, onClose, onUpdated }) {
           {ticket.attachments?.length > 0 && (
             <>
               <div className="detail-section-title">Attachments</div>
-              <div className="product-chip-list">
-                {ticket.attachments.map((a) => (
-                  <a
-                    key={a.id}
-                    href={attachmentUrl(a.file)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="product-chip"
-                  >
-                    {a.file.split('/').pop()}
-                  </a>
-                ))}
-              </div>
+              <AttachmentThumbnails attachments={ticket.attachments} />
             </>
           )}
 

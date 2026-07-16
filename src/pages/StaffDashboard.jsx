@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import api from '../api' // adjust this path to match where api.js actually lives
 import { initCounters, initTrendChart, buildTrendData } from '../script.js'
+import AttachmentThumbnails from '../components/AttachmentPreview'
 
 const STATUS_CHIP = {
   Open: 'chip open',
@@ -145,6 +146,13 @@ function TicketDetailModal({ ticket, staffList, readOnly, onClose, onStatusChang
           <div className="detail-row">
             <span className="v">{ticket.assigned_staff?.full_name || 'Unassigned'}</span>
           </div>
+
+          {ticket.attachments?.length > 0 && (
+            <>
+              <div className="detail-section-title">Attachments</div>
+              <AttachmentThumbnails attachments={ticket.attachments} />
+            </>
+          )}
         </div>
 
         {!readOnly && ticket.status !== 'Closed' && (

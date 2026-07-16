@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import api from '../api' // adjust this path to match where api.js actually lives
+import useIsMobile from '../hooks/useIsMobile'
 
 // Keeps every status chip on this page on a single line.
 const chipNoWrapStyle = {
@@ -33,6 +34,9 @@ function initialsOf(name) {
 }
 
 function CategoryMaster() {
+  // On mobile the Actions column moves to the front — see AllTickets.jsx for
+  // the same pattern/rationale.
+  const isMobile = useIsMobile()
   const [categories, setCategories] = useState([])
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState('')
@@ -230,11 +234,12 @@ function CategoryMaster() {
             <table className="tickets">
               <thead>
                 <tr>
+                  {isMobile && <th>Actions</th>}
                   <th>Category Name</th>
                   <th>Description</th>
                   <th>Default Priority</th>
                   <th>Status</th>
-                  <th>Actions</th>
+                  {!isMobile && <th>Actions</th>}
                 </tr>
               </thead>
               <tbody>
@@ -244,24 +249,9 @@ function CategoryMaster() {
                 {!loading && categories.length === 0 && (
                   <tr><td colSpan={5}>No categories yet. Click "Add Category" to create one.</td></tr>
                 )}
-                {!loading && categories.map((cat) => (
-                  <tr key={cat.id}>
-                    <td>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                        <span className="cust-avatar">{initialsOf(cat.name)}</span>
-                        <span className="subj">{cat.name}</span>
-                      </div>
-                    </td>
-                    <td>{cat.description || '—'}</td>
-                    <td>
-                      <span className={`priority ${PRIORITY_KEY[cat.priority] || ''}`}><span className="dot"></span>{cat.priority}</span>
-                    </td>
-                    <td>
-                      <span className={cat.is_active ? 'chip resolved' : 'chip closed'} style={chipNoWrapStyle}>
-                        {cat.is_active ? 'Active' : 'Inactive'}
-                      </span>
-                    </td>
-                    <td>
+                {!loading && categories.map((cat) => {
+                  const actionsCell = (
+                    <td key="actions">
                       <div className="row-actions">
                         <button
                           className="icon-action"
@@ -299,8 +289,29 @@ function CategoryMaster() {
                         </button>
                       </div>
                     </td>
-                  </tr>
-                ))}
+                  )
+                  return (
+                    <tr key={cat.id}>
+                      {isMobile && actionsCell}
+                      <td>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                          <span className="cust-avatar">{initialsOf(cat.name)}</span>
+                          <span className="subj">{cat.name}</span>
+                        </div>
+                      </td>
+                      <td>{cat.description || '—'}</td>
+                      <td>
+                        <span className={`priority ${PRIORITY_KEY[cat.priority] || ''}`}><span className="dot"></span>{cat.priority}</span>
+                      </td>
+                      <td>
+                        <span className={cat.is_active ? 'chip resolved' : 'chip closed'} style={chipNoWrapStyle}>
+                          {cat.is_active ? 'Active' : 'Inactive'}
+                        </span>
+                      </td>
+                      {!isMobile && actionsCell}
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           </div>
