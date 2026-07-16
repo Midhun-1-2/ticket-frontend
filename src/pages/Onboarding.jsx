@@ -25,7 +25,7 @@ const SECTION_FIELDS = [
   ['companyName', 'companyType', 'gstNumber'],
   ['addressLine1', 'city', 'state', 'country', 'pincode'],
   ['contactName', 'email', 'mobileNumber', 'phoneNumber', 'password', 'confirmPassword'],
-  ['amcStatus', 'productsInUse'],
+  ['amcStatus', 'amcStartDate', 'amcEndDate', 'productsInUse'],
 ]
 
 const SECTION_REQUIRED = [
@@ -447,6 +447,8 @@ function Onboarding() {
       nextErrors.confirmPassword = 'Passwords do not match'
     }
     if (!formData.amcStatus) nextErrors.amcStatus = 'AMC status is required'
+    if (!formData.amcStartDate) nextErrors.amcStartDate = 'AMC start date is required'
+    if (!formData.amcEndDate) nextErrors.amcEndDate = 'AMC end date is required'
     if (formData.productsInUse.length === 0) nextErrors.productsInUse = 'Select at least one product or service'
     return nextErrors
   }
@@ -516,6 +518,14 @@ function Onboarding() {
     if (idx === 3) {
       if (!formData.amcStatus) {
         nextErrors.amcStatus = 'AMC status is required'
+        ok = false
+      }
+      if (!formData.amcStartDate) {
+        nextErrors.amcStartDate = 'AMC start date is required'
+        ok = false
+      }
+      if (!formData.amcEndDate) {
+        nextErrors.amcEndDate = 'AMC end date is required'
         ok = false
       }
       if (formData.productsInUse.length === 0) {
@@ -917,14 +927,16 @@ function Onboarding() {
         <input placeholder="AGR-2026-0417" value={formData.contractRefNumber} onChange={(e) => updateField('contractRefNumber', e.target.value)} />
       </div>
 
-      <div className="form-field">
-        <label>AMC Start Date</label>
+      <div className={`form-field ${errors.amcStartDate ? 'error' : ''}`}>
+        <label>AMC Start Date<span className="required">*</span></label>
         <input type="date" value={formData.amcStartDate} onChange={(e) => updateField('amcStartDate', e.target.value)} />
+        {errors.amcStartDate && <span className="field-error">{errors.amcStartDate}</span>}
       </div>
 
-      <div className="form-field">
-        <label>AMC End Date</label>
+      <div className={`form-field ${errors.amcEndDate ? 'error' : ''}`}>
+        <label>AMC End Date<span className="required">*</span></label>
         <input type="date" value={formData.amcEndDate} onChange={(e) => updateField('amcEndDate', e.target.value)} />
+        {errors.amcEndDate && <span className="field-error">{errors.amcEndDate}</span>}
       </div>
 
       <div className="form-field">

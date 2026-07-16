@@ -177,6 +177,8 @@ function Login() {
         setRejectedReason(err.response?.data?.reason || '')
       } else if (detail === 'account_deactivated') {
         setError('This account has been deactivated. Contact an admin for access.')
+      } else if (detail === 'amc_expired') {
+        setError(err.response?.data?.message || 'Your AMC validity has expired. Please contact admin to renew.')
       } else if (detail === 'already_logged_in') {
         setError(err.response?.data?.message || 'This account is already signed in on another device. Please log out there first.')
         setAlreadyLoggedIn(true)

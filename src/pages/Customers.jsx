@@ -7,6 +7,7 @@ const STATUS_CHIP = {
   Active: 'chip resolved',
   'Pending Approval': 'chip hold',
   Blocked: 'chip overdue',
+  Expired: 'chip open',
 }
 
 // Color map for ticket status chips (separate from customer account status).
@@ -131,6 +132,7 @@ function Customers() {
   const [editUser, setEditUser] = useState(null)
   const [confirmUser, setConfirmUser] = useState(null)
   const [deleteUser, setDeleteUser] = useState(null)
+  const [activityUser, setActivityUser] = useState(null)
 
   useEffect(() => {
     fetchCustomers()
@@ -272,27 +274,34 @@ function Customers() {
                   <th>Customer</th>
                   <th>Company</th>
                   <th>Joined</th>
+                  <th>AMC Valid Till</th>
                   <th>Status</th>
                   {!isMobile && <th>Actions</th>}
                 </tr>
               </thead>
               <tbody>
                 {loading && (
-                  <tr><td colSpan={5}>Loading customers…</td></tr>
+                  <tr><td colSpan={6}>Loading customers…</td></tr>
                 )}
                 {!loading && filtered.length === 0 && (
-                  <tr><td colSpan={5}>No customers found.</td></tr>
+                  <tr><td colSpan={6}>No customers found.</td></tr>
                 )}
                 {!loading && filtered.map((c) => {
                   const actionsCell = (
-                    <td key="actions">
+                    <td key="actions" onClick={(e) => e.stopPropagation()}>
                       <div className="row-actions">
                         <button className="icon-action" title="View" onClick={() => setViewUser(c)}>
                           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                             <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8Z" /><circle cx="12" cy="12" r="3" />
                           </svg>
                         </button>
-                        <button className="icon-action" title="Edit" onClick={() => setEditUser({ ...c, errors: {} })}>
+                        <button
+                          className="icon-action"
+                          title={c.status === 'Blocked' ? 'Reactivate the account to edit' : 'Edit'}
+                          onClick={() => setEditUser({ ...c, errors: {} })}
+                          disabled={c.status === 'Blocked'}
+                          style={c.status === 'Blocked' ? { opacity: 0.4, cursor: 'not-allowed' } : undefined}
+                        >
                           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                             <path d="M12 20h9" /><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
                           </svg>
@@ -317,7 +326,11 @@ function Customers() {
                     </td>
                   )
                   return (
-                    <tr key={c.id}>
+                    <tr
+                      key={c.id}
+                      className="row-clickable"
+                      onClick={() => setActivityUser(c)}
+                    >
                       {isMobile && actionsCell}
                       <td>
                         <div className="cust-cell">
@@ -331,6 +344,7 @@ function Customers() {
                       </td>
                       <td>{c.company || '—'}</td>
                       <td className="sla ok">{formatDate(c.date_joined)}</td>
+                      <td className="sla ok">{c.amc_valid_till ? formatDate(c.amc_valid_till) : '—'}</td>
                       <td><span className={STATUS_CHIP[c.status] || 'chip open'} style={chipNoWrapStyle}>{c.status}</span></td>
                       {!isMobile && actionsCell}
                     </tr>
@@ -344,6 +358,7 @@ function Customers() {
       </div>
 
       {viewUser && <ViewModal user={viewUser} onClose={() => setViewUser(null)} />}
+      {activityUser && <TicketActivityModal user={activityUser} onClose={() => setActivityUser(null)} />}
       {editUser && (
         <EditModal
           user={editUser}
@@ -353,6 +368,7 @@ function Customers() {
               name: updated.name,
               email: updated.email,
               phone: updated.phone,
+              status: updated.status,
             })
             setEditUser(null)
           }}
@@ -404,6 +420,19 @@ function ViewModal({ user, onClose }) {
   const ticketStats = detail?.ticket_stats
   const tickets = detail?.tickets || []
 
+  const accountSection = detail && (
+    <>
+      <div className="detail-section-title">Account</div>
+      <div className="detail-grid">
+        <div className="detail-row"><span className="k">Name</span><span className="v">{detail.name}</span></div>
+        <div className="detail-row"><span className="k">Status</span><span className="v"><span className={STATUS_CHIP[detail.status] || 'chip open'} style={chipNoWrapStyle}>{detail.status}</span></span></div>
+        <div className="detail-row"><span className="k">Email</span><span className="v">{detail.email || '—'}</span></div>
+        <div className="detail-row"><span className="k">Phone</span><span className="v">{detail.phone}</span></div>
+        <div className="detail-row"><span className="k">Joined</span><span className="v">{formatDate(detail.date_joined)}</span></div>
+      </div>
+    </>
+  )
+
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-box wide" onClick={(e) => e.stopPropagation()}>
@@ -420,20 +449,34 @@ function ViewModal({ user, onClose }) {
 
           {!loading && detail && (
             <>
-              <div className="detail-section-title">Account</div>
-              <div className="detail-grid">
-                <div className="detail-row"><span className="k">Name</span><span className="v">{detail.name}</span></div>
-                <div className="detail-row"><span className="k">Status</span><span className="v"><span className={STATUS_CHIP[detail.status] || 'chip open'} style={chipNoWrapStyle}>{detail.status}</span></span></div>
-                <div className="detail-row"><span className="k">Email</span><span className="v">{detail.email || '—'}</span></div>
-                <div className="detail-row"><span className="k">Phone</span><span className="v">{detail.phone}</span></div>
-                <div className="detail-row"><span className="k">Joined</span><span className="v">{formatDate(detail.date_joined)}</span></div>
-              </div>
+              {company && (
+                <div
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 12,
+                    padding: '14px 18px', marginBottom: 20,
+                    borderRadius: 10, borderLeft: '4px solid #0f6e63',
+                    background: 'linear-gradient(135deg, rgba(15,110,99,0.08), rgba(15,110,99,0.02))',
+                  }}
+                >
+                  <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="#0f6e63" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+                    <path d="M3 21h18" /><path d="M5 21V7l8-4v18" /><path d="M19 21V11l-6-4" />
+                    <path d="M9 9v.01" /><path d="M9 12v.01" /><path d="M9 15v.01" /><path d="M9 18v.01" />
+                  </svg>
+                  <div>
+                    <div style={{ fontSize: 10.5, textTransform: 'uppercase', letterSpacing: '.06em', color: '#0f6e63', fontWeight: 600, marginBottom: 2 }}>
+                      Company
+                    </div>
+                    <div style={{ fontSize: 19, fontWeight: 700, color: '#14171f', lineHeight: 1.2 }}>
+                      {company.company_name || '—'}
+                    </div>
+                  </div>
+                </div>
+              )}
 
-              <div className="detail-section-title">Company Profile</div>
+              <div className="detail-section-title" style={{ marginTop: 0 }}>Company Profile</div>
               {company ? (
                 <>
                   <div className="detail-grid">
-                    <div className="detail-row"><span className="k">Company Name</span><span className="v">{company.company_name || '—'}</span></div>
                     <div className="detail-row"><span className="k">Company Code</span><span className="v">{company.company_code || '—'}</span></div>
                     <div className="detail-row"><span className="k">Type</span><span className="v">{company.company_type || '—'}</span></div>
                     <div className="detail-row"><span className="k">Industry</span><span className="v">{company.industry_type || '—'}</span></div>
@@ -464,6 +507,8 @@ function ViewModal({ user, onClose }) {
                     <div className="detail-row"><span className="k">Mobile</span><span className="v">{company.mobile_number || '—'}</span></div>
                     <div className="detail-row"><span className="k">Phone</span><span className="v">{company.phone_number || '—'}</span></div>
                   </div>
+
+                  {accountSection}
 
                   <div className="detail-section-title">Support &amp; Contract</div>
                   <div className="detail-grid">
@@ -517,7 +562,10 @@ function ViewModal({ user, onClose }) {
                   )}
                 </>
               ) : (
-                <div className="panel-sub">No company on file.</div>
+                <>
+                  <div className="panel-sub">No company on file.</div>
+                  {accountSection}
+                </>
               )}
 
               {/* ---------------- Ticket Activity / Contact Tracking (highlighted) ---------------- */}
@@ -610,10 +658,171 @@ function ViewModal({ user, onClose }) {
 }
 
 // ---------------------------------------------------------------------------
+// Ticket Activity modal — clicking anywhere on a customer row shows just
+// this (the same block ViewModal renders at the bottom of its full detail
+// view), rather than the entire account/company profile.
+// ---------------------------------------------------------------------------
+const TICKET_ACTIVITY_PAGE_SIZE = 5
+
+function TicketActivityModal({ user, onClose }) {
+  const [detail, setDetail] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [page, setPage] = useState(1)
+
+  useEffect(() => {
+    let active = true
+    api.get(`customers/${user.id}/`).then(({ data }) => {
+      if (active) {
+        setDetail(data)
+        setLoading(false)
+      }
+    })
+    return () => { active = false }
+  }, [user.id])
+
+  const ticketStats = detail?.ticket_stats
+  const tickets = detail?.tickets || []
+  const totalPages = Math.max(1, Math.ceil(tickets.length / TICKET_ACTIVITY_PAGE_SIZE))
+  const pageTickets = tickets.slice(
+    (page - 1) * TICKET_ACTIVITY_PAGE_SIZE,
+    page * TICKET_ACTIVITY_PAGE_SIZE
+  )
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-box wide" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-head">
+          <div className="modal-title">Ticket Activity — {user.name}</div>
+          <button className="modal-close" onClick={onClose}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M18 6 6 18M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+        <div className="modal-body">
+          {loading && <div className="panel-sub">Loading…</div>}
+
+          {!loading && detail && (
+            <div
+              style={{
+                padding: '18px 20px 20px',
+                borderRadius: 12,
+                border: '1.5px solid #1f8a83',
+                background: 'rgba(31, 138, 131, 0.06)',
+                boxShadow: '0 0 0 1px rgba(31, 138, 131, 0.08)',
+              }}
+            >
+              <div
+                className="detail-section-title"
+                style={{ marginTop: 0, color: '#1f8a83', display: 'flex', alignItems: 'center', gap: 8 }}
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="16" height="16">
+                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                </svg>
+                Ticket Activity
+              </div>
+              <div className="stat-grid stat-grid-4" style={{ marginBottom: 20 }}>
+                <div className="stat-card" data-tone="accent">
+                  <div className="stat-label">Total Tickets</div>
+                  <div className="stat-value mono">{ticketStats?.total ?? 0}</div>
+                  <div className="stat-foot">Times contacted us</div>
+                </div>
+                <div className="stat-card">
+                  <div className="stat-label">Open</div>
+                  <div className="stat-value mono">{ticketStats?.by_status?.Open ?? 0}</div>
+                  <div className="stat-foot">Awaiting action</div>
+                </div>
+                <div className="stat-card" data-tone="violet">
+                  <div className="stat-label">In Progress</div>
+                  <div className="stat-value mono">{ticketStats?.by_status?.['In Progress'] ?? 0}</div>
+                  <div className="stat-foot">Being worked on</div>
+                </div>
+                <div className="stat-card" data-tone="red">
+                  <div className="stat-label">Resolved / Closed</div>
+                  <div className="stat-value mono">
+                    {(ticketStats?.by_status?.Resolved ?? 0) + (ticketStats?.by_status?.Closed ?? 0)}
+                  </div>
+                  <div className="stat-foot">Completed</div>
+                </div>
+              </div>
+
+              {tickets.length > 0 ? (
+                <table className="product-table">
+                  <thead>
+                    <tr>
+                      <th>Subject</th>
+                      <th>Product</th>
+                      <th>Category</th>
+                      <th>Priority</th>
+                      <th>Status</th>
+                      <th>Assigned Staff</th>
+                      <th>Remarks</th>
+                      <th>Raised On</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {pageTickets.map((t) => (
+                      <tr key={t.id}>
+                        <td>{t.subject}</td>
+                        <td>{t.product || '—'}</td>
+                        <td>{t.category}</td>
+                        <td>{t.priority}</td>
+                        <td><span className={TICKET_STATUS_CHIP[t.status] || 'chip open'} style={chipNoWrapStyle}>{t.status}</span></td>
+                        <td>{t.assigned_staff_name || <span style={{ color: 'var(--text-faint)' }}>Unassigned</span>}</td>
+                        <td><RemarkTooltip text={t.remarks} /></td>
+                        <td className="sla ok">{formatDateTime(t.created_at)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              ) : (
+                <div className="panel-sub">No tickets raised yet.</div>
+              )}
+
+              {tickets.length > TICKET_ACTIVITY_PAGE_SIZE && (
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 12, marginTop: 14 }}>
+                  <span style={{ fontSize: 12.5, color: 'var(--text-muted)' }}>
+                    Page {page} of {totalPages}
+                  </span>
+                  <button
+                    type="button"
+                    className="btn btn-ghost"
+                    style={{ padding: '5px 12px', fontSize: 12.5 }}
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                    disabled={page === 1}
+                  >
+                    Prev
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-ghost"
+                    style={{ padding: '5px 12px', fontSize: 12.5 }}
+                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                    disabled={page === totalPages}
+                  >
+                    Next
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+        <div className="modal-foot">
+          <button className="btn btn-ghost" onClick={onClose}>Close</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // Edit modal — updates name/email/phone and manages the customer's products
 // ---------------------------------------------------------------------------
 function EditModal({ user, onClose, onSaved }) {
-  const [form, setForm] = useState({ name: user.name || '', email: user.email || '', phone: user.phone || '' })
+  const [form, setForm] = useState({
+    name: user.name || '', email: user.email || '', phone: user.phone || '',
+    amcStartDate: '', amcEndDate: '',
+  })
   const [errors, setErrors] = useState({})
   const [saving, setSaving] = useState(false)
 
@@ -640,6 +849,11 @@ function EditModal({ user, onClose, onSaved }) {
         setHasCompany(!!custRes.data.company)
         setProducts(custRes.data.company?.products || [])
         setCatalog((catalogRes.data || []).filter((p) => p.is_active))
+        setForm((f) => ({
+          ...f,
+          amcStartDate: custRes.data.company?.amc_start_date || '',
+          amcEndDate: custRes.data.company?.amc_end_date || '',
+        }))
       })
       .finally(() => { if (active) setDetailLoading(false) })
     return () => { active = false }
@@ -648,14 +862,26 @@ function EditModal({ user, onClose, onSaved }) {
   const handleChange = (field) => (e) => setForm((f) => ({ ...f, [field]: e.target.value }))
 
   const handleSave = async () => {
+    if (hasCompany && (!form.amcStartDate || !form.amcEndDate)) {
+      setErrors({
+        amc_start_date: !form.amcStartDate ? ['AMC start date is required.'] : undefined,
+        amc_end_date: !form.amcEndDate ? ['AMC end date is required.'] : undefined,
+      })
+      return
+    }
     setSaving(true)
     setErrors({})
     try {
-      const { data } = await api.patch(`customers/${user.id}/`, {
+      const payload = {
         full_name: form.name,
         email: form.email,
         phone_number: form.phone,
-      })
+      }
+      if (hasCompany) {
+        payload.amc_start_date = form.amcStartDate
+        payload.amc_end_date = form.amcEndDate
+      }
+      const { data } = await api.patch(`customers/${user.id}/`, payload)
       onSaved(data)
     } catch (err) {
       setErrors(err.response?.data || { detail: 'Could not save changes.' })
@@ -786,6 +1012,50 @@ function EditModal({ user, onClose, onSaved }) {
             {errors.phone_number && <div className="form-error">{errors.phone_number[0]}</div>}
           </div>
           {errors.detail && <div className="form-error">{errors.detail}</div>}
+
+          {/* ---------------- AMC (styled card, teal accent) ---------------- */}
+          {!detailLoading && hasCompany && (
+            <div
+              style={{
+                marginTop: 22,
+                padding: '16px 18px 18px',
+                borderRadius: 12,
+                border: '1px solid #e3e1d6',
+                background: '#faf9f5',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="#0f6e63" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="3" y="4" width="18" height="18" rx="2" /><path d="M16 2v4" /><path d="M8 2v4" /><path d="M3 10h18" />
+                </svg>
+                <span style={{ fontSize: 12, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', color: '#6c6a5f' }}>
+                  AMC
+                </span>
+              </div>
+              <div style={{ display: 'flex', gap: 10 }}>
+                <div className="form-field" style={{ flex: 1, marginBottom: 0 }}>
+                  <label>AMC Start Date<span className="required">*</span></label>
+                  <input
+                    type="date"
+                    value={form.amcStartDate}
+                    onChange={handleChange('amcStartDate')}
+                    required
+                  />
+                  {errors.amc_start_date && <div className="form-error">{errors.amc_start_date[0]}</div>}
+                </div>
+                <div className="form-field" style={{ flex: 1, marginBottom: 0 }}>
+                  <label>AMC End Date<span className="required">*</span></label>
+                  <input
+                    type="date"
+                    value={form.amcEndDate}
+                    onChange={handleChange('amcEndDate')}
+                    required
+                  />
+                  {errors.amc_end_date && <div className="form-error">{errors.amc_end_date[0]}</div>}
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* ---------------- Products (styled card, teal accent) ---------------- */}
           <div
